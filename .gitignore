@@ -1,0 +1,42 @@
+# Local runtime state and logs
+*.log
+ristorante-state.json
+print-simulation.log
+hubrise-feed.log
+restaurant-sync.log
+sigonella-orders*.log
+
+# Local secrets and machine-specific startup files
+.env
+.env.*
+!.env.example
+Start.ps1
+ftp-password.txt
+**/ftp-password.txt
+ftp-credentials.json
+**/ftp-credentials.json
+*.key
+*.pem
+*.pfx
+
+# Build and publish artifacts
+bin/
+obj/
+publish/
+publish-*/
+*.exe
+*.dll
+*.pdb
+*.zip
+*.Up2Date
+
+# Local/generated handoff and scratch work
+work/
+handoff/
+
+# IDE and OS files
+.vs/
+.idea/
+.vscode/
+desktop.ini
+Thumbs.db

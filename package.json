@@ -2,5 +2,10 @@
   "name": "gestione-comande-ristorante",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "start": "node server.js" }
+  "scripts": {
+    "start": "node server.js",
+    "check:syntax": "node scripts/check-syntax.js",
+    "test": "node --test",
+    "check": "npm run check:syntax && npm test"
+  }
 }

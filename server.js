@@ -27,6 +27,8 @@ const HOST = process.env.HOST || undefined; // undefined = tutte le interfacce (
 const ROOT = __dirname;
 const REMOTE_BASE_URL = (process.env.REMOTE_BASE_URL || "https://servizi.thaiprincess.it").replace(/\/$/, "");
 const STATE_FILE = path.join(ROOT, "ristorante-state.json");
+const MENU_CACHE_FILE = path.join(ROOT, "menu-cache.json");
+const CONFIG_FILE = path.join(ROOT, "restaurant-config.json");
 const PRINT_LOG = path.join(ROOT, "print-simulation.log");
 const DELIVEROO_WEBHOOK_LOG = path.join(ROOT, "deliveroo-webhook.log");
 const HUBRISE_FEED_LOG = path.join(ROOT, "hubrise-feed.log");
@@ -59,7 +61,72 @@ const clients = new Set();
 const tableLocks = new Map();
 let fiscalReceiptInProgress = false;
 const TABLE_LOCK_TTL_MS = 15000;
-let sharedState = fs.existsSync(STATE_FILE) ? migrateStateToHubRiseShape(JSON.parse(fs.readFileSync(STATE_FILE, "utf8"))) : null;
+function readJsonFile(filePath, fallback = null) {
+  try {
+    return fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, "utf8")) : fallback;
+  } catch (error) {
+    console.warn(`Impossibile leggere ${filePath}: ${error.message}`);
+    return fallback;
+  }
+}
+
+function stateForStorage(state) {
+  if (!state) return state;
+  const snapshot = { ...state };
+  delete snapshot.menu;
+  delete snapshot.room;
+  delete snapshot.settings;
+  if (Array.isArray(snapshot.tables)) {
+    snapshot.tables = snapshot.tables.map(table => {
+      const runtimeTable = { ...table };
+      delete runtimeTable.x;
+      delete runtimeTable.y;
+      return runtimeTable;
+    });
+  }
+  return snapshot;
+}
+
+function configForStorage(state) {
+  return {
+    room: state.room || {},
+    settings: state.settings || {},
+    tableLayout: Array.isArray(state.tables)
+      ? state.tables.map(table => ({ id: table.id, x: table.x, y: table.y }))
+      : []
+  };
+}
+
+function persistStateFiles() {
+  if (!sharedState) return;
+  if (sharedState.menu) fs.writeFileSync(MENU_CACHE_FILE, JSON.stringify(sharedState.menu, null, 2));
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(configForStorage(sharedState), null, 2));
+  fs.writeFileSync(STATE_FILE, JSON.stringify(stateForStorage(sharedState), null, 2));
+}
+
+const persistedState = readJsonFile(STATE_FILE);
+const persistedMenu = readJsonFile(MENU_CACHE_FILE);
+const persistedConfig = readJsonFile(CONFIG_FILE);
+let sharedState = persistedState ? migrateStateToHubRiseShape(persistedState) : null;
+if (sharedState && persistedConfig) {
+  sharedState.room = persistedConfig.room || sharedState.room;
+  sharedState.settings = persistedConfig.settings || sharedState.settings;
+  const layouts = new Map((persistedConfig.tableLayout || []).map(table => [String(table.id), table]));
+  if (Array.isArray(sharedState.tables)) {
+    sharedState.tables.forEach(table => {
+      const layout = layouts.get(String(table.id));
+      if (layout) {
+        table.x = layout.x;
+        table.y = layout.y;
+      }
+    });
+  }
+}
+if (sharedState && (!Array.isArray(sharedState.menu) || sharedState.menu.length === 0) && Array.isArray(persistedMenu) && persistedMenu.length > 0) {
+  sharedState.menu = persistedMenu;
+}
+// Backward compatibility: migrate an old combined snapshot on first startup.
+if (sharedState && (sharedState.menu || !persistedConfig)) persistStateFiles();
 let sigonellaMenuCatalog = new Map();
 let sharedMenuPayload = null;
 
@@ -87,6 +154,10 @@ async function loadSharedMenuCatalog() {
   }
   sigonellaMenuCatalog = catalog;
   sharedMenuPayload = categories;
+  if (sharedState && (!Array.isArray(sharedState.menu) || sharedState.menu.length === 0) && categories.length > 0) {
+    sharedState.menu = categories;
+    persistStateFiles();
+  }
   return catalog;
 }
 if (sharedState && !Number.isFinite(Number(sharedState.stateRevision))) sharedState.stateRevision = 1;
@@ -465,7 +536,7 @@ async function pollSigonellaOrders() {
 
 function persistAndBroadcast(event = "state.updated", data = {}) {
   if (!sharedState) return;
-  fs.writeFileSync(STATE_FILE, JSON.stringify(sharedState, null, 2));
+  persistStateFiles();
   broadcast(event, data);
 }
 
@@ -481,7 +552,7 @@ async function pollHubRiseOrders() {
     if (data && data.state) {
       sharedState = data.state;
       sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
-      fs.writeFileSync(STATE_FILE, JSON.stringify(sharedState, null, 2));
+    persistStateFiles();
       broadcast();
     }
     const orders = Array.isArray(data.orders) ? data.orders : [];
@@ -522,7 +593,7 @@ async function pushStateSnapshot() {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sharedState)
+      body: JSON.stringify(stateForStorage(sharedState))
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
   } catch (error) {
@@ -983,7 +1054,7 @@ const server = http.createServer((request, response) => {
           return sendJson(response, 400, { ok: false, error: "Operazione non riconosciuta" });
         }
         sharedState.stateRevision = currentRevision + 1;
-        fs.writeFileSync(STATE_FILE, JSON.stringify(sharedState, null, 2));
+        persistStateFiles();
         broadcast();
         return sendJson(response, 200, { ok: true, state: sharedState, stateRevision: sharedState.stateRevision });
       } catch (error) {
@@ -1021,7 +1092,9 @@ const server = http.createServer((request, response) => {
         }
         const previousDeliveryOrders = (sharedState && Array.isArray(sharedState.deliveryOrders)) ? sharedState.deliveryOrders : [];
         const previousFeedStatus = sharedState && sharedState.hubriseFeedStatus;
+        const currentMenu = sharedState && sharedState.menu;
         sharedState = incomingState;
+        if (!sharedState.menu && currentMenu) sharedState.menu = currentMenu;
         sharedState.stateRevision = Math.max(currentRevision, incomingRevision) + 1;
         if (resetDeliveryOrders) {
           sharedState.deliveryOrders = [];
@@ -1032,7 +1105,7 @@ const server = http.createServer((request, response) => {
           sharedState.deliveryOrders = [...clientDeliveryOrders, ...serverOnlyOrders];
         }
         if (previousFeedStatus !== undefined) sharedState.hubriseFeedStatus = previousFeedStatus;
-        fs.writeFileSync(STATE_FILE, JSON.stringify(sharedState, null, 2));
+        persistStateFiles();
         // Pubblica l'evento realtime solo dopo aver aggiornato lo snapshot remoto:
         // altrimenti il client remoto si sveglia, legge RestaurantSync e trova ancora
         // il valore precedente.

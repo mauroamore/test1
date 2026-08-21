@@ -1,6 +1,8 @@
 # Local runtime state and logs
 *.log
 ristorante-state.json
+menu-cache.json
+restaurant-config.json
 print-simulation.log
 hubrise-feed.log
 restaurant-sync.log

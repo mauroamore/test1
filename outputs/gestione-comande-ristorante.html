@@ -2020,6 +2020,7 @@
     <div class="topbar">
       <div>
         <h1>Gestione Comande</h1>
+        <div class="small" id="app-version" aria-label="Versione applicazione">Versione: verifica...</div>
         <div id="realtime-status" aria-live="polite">Realtime: connessione in corso...</div>
         <div class="date" id="today"></div>
       </div>
@@ -6970,7 +6971,6 @@
         collectionCode: null,
         pickupTime: null,
         items: [],
-        items: [],
         selectedCourse: 0,
         activeCourse: 0,
         kitchenClosed: false,
@@ -6979,7 +6979,6 @@
       if (REMOTE_MODE) { remoteSelectedOrderId = id; unsyncedRemoteOrders.add(id); } else state.selectedTable = id;
       saveState();
       render();
-      openOrderModal(id);
       document.getElementById("pickupCustomerNameInput").value = "";
       document.getElementById("pickupAsapInput").checked = true;
       document.getElementById("pickupTimeInput").value = "";
@@ -7023,6 +7022,7 @@
       pendingPickupOrderId = null;
       document.getElementById("pickupDetailsModal").close();
       render();
+      if (order) openOrderModal(order.id);
     });
 
     document.getElementById("editRoomBtn").addEventListener("click", () => {
@@ -7486,6 +7486,11 @@
     const initialRouteHash = window.location.hash || "";
     const initialRouteView = /-(menu|comanda|variation)$/i.exec(initialRouteHash)?.[1]?.toLowerCase() || (initialRouteHash ? "other" : "base");
     history.replaceState({ posRoute: initialRouteView }, "", window.location.href);
+
+    fetch("/api/version", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(info => {
+      const version = document.getElementById("app-version");
+      if (version && info) version.textContent = "Versione: " + (info.packageVersion || "1.0.0") + " · build " + (info.version || "local");
+    }).catch(() => {});
 
     render();
     listenForStateChanges();

@@ -1,6 +1,7 @@
 ﻿const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const childProcess = require("child_process");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 
@@ -25,6 +26,13 @@ loadLocalEnv(path.join(__dirname, ".env"));
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || undefined; // undefined = tutte le interfacce (serve ai palmari in LAN)
 const ROOT = __dirname;
+const APP_VERSION = (() => {
+  try {
+    return childProcess.execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+  } catch (error) {
+    return process.env.APP_VERSION || "local";
+  }
+})();
 const REMOTE_BASE_URL = (process.env.REMOTE_BASE_URL || "https://servizi.thaiprincess.it").replace(/\/$/, "");
 const STATE_FILE = path.join(ROOT, "ristorante-state.json");
 const MENU_CACHE_FILE = path.join(ROOT, "menu-cache.json");
@@ -1297,6 +1305,9 @@ const server = http.createServer((request, response) => {
     clients.add(response);
     request.on("close", () => clients.delete(response));
     return;
+  }
+  if (request.url === "/api/version" && request.method === "GET") {
+    return sendJson(response, 200, { version: APP_VERSION, packageVersion: require("./package.json").version });
   }
   const requestPath = request.url.split("?")[0];
   const requested = requestPath === "/" ? "/outputs/gestione-comande-ristorante.html" : requestPath;

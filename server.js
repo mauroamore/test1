@@ -1,4 +1,5 @@
 ﻿const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const childProcess = require("child_process");
@@ -13,6 +14,38 @@ dns.lookup = function (hostname, options, callback) {
   }
   return originalDnsLookup.call(dns, hostname, { ...(options || {}), family: 4 }, callback);
 };
+
+// Force IPv4 for remote integrations; the Raspberry has no working IPv6 route.
+function fetchIpv4(resource, options = {}) {
+  const target = new URL(resource);
+  const transport = target.protocol === "https:" ? https : http;
+  return new Promise((resolve, reject) => {
+    const request = transport.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || undefined,
+      path: `${target.pathname}${target.search}`,
+      method: options.method || "GET",
+      headers: options.headers || {},
+      family: 4,
+      lookup: (hostname, lookupOptions, callback) =>
+        originalDnsLookup.call(dns, hostname, { ...(lookupOptions || {}), family: 4 }, callback)
+    }, response => {
+      const chunks = [];
+      response.on("data", chunk => chunks.push(chunk));
+      response.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf8");
+        resolve({ ok: (response.statusCode || 0) >= 200 && (response.statusCode || 0) < 300, status: response.statusCode || 0, headers: response.headers, text: async () => body, json: async () => JSON.parse(body) });
+      });
+    });
+    request.setTimeout(Number(options.timeout || 30000), () => request.destroy(new Error("Request timeout")));
+    request.on("error", reject);
+    if (options.body !== undefined && options.body !== null) request.write(options.body);
+    request.end();
+  });
+}
+
+global.fetch = fetchIpv4;
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 

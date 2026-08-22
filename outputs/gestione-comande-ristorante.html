@@ -2020,6 +2020,7 @@
     <div class="topbar">
       <div>
         <h1>Gestione Comande</h1>
+        <div class="small" id="app-version" aria-label="Versione applicazione">Versione: verifica...</div>
         <div id="realtime-status" aria-live="polite">Realtime: connessione in corso...</div>
         <div class="date" id="today"></div>
       </div>
@@ -7487,6 +7488,10 @@
     const initialRouteView = /-(menu|comanda|variation)$/i.exec(initialRouteHash)?.[1]?.toLowerCase() || (initialRouteHash ? "other" : "base");
     history.replaceState({ posRoute: initialRouteView }, "", window.location.href);
 
+    fetch("/api/version", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(info => {
+      const version = document.getElementById("app-version");
+      if (version && info) version.textContent = "Versione: " + (info.packageVersion || "1.0.0") + " · build " + (info.version || "local");
+    }).catch(() => {});
     render();
     listenForStateChanges();
     refreshReservations();

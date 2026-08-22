@@ -7071,7 +7071,20 @@
       pendingPickupOrderId = null;
       document.getElementById("pickupDetailsModal").close();
       render();
-      openOrderModal(confirmedOrderId).catch(error => alert(`Errore apertura comanda: ${error.message || error}`));
+      // Lascia terminare il ciclo di render/chiusura del dialogo prima di aprire
+      // la comanda: in modalita' remota il polling puo' sostituire lo snapshot
+      // proprio nello stesso istante della conferma.
+      const openConfirmedPickup = async (attempt = 0) => {
+        if (findOrderById(confirmedOrderId)) {
+          await openOrderModal(confirmedOrderId);
+          return;
+        }
+        if (REMOTE_MODE && attempt < 3) {
+          await syncFromServer();
+          setTimeout(() => openConfirmedPickup(attempt + 1), 250);
+        }
+      };
+      setTimeout(() => openConfirmedPickup().catch(error => console.warn("Apertura Pick-up non riuscita", error)), 0);
     });
 
     document.getElementById("editRoomBtn").addEventListener("click", () => {

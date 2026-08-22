@@ -713,7 +713,6 @@ function applyExternalCommand(command) {
     case "clear_reservation": {
       const reservationId = String(command.reservationId || command.reservation_id || "");
       const tableIds = Array.isArray(command.tableIds) ? command.tableIds.map(Number) : [];
-      if (!reservationId) return true;
       (sharedState.tables || []).forEach(table => {
         const tho = table.tho || {};
         const matchesReservation = String(tho.reservation_id || tho.seated_reservation_id || "") === reservationId;
@@ -727,8 +726,6 @@ function applyExternalCommand(command) {
         table.tho = { ...tho };
         delete table.tho.reservation_id;
         delete table.tho.seated_reservation_id;
-        delete table.tho.reservation_start;
-        delete table.tho.reservation_status;
       });
       return true;
     }
@@ -1045,8 +1042,6 @@ const server = http.createServer((request, response) => {
             item.tho = { ...tho };
             delete item.tho.reservation_id;
             delete item.tho.seated_reservation_id;
-            delete item.tho.reservation_start;
-            delete item.tho.reservation_status;
           });
           sharedState.stateRevision = currentRevision + 1;
           persistStateFiles();

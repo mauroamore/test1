@@ -2020,7 +2020,6 @@
     <div class="topbar">
       <div>
         <h1>Gestione Comande</h1>
-        <div class="small" id="app-version" aria-label="Versione applicazione">Versione: verifica...</div>
         <div id="realtime-status" aria-live="polite">Realtime: connessione in corso...</div>
         <div class="date" id="today"></div>
       </div>
@@ -2625,10 +2624,6 @@
       courseActivationOrder: []
     };
 
-    // Identifica una bozza Pick-up ancora nel modal, così la normalizzazione dello
-    // stato condiviso non la elimina mentre l'operatore sta compilando i dati.
-    let pendingPickupOrderId = null;
-    let pendingPickupConfirmed = false;
     let state = loadState();
     clearCoversFromFreeTables();
     let editRoom = false;
@@ -2851,11 +2846,6 @@
       if (!state || typeof state !== "object") state = structuredClone(initialState);
       if (!Array.isArray(state.tables)) state.tables = structuredClone(initialState.tables);
       if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
-      const deliveryCountBeforeCleanup = state.deliveryOrders.length;
-      state.deliveryOrders = state.deliveryOrders.filter(order =>
-        !(order && order.source === "manual" && order.customerName === "Nuovo ritiro" && order.id !== pendingPickupOrderId)
-      );
-      const removedEmptyPickupDraft = state.deliveryOrders.length !== deliveryCountBeforeCleanup;
       if (!state.settings || typeof state.settings !== "object") state.settings = structuredClone(initialState.settings);
       state.settings.kitchenColumns = clamp(Number(state.settings.kitchenColumns || 6), 1, 12);
       state.settings.kitchenSummaryWidth = clamp(Number(state.settings.kitchenSummaryWidth || 260), 160, 600);
@@ -2881,7 +2871,6 @@
         });
       });
       clearCoversFromFreeTables();
-      return removedEmptyPickupDraft;
     }
 
     function loadLocalOrderDraft(orderId, fallback) {
@@ -3129,21 +3118,9 @@
           // already loaded by refreshReservations instead of briefly replacing
           // it with an older snapshot and rendering a blinking table.
           const loadedReservations = Array.isArray(state.reservations) ? state.reservations : [];
-          // In remote mode a manual Pick-up is sent through a command, not through
-          // the shared snapshot. Keep it visible until the create command is applied.
-          const localUnsyncedPickupOrders = (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [])
-            .filter(order => order && unsyncedRemoteOrders.has(order.id))
-            .map(order => structuredClone(order));
           state = payload.state;
           state.reservations = loadedReservations;
-          if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
-          localUnsyncedPickupOrders.forEach(localOrder => {
-            if (!state.deliveryOrders.some(order => String(order.id) === String(localOrder.id))) {
-              state.deliveryOrders.push(localOrder);
-            }
-          });
-          const removedEmptyPickupDraft = normalizeSharedState();
-          if (removedEmptyPickupDraft) saveState();
+          normalizeSharedState();
           if (editingSigonellaOrder) {
             const refreshedOrder = (state.deliveryOrders || []).find(order => String(order.id) === String(editingSigonellaOrder.id));
             if (refreshedOrder) {
@@ -4722,15 +4699,7 @@
       if (owner) tableId = owner.id;
       if (!(await acquireTableLock(tableId))) return;
       if (REMOTE_MODE) remoteSelectedOrderId = tableId; else state.selectedTable = tableId;
-      let order = currentOrder();
-      if (!order && REMOTE_MODE) {
-        await syncFromServer();
-        order = currentOrder();
-      }
-      if (!order) {
-        console.warn("Comanda non trovata durante l'apertura", tableId);
-        return;
-      }
+      const order = currentOrder();
       // Le bozze locali valgono solo per i tavoli: un ordine delivery deve sempre
       // aprirsi dalla copia condivisa, altrimenti una vecchia bozza puo' nascondere
       // le righe appena risolte dal server.
@@ -6983,27 +6952,12 @@
       openOrderModal(nextId);
     });
 
-    function discardPendingPickupOrder() {
-      if (!pendingPickupOrderId) return;
-      const discardedId = pendingPickupOrderId;
-      state.deliveryOrders = (state.deliveryOrders || []).filter(order => order.id !== discardedId);
-      unsyncedRemoteOrders.delete(discardedId);
-      if (remoteSelectedOrderId === discardedId) remoteSelectedOrderId = null;
-      if (state.selectedTable === discardedId) state.selectedTable = null;
-      pendingPickupOrderId = null;
-      pendingPickupConfirmed = false;
-      const pickupDialog = document.getElementById("pickupDetailsModal");
-      if (pickupDialog && pickupDialog.open) pickupDialog.close();
-      saveState();
-      closeOrderModal();
-      render();
-    }
+    let pendingPickupOrderId = null;
 
     document.getElementById("addPickupOrderBtn").addEventListener("click", () => {
       if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
       const id = "manual-" + Date.now();
       pendingPickupOrderId = id;
-      pendingPickupConfirmed = false;
       state.deliveryOrders.push({
         id,
         source: "manual",
@@ -7025,6 +6979,7 @@
       if (REMOTE_MODE) { remoteSelectedOrderId = id; unsyncedRemoteOrders.add(id); } else state.selectedTable = id;
       saveState();
       render();
+      openOrderModal(id);
       document.getElementById("pickupCustomerNameInput").value = "";
       document.getElementById("pickupAsapInput").checked = true;
       document.getElementById("pickupTimeInput").value = "";
@@ -7037,16 +6992,15 @@
     });
 
     document.getElementById("pickupCancelBtn").addEventListener("click", () => {
-      discardPendingPickupOrder();
-    });
-
-    document.getElementById("pickupDetailsModal").addEventListener("cancel", event => {
-      event.preventDefault();
-      discardPendingPickupOrder();
-    });
-
-    document.getElementById("pickupDetailsModal").addEventListener("close", () => {
-      if (!pendingPickupConfirmed && pendingPickupOrderId) discardPendingPickupOrder();
+      document.getElementById("pickupDetailsModal").close();
+      if (pendingPickupOrderId) {
+        state.deliveryOrders = (state.deliveryOrders || []).filter(order => order.id !== pendingPickupOrderId);
+        unsyncedRemoteOrders.delete(pendingPickupOrderId);
+        pendingPickupOrderId = null;
+        saveState();
+      }
+      closeOrderModal();
+      render();
     });
 
     document.getElementById("pickupConfirmBtn").addEventListener("click", () => {
@@ -7055,8 +7009,7 @@
         alert("Inserisci un nome cliente.");
         return;
       }
-      const confirmedOrderId = pendingPickupOrderId;
-      const order = findOrderById(confirmedOrderId);
+      const order = findOrderById(pendingPickupOrderId);
       if (order) {
         order.customerName = name;
         order.pickupTime = document.getElementById("pickupAsapInput").checked
@@ -7067,24 +7020,9 @@
         // viene mandato in cucina (vedi sendPickupOrderRemote), per non trasmettere nulla
         // mentre e' ancora in fase di composizione.
       }
-      pendingPickupConfirmed = true;
       pendingPickupOrderId = null;
       document.getElementById("pickupDetailsModal").close();
       render();
-      // Lascia terminare il ciclo di render/chiusura del dialogo prima di aprire
-      // la comanda: in modalita' remota il polling puo' sostituire lo snapshot
-      // proprio nello stesso istante della conferma.
-      const openConfirmedPickup = async (attempt = 0) => {
-        if (findOrderById(confirmedOrderId)) {
-          await openOrderModal(confirmedOrderId);
-          return;
-        }
-        if (REMOTE_MODE && attempt < 3) {
-          await syncFromServer();
-          setTimeout(() => openConfirmedPickup(attempt + 1), 250);
-        }
-      };
-      setTimeout(() => openConfirmedPickup().catch(error => console.warn("Apertura Pick-up non riuscita", error)), 0);
     });
 
     document.getElementById("editRoomBtn").addEventListener("click", () => {
@@ -7549,10 +7487,6 @@
     const initialRouteView = /-(menu|comanda|variation)$/i.exec(initialRouteHash)?.[1]?.toLowerCase() || (initialRouteHash ? "other" : "base");
     history.replaceState({ posRoute: initialRouteView }, "", window.location.href);
 
-    fetch("/api/version", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(info => {
-      const version = document.getElementById("app-version");
-      if (version && info) version.textContent = "Versione: " + (info.packageVersion || "1.0.0") + " · build " + (info.version || "local");
-    }).catch(() => {});
     render();
     listenForStateChanges();
     refreshReservations();

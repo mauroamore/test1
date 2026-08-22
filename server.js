@@ -1,56 +1,6 @@
 ﻿const http = require("http");
-const https = require("https");
 const fs = require("fs");
 const path = require("path");
-const childProcess = require("child_process");
-const dns = require("dns");
-// Prefer IPv4: the Raspberry has no working IPv6 route to the remote hosting.
-dns.setDefaultResultOrder("ipv4first");
-const originalDnsLookup = dns.lookup;
-dns.lookup = function (hostname, options, callback) {
-  if (typeof options === "function") {
-    callback = options;
-    options = {};
-  }
-  return originalDnsLookup.call(dns, hostname, { ...(options || {}), family: 4 }, callback);
-};
-
-// Force IPv4 for remote integrations; the Raspberry has no working IPv6 route.
-function fetchIpv4(resource, options = {}) {
-  const target = new URL(resource);
-  const transport = target.protocol === "https:" ? https : http;
-  const body = options.body === undefined || options.body === null ? null : Buffer.from(String(options.body), "utf8");
-  const headers = { ...(options.headers || {}), Connection: "close" };
-  if (body && headers["Content-Length"] === undefined && headers["content-length"] === undefined) {
-    headers["Content-Length"] = body.length;
-  }
-  return new Promise((resolve, reject) => {
-    const request = transport.request({
-      protocol: target.protocol,
-      hostname: target.hostname,
-      port: target.port || undefined,
-      path: `${target.pathname}${target.search}`,
-      method: options.method || "GET",
-      headers,
-      family: 4,
-      lookup: (hostname, lookupOptions, callback) =>
-        originalDnsLookup.call(dns, hostname, { ...(lookupOptions || {}), family: 4 }, callback)
-    }, response => {
-      const chunks = [];
-      response.on("data", chunk => chunks.push(chunk));
-      response.on("end", () => {
-        const body = Buffer.concat(chunks).toString("utf8");
-        resolve({ ok: (response.statusCode || 0) >= 200 && (response.statusCode || 0) < 300, status: response.statusCode || 0, headers: response.headers, text: async () => body, json: async () => JSON.parse(body) });
-      });
-    });
-    request.setTimeout(Number(options.timeout || 30000), () => request.destroy(new Error("Request timeout")));
-    request.on("error", reject);
-    if (body) request.write(body);
-    request.end();
-  });
-}
-
-global.fetch = fetchIpv4;
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 
@@ -75,13 +25,6 @@ loadLocalEnv(path.join(__dirname, ".env"));
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || undefined; // undefined = tutte le interfacce (serve ai palmari in LAN)
 const ROOT = __dirname;
-const APP_VERSION = (() => {
-  try {
-    return childProcess.execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
-  } catch (error) {
-    return process.env.APP_VERSION || "local";
-  }
-})();
 const REMOTE_BASE_URL = (process.env.REMOTE_BASE_URL || "https://servizi.thaiprincess.it").replace(/\/$/, "");
 const STATE_FILE = path.join(ROOT, "ristorante-state.json");
 const MENU_CACHE_FILE = path.join(ROOT, "menu-cache.json");
@@ -1354,9 +1297,6 @@ const server = http.createServer((request, response) => {
     clients.add(response);
     request.on("close", () => clients.delete(response));
     return;
-  }
-  if (request.url === "/api/version" && request.method === "GET") {
-    return sendJson(response, 200, { version: APP_VERSION, packageVersion: require("./package.json").version });
   }
   const requestPath = request.url.split("?")[0];
   const requested = requestPath === "/" ? "/outputs/gestione-comande-ristorante.html" : requestPath;

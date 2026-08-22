@@ -679,11 +679,12 @@
                     // La chiusura del servizio e' responsabilita' di Gestione Comande.
                     if (s === "finished") return
                     if (!x || x.status === s) return
-                    if (this.HasTableCommand(x)) {
+                    const wasSeated = x.status === "seated"
+                    const leavingSeated = wasSeated && s !== "seated"
+                    if (this.HasTableCommand(x) && !leavingSeated) {
                         this.$bvToast.toast("La comanda contiene articoli: cambia lo stato da Gestione Comande.", { title: "Comanda presente", variant: "warning", solid: true })
                         return
                     }
-                    const wasSeated = x.status === "seated"
                     if (s === "seated" && this.Tables(x).length === 0) {
                         this.$bvToast.toast("Per segnare la prenotazione come seduta devi prima associare almeno un tavolo.", {
                             title: "Tavolo mancante",

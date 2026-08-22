@@ -1,0 +1,48 @@
+# Local runtime state and logs
+*.log
+ristorante-state.json
+menu-cache.json
+restaurant-config.json
+print-simulation.log
+hubrise-feed.log
+restaurant-sync.log
+sigonella-orders*.log
+
+# Local secrets and machine-specific startup files
+.env
+.env.*
+!.env.example
+Start.ps1
+ftp-password.txt
+**/ftp-password.txt
+ftp-credentials.json
+**/ftp-credentials.json
+*.key
+*.pem
+*.pfx
+
+# Build and publish artifacts
+bin/
+obj/
+publish/
+publish-*/
+*.exe
+*.dll
+*.pdb
+*.zip
+*.Up2Date
+
+# Local/generated handoff and scratch work
+work/
+handoff/
+.git-vorrei/
+.claude/worktrees/
+.scratch/
+ristorante-state (Copia in conflitto di Mauro Amore 2026-08-20).json
+
+# IDE and OS files
+.vs/
+.idea/
+.vscode/
+desktop.ini
+Thumbs.db

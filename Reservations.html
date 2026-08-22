@@ -1,0 +1,649 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Prenotazioni confermate</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d6efd'/%3E%3Cpath d='M9 6v4M23 6v4M6 13h20M8 9h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2Z' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M11 20l3 3 7-7' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <link type="text/css" rel="stylesheet" href="//unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.css" />
+    <script src="//unpkg.com/babel-polyfill@latest/dist/polyfill.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.0/jquery.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14" type="text/javascript"></script>
+    <script src="https://unpkg.com/portal-vue@2.1.0/dist/portal-vue.min.js"></script>
+    <script src="https://unpkg.com/bootstrap-vue@2.13.0/dist/bootstrap-vue.js"></script>
+    <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/vee-validate/3.3.0/vee-validate.min.js"></script>-->
+    <style>
+        .cancelled {
+            text-decoration: line-through;
+        }
+        @keyframes blinker {
+            50% {
+                opacity: 0;
+            }
+        }
+        .blinking {
+            animation: blinker 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <b-row class="md-3 mr-3">
+            <b-col cols="2" md="1" offset-md="3">
+                <b-button variant="ouline-primary" @click="TableShow=!TableShow;RowsShow=false">
+                    <svg viewBox="0 0 32 32"
+                        style="display: inline-block; stroke-width: 1.5; fill: none; stroke: currentcolor; pointer-events: none; height: 2.75rem; width: 2.75rem; vertical-align: middle;">
+                        <g>
+                            <path
+                                d="M13.3164973,6.35 L18.6835027,6.35 C18.4538467,5.93273738 18.0099418,5.65 17.5,5.65 L14.5,5.65 C13.9900582,5.65 13.5461533,5.93273738 13.3164973,6.35 Z"
+                                stroke-width="1.3"></path>
+                            <path
+                                d="M3.31649732,16.35 L8.68350268,16.35 C8.45384673,15.9327374 8.00994179,15.65 7.5,15.65 L4.5,15.65 C3.99005821,15.65 3.54615327,15.9327374 3.31649732,16.35 Z"
+                                stroke-width="1.3"
+                                transform="translate(6.000000, 16.000000) rotate(-90.000000) translate(-6.000000, -16.000000)">
+                            </path>
+                            <path
+                                d="M13.3164973,26.35 L18.6835027,26.35 C18.4538467,25.9327374 18.0099418,25.65 17.5,25.65 L14.5,25.65 C13.9900582,25.65 13.5461533,25.9327374 13.3164973,26.35 Z"
+                                stroke-width="1.3"
+                                transform="translate(16.000000, 26.000000) scale(1, -1) translate(-16.000000, -26.000000)">
+                            </path>
+                            <path
+                                d="M23.3164973,16.35 L28.6835027,16.35 C28.4538467,15.9327374 28.0099418,15.65 27.5,15.65 L24.5,15.65 C23.9900582,15.65 23.5461533,15.9327374 23.3164973,16.35 Z"
+                                stroke-width="1.3"
+                                transform="translate(26.000000, 16.000000) scale(1, -1) rotate(-270.000000) translate(-26.000000, -16.000000)">
+                            </path>
+                            <path
+                                d="M8.65,23 C8.65,23.1932997 8.80670034,23.35 9,23.35 L23,23.35 C23.1932997,23.35 23.35,23.1932997 23.35,23 L23.35,9 C23.35,8.80670034 23.1932997,8.65 23,8.65 L9,8.65 C8.80670034,8.65 8.65,8.80670034 8.65,9 L8.65,23 Z"
+                                stroke-width="1.3"></path>
+                        </g>
+                    </svg>
+                </b-button>
+            </b-col>
+            <b-col cols="2" md="1">
+                <b-button variant="ouline-primary" @click="RowsShow=!RowsShow;TableShow=false">
+                    <svg viewBox="4 4 25 25"
+                        style="display: inline-block; stroke-width: 1.5; fill: none; stroke: currentcolor; pointer-events: none; height: 3.5rem; width: 2.75rem; vertical-align: middle;">
+                        <g>
+                            <path fill="currentColor" stroke-width="0"
+                                d="M8.02650085,20.0177744 C8.02650085,19.4753061 8.46959469,19.0355487 8.99991063,19.0355487 L22.9977816,19.0355487 C23.535381,19.0355487 23.9711914,19.4715241 23.9711914,20.0177744 C23.9711914,20.5602426 23.5280976,21 22.9977816,21 L8.99991063,21 C8.46231125,21 8.02650085,20.5640246 8.02650085,20.0177744 Z M7.97119141,15.4824945 C7.97119141,14.9400263 8.41428525,14.5002689 8.94460119,14.5002689 L22.9424722,14.5002689 C23.4800716,14.5002689 23.915882,14.9362443 23.915882,15.4824945 C23.915882,16.0249628 23.4727881,16.4647202 22.9424722,16.4647202 L8.94460119,16.4647202 C8.40700181,16.4647202 7.97119141,16.0287447 7.97119141,15.4824945 Z M8.00947008,10.9822256 C8.00947008,10.4397574 8.45256393,10 8.98287986,10 L22.9807509,10 C23.5183502,10 23.9541606,10.4359754 23.9541606,10.9822256 C23.9541606,11.5246939 23.5110668,11.9644513 22.9807509,11.9644513 L8.98287986,11.9644513 C8.44528049,11.9644513 8.00947008,11.5284759 8.00947008,10.9822256 Z">
+                            </path>
+                        </g>
+                    </svg>
+                </b-button>
+            </b-col>
+            <b-col cols="5" md="2">
+                <b-form-input id="input-1" class="mt-2" v-model="data" type="date"></b-form-input>
+            </b-col>
+            <b-col cols="2" v-if="data==new Date().toISOString().substring(0, 10)">
+                <b-button v-b-modal.modalw @click="setWalkin" variant="ouline-primary">
+                    <svg viewBox="0 0 30 30"
+                        style="display: inline-block; stroke-width: 1.5; fill: none; stroke: currentcolor; pointer-events: none; height: 2.75rem; width: 2.75rem; vertical-align: middle; opacity: 1;">
+                        <g>
+                            <g transform="translate(6.356 1.862)" stroke-width="0">
+                                <path
+                                    d="M12.669,8.465a3.223,3.223,0,0,0,1,.162,3.04,3.04,0,0,0,2.857-4.019,2.979,2.979,0,0,0-1.874-1.877,3.041,3.041,0,0,0-3.858,3.858A2.979,2.979,0,0,0,12.669,8.465ZM12.194,5.6A1.467,1.467,0,1,1,13.66,7.065,1.451,1.451,0,0,1,12.194,5.6Z"
+                                    transform="translate(-3.893 -2.569)" fill="currentColor"></path>
+                                <path
+                                    d="M21.791,12.162l-2.565-.754L17.138,8.449c-.025-.038-.043-.06-.045-.052a2.7,2.7,0,0,0-2.2-1.369.254.254,0,0,0-.093-.011l-1.367-.011a3.059,3.059,0,0,0-1.845.624L8.254,10.187a.476.476,0,0,0-.067.057,1.827,1.827,0,0,0-.5.635A.736.736,0,0,0,7.619,11L6.035,14.739A1.9,1.9,0,1,0,9.49,16.266l1.353-3.036.11-.081L10.4,15.418a.474.474,0,0,0-.015.145,2.8,2.8,0,0,0-.093.606L9.5,20.135,6.919,23.466a2.18,2.18,0,0,0,1.134,3.578,2.166,2.166,0,0,0,.493.059,2.337,2.337,0,0,0,1.819-1l2.707-3.525.272-.561.383-1.434.493.45a.642.642,0,0,1,.192.323l.956,3.839a2.119,2.119,0,0,0,.134.5,1.775,1.775,0,0,0,.4.727,2.156,2.156,0,0,0,1.626.683h.013a2.083,2.083,0,0,0,1.475-.613,2.208,2.208,0,0,0,.648-1.558,2.689,2.689,0,0,0-.123-.837l-1.074-4.45-.127-.259-2.483-3.332.566-2.086.589.653a.794.794,0,0,0,.365.228l3.206.915c.038.011.088.024.181.047a1.577,1.577,0,0,0,.418.057,1.934,1.934,0,0,0,1.385-.589,1.829,1.829,0,0,0,.52-1.342A1.9,1.9,0,0,0,21.791,12.162ZM18.02,13.409l-1.2-1.329-1.172-1.22-1.4,5.15a.786.786,0,0,0,.128.671l2.562,3.437,1.089,4.37.018.06a.911.911,0,0,1,.054.382.633.633,0,0,1-.167.463.543.543,0,0,1-.4.148h0c-.327,0-.41-.093-.468-.159a.485.485,0,0,1-.059-.078h0a.75.75,0,0,0-.046-.134.683.683,0,0,1-.046-.192.774.774,0,0,0-.018-.117l-1.073-4.3a.782.782,0,0,0-.231-.39L12.776,17.6a.723.723,0,0,0-.155-.109,1.591,1.591,0,0,1-.5-.454V17l-.052-.029a1.354,1.354,0,0,1-.164-1.145.949.949,0,0,0,.022-.1c.162-.624.717-2.774,1.046-4.3a.78.78,0,0,0-1.223-.794l-2,1.464-.183.213-1.507,3.32a1.057,1.057,0,0,0-.042.114.332.332,0,0,1-.325.252.336.336,0,0,1-.343-.343.327.327,0,0,1,.053-.177.918.918,0,0,0,.053-.1l1.564-3.69,0-.011a.634.634,0,0,0,.036-.077.314.314,0,0,1,.118-.146c.02-.017.04-.033.059-.05l3.3-2.526a1.485,1.485,0,0,1,.893-.3h1.293a1.17,1.17,0,0,1,1.013.588l.283.479.013-.06,2.073,2.956a.78.78,0,0,0,.417.3l2.795.821a.348.348,0,0,1,.2.341.292.292,0,0,1-.084.209.36.36,0,0,1-.228.1l-.024,0c-.026,0-.064-.01-.1-.017Zm-6.264,5.376.671.612-.55,2.067a.9.9,0,0,1-.159.319L9.14,25.134a1.021,1.021,0,0,1-.6.407.618.618,0,0,1-.623-.624,1.424,1.424,0,0,1,.262-.531l.013-.018L10.874,20.9,11,20.621l.412-2.076A2.742,2.742,0,0,0,11.756,18.785Zm9.156-4.323h0Z"
+                                    transform="translate(-5.795 -0.825)" fill="currentColor"></path>
+                            </g>
+                        </g>
+                    </svg>
+                </b-button>
+            </b-col>
+            <b-col cols="1">
+                <b-button @click="H=!H" variant="ouline-primary">
+                    <svg viewBox="0 0 32 32"
+                        style="display: inline-block; stroke-width: 1.5; fill: none; stroke: currentcolor; pointer-events: none; height: 2.1rem; width: 2.1rem; vertical-align: middle;">
+                        <g>
+                            <path
+                                d="M15.1 23.1L18 26 18 15.1 24.2 9.9C24.7 9.5 25 8.8 25 8.3L25 6 8 6 8 8.3C8 8.8 8.3 9.6 8.8 9.9L15.1 15.1 15.1 23.1Z">
+                            </path>
+                        </g>
+                    </svg>
+                </b-button>
+            </b-col>
+        </b-row>
+        <b-row>
+            <b-col class="text-center">
+                <h2>Totale ospiti: <span @click="vguests=true">{{ospiti}}</span>&nbsp;<span @click="vguests=false">(
+                        Attivi: {{ospitiAttivi}})</span></h2>
+            </b-col>
+        </b-row>
+        <b-row class="m-1 m-md-5">
+            <!--<b-col>
+            <canvas v-show="TableShow" id="canvas" :width="isMobile() ? 400:500" :height="isMobile() ? 468:550" style="border:solid"></canvas>
+        </b-col>-->
+            <b-col v-if="TableShow" cols="12" md="5" class="mb-5" order-first order-md-last>
+                <svg viewBox="0 0 500 550" xmlns="http://www.w3.org/2000/svg">
+                    <defs></defs>
+                    <rect x="190" y="00" width="10" height="210" style="fill: gray;stroke: rgb(0, 0, 0)"></rect>
+                    <rect x="190" y="260" width="10" height="280" style="fill: gray;stroke: rgb(0, 0, 0)"></rect>
+                    <rect x="200" y="350" width="250" height="10" style="fill: gray;stroke: rgb(0, 0, 0)"></rect>
+                    <g v-for="t in tables">
+                        <g v-for="rs in [tableresv(t.id)]">
+                            <rect @click="Activate(rs[0])" :x="t.x" :y="t.y" width="40" height="40"
+                                :style="{'fill': tablecolor(rs) , 'stroke': 'rgb(0, 0, 0)'}"></rect>
+                            <text @click="Activate(rs[0])"
+                                style="white-space: pre; fill: rgb(51, 51, 51); font-family: Arial, sans-serif; font-size: 28px;"
+                                :x="t.x+5" :y="t.y+30">{{t.txt}}</text>
+                            <g v-for="(r,i) in rs">
+                                <rect v-if="r.active" :x="t.x+42" :y="t.y-7 + i*15" width="32" height="17"
+                                    style="fill: lightgreen"></rect>
+                                <text @click="Activate(r)"
+                                    style="white-space: pre; fill: rgb(51, 51, 51); font-family: Arial, sans-serif; font-size: 12px;"
+                                    :x="t.x+42" :y="t.y+5 + i*15">{{(r.status=="seated" ? FormatTime(r.updated) :
+                                    FormatTime(r.date)) + "(" + r.num + ")"}}</text>
+                            </g>
+                        </g>
+                    </g>
+                </svg>
+            </b-col>
+            <b-col cols="12" :style="listStyle" :md="(TableShow || RowsShow) ? 6 : 11"
+                class="accordion m-3  order-last order-md-first">
+                <div v-for="(x,i) in reservations">
+                    <b-row :id="x.id"
+                        v-if="(!H || (x.status!='cancelled' && x.status!='noshow')) && (x.status!='finished' || vguests) "
+                        class="border" :style="{'background-color': x.active ? 'lightyellow' : '' }">
+                        <b-col cols="8" :md="(TableShow || RowsShow) ? 7:4" :offset-md="(TableShow || RowsShow) ? 1:3"
+                            v-b-toggle="'accordion-' + i">
+                            <span v-if="x.name" title="Prenotazione"><svg viewBox="0 0 30 30"
+                                    style="display: inline-block; stroke-width: 1.5; fill: none; stroke: currentcolor; pointer-events: none; height: 2.75rem; width: 2.75rem; vertical-align: middle; opacity: 1;">
+                                    <g>
+                                        <g transform="translate(3.785 6.629)" stroke-width="0">
+                                            <path
+                                                d="M1179.931,488.858h-5.53a.149.149,0,0,1-.144-.112l-3.075-12.807,0-.016a.142.142,0,0,1,.139-.1h12.241a.149.149,0,0,1,.146.112l1.781,7.381a.942.942,0,0,0,1.833-.432l-1.78-7.382a2.025,2.025,0,0,0-1.979-1.543h-12.241a2,2,0,0,0-1.861,1.272l-.006.015a1.934,1.934,0,0,0-.11.259c0,.017,0,.035-.006.052s-.008.015-.009.022l-2.051,13.225a1.9,1.9,0,0,0,.443,1.53,1.937,1.937,0,0,0,1.461.664h1.843a.932.932,0,1,0,0-1.865l-1.885-.047,1.273-8.214,2.005,8.313a2.023,2.023,0,0,0,1.978,1.543h5.53a.932.932,0,1,0,0-1.865Z"
+                                                transform="translate(-1167.26 -473.954)" fill="currentColor"></path>
+                                            <path
+                                                d="M1186.143,490.892l-2.086-2.414a2.526,2.526,0,0,0,2.173-2.67,2.834,2.834,0,0,0-3.092-2.817c-1.12,0-2.239-.007-3.359-.011a.723.723,0,0,0-.728.72v7.789h1.62v-2.84h1.261a.842.842,0,0,1,.633.286l2.018,2.3a.747.747,0,0,0,.562.252h1.513Zm-5.472-3.688v-2.72h2.467a1.364,1.364,0,1,1,0,2.72Z"
+                                                transform="translate(-1164.235 -471.761)" fill="currentColor"></path>
+                                        </g>
+                                    </g>
+                                </svg></span>
+                            <span v-else title="Senza prenotazione"><svg viewBox="0 0 30 30"
+                                    style="display: inline-block; stroke-width: 1.5; fill: none; stroke: currentcolor; pointer-events: none; height: 2.75rem; width: 2.75rem; vertical-align: middle; opacity: 1;">
+                                    <g>
+                                        <g transform="translate(6.356 1.862)" stroke-width="0">
+                                            <path
+                                                d="M12.669,8.465a3.223,3.223,0,0,0,1,.162,3.04,3.04,0,0,0,2.857-4.019,2.979,2.979,0,0,0-1.874-1.877,3.041,3.041,0,0,0-3.858,3.858A2.979,2.979,0,0,0,12.669,8.465ZM12.194,5.6A1.467,1.467,0,1,1,13.66,7.065,1.451,1.451,0,0,1,12.194,5.6Z"
+                                                transform="translate(-3.893 -2.569)" fill="currentColor"></path>
+                                            <path
+                                                d="M21.791,12.162l-2.565-.754L17.138,8.449c-.025-.038-.043-.06-.045-.052a2.7,2.7,0,0,0-2.2-1.369.254.254,0,0,0-.093-.011l-1.367-.011a3.059,3.059,0,0,0-1.845.624L8.254,10.187a.476.476,0,0,0-.067.057,1.827,1.827,0,0,0-.5.635A.736.736,0,0,0,7.619,11L6.035,14.739A1.9,1.9,0,1,0,9.49,16.266l1.353-3.036.11-.081L10.4,15.418a.474.474,0,0,0-.015.145,2.8,2.8,0,0,0-.093.606L9.5,20.135,6.919,23.466a2.18,2.18,0,0,0,1.134,3.578,2.166,2.166,0,0,0,.493.059,2.337,2.337,0,0,0,1.819-1l2.707-3.525.272-.561.383-1.434.493.45a.642.642,0,0,1,.192.323l.956,3.839a2.119,2.119,0,0,0,.134.5,1.775,1.775,0,0,0,.4.727,2.156,2.156,0,0,0,1.626.683h.013a2.083,2.083,0,0,0,1.475-.613,2.208,2.208,0,0,0,.648-1.558,2.689,2.689,0,0,0-.123-.837l-1.074-4.45-.127-.259-2.483-3.332.566-2.086.589.653a.794.794,0,0,0,.365.228l3.206.915c.038.011.088.024.181.047a1.577,1.577,0,0,0,.418.057,1.934,1.934,0,0,0,1.385-.589,1.829,1.829,0,0,0,.52-1.342A1.9,1.9,0,0,0,21.791,12.162ZM18.02,13.409l-1.2-1.329-1.172-1.22-1.4,5.15a.786.786,0,0,0,.128.671l2.562,3.437,1.089,4.37.018.06a.911.911,0,0,1,.054.382.633.633,0,0,1-.167.463.543.543,0,0,1-.4.148h0c-.327,0-.41-.093-.468-.159a.485.485,0,0,1-.059-.078h0a.75.75,0,0,0-.046-.134.683.683,0,0,1-.046-.192.774.774,0,0,0-.018-.117l-1.073-4.3a.782.782,0,0,0-.231-.39L12.776,17.6a.723.723,0,0,0-.155-.109,1.591,1.591,0,0,1-.5-.454V17l-.052-.029a1.354,1.354,0,0,1-.164-1.145.949.949,0,0,0,.022-.1c.162-.624.717-2.774,1.046-4.3a.78.78,0,0,0-1.223-.794l-2,1.464-.183.213-1.507,3.32a1.057,1.057,0,0,0-.042.114.332.332,0,0,1-.325.252.336.336,0,0,1-.343-.343.327.327,0,0,1,.053-.177.918.918,0,0,0,.053-.1l1.564-3.69,0-.011a.634.634,0,0,0,.036-.077.314.314,0,0,1,.118-.146c.02-.017.04-.033.059-.05l3.3-2.526a1.485,1.485,0,0,1,.893-.3h1.293a1.17,1.17,0,0,1,1.013.588l.283.479.013-.06,2.073,2.956a.78.78,0,0,0,.417.3l2.795.821a.348.348,0,0,1,.2.341.292.292,0,0,1-.084.209.36.36,0,0,1-.228.1l-.024,0c-.026,0-.064-.01-.1-.017Zm-6.264,5.376.671.612-.55,2.067a.9.9,0,0,1-.159.319L9.14,25.134a1.021,1.021,0,0,1-.6.407.618.618,0,0,1-.623-.624,1.424,1.424,0,0,1,.262-.531l.013-.018L10.874,20.9,11,20.621l.412-2.076A2.742,2.742,0,0,0,11.756,18.785Zm9.156-4.323h0Z"
+                                                transform="translate(-5.795 -0.825)" fill="currentColor"></path>
+                                        </g>
+                                    </g>
+                                </svg></span>
+                            <span
+                                :class="{'cancelled':(x.status=='cancelled' || x.status=='noshow')}">{{FormatTime(x.date)
+                                + " - " + x.name + " (" + x.num + "p)"}}</span>
+                            <h6>
+                                <span class="ml-3" v-if="Active(x)">
+                                    <span>
+                                        <b-badge v-for="t in Tables(x)" class="ml-2"
+                                            :variant="Status(x,t)">{{tables[t-1].txt}}</b-badge>
+                                    </span>
+                                </span>
+                            </h6>
+                        </b-col>
+                        <b-col cols="4" :md="(TableShow || RowsShow) ? 4:5">
+                            <b-dropdown right :variant="'outline-' + stati[x.status].variant" class="m-2"
+                                :class="{'blinking': x.status === 'late' && !dOpen}" @show="dOpen = true"
+                                @hide="dOpen = false">
+                                <template #button-content>
+                                    <svg viewBox="0 0 32 32"
+                                        style="display: inline-block; stroke-width: 2px; fill: none; stroke: currentcolor; pointer-events: none; height: 1.9rem; width: 1.9rem; vertical-align: middle;">
+                                        <g v-html="stati[x.status].htm"></g>
+                                    </svg>
+                                    <span class="d-none d-md-inline-block">{{stati[x.status].text}}</span>
+                                </template>
+                                <template v-for="y in stati">
+                                    <b-dropdown-item-button @click="ChangeStatus(x,y.value)"
+                                        :variant="stati[y.value].variant">
+                                        <svg viewBox="0 0 32 32"
+                                            style="display: inline-block; stroke-width: 2px; fill: none; stroke: currentcolor; pointer-events: none; height: 1.9rem; width: 1.9rem; vertical-align: middle;">
+                                            <g v-html="stati[y.value].htm"></g>
+                                        </svg>
+                                        <span>
+                                            {{stati[y.value].text}}
+                                        </span>
+                                    </b-dropdown-item-button>
+                                    <b-dropdown-divider></b-dropdown-divider>
+                                </template>
+                            </b-dropdown>
+                        </b-col>
+                    </b-row>
+                    <b-collapse v-if="Active(x)" :id="'accordion-' + i" v-model="x.active" accordion="my-accordion">
+                        <b-row>
+                            <b-col cols="2" class="mb-2" v-for="y in tables">
+                                <b-button :variant="Status(x,y.id)" @click="Toggle(x,y.id)">
+                                    {{y.txt}}
+                                </b-button>
+                            </b-col>
+                        </b-row>
+                    </b-collapse>
+                </div>
+            </b-col>
+            <b-col v-if="RowsShow" cols="12" md="5" class="mb-5" order-first order-md-last>
+                <svg viewBox="0 0 515 650" xmlns="http://www.w3.org/2000/svg">
+                    <defs></defs>
+                    <g v-for="(t,i) in tables" :transform="'translate(5 ' + (30*i - 30) +')'">
+                        <g v-for="rs in [tableresv(t.id)]">
+                            <rect :x="0" :y="40" width="20" height="20"
+                                :style="{'fill': tablecolor(rs) , 'stroke': 'rgb(0, 0, 0)'}"></rect>
+                            <text
+                                style="white-space: pre; fill: rgb(51, 51, 51); font-family: Arial, sans-serif; font-size: 14px;"
+                                x="2" :y="55">{{t.txt}}</text>
+                            <rect x="20" :y="40" width="480" height="20"
+                                :style="{'fill': 'white' , 'stroke': 'rgb(0, 0, 0)'}"></rect>
+                            <g v-for="(r,j) in rs"
+                                :transform="'translate(' + ((Date.parse(r.date)-iNitTime)/45000 + 50) + ' 0)'">
+                                <rect :x="1" @click="Activate(r)" :y="41" width="160" height="17"
+                                    :style="{'fill': r.active ? 'orange':'yellow'}"></rect>
+                                <text @click="Activate(r)"
+                                    style="white-space: pre; fill: rgb(51, 51, 51); font-family: Arial, sans-serif; font-size: 14px;"
+                                    :x="3" :y="55">{{FormatTime(r.date) + " - " + r.name.substring(0, 9)}}</text>
+                                <text @click="Activate(r)"
+                                    style="white-space: pre; fill: rgb(51, 51, 51); font-family: Arial, sans-serif; font-size: 14px;"
+                                    :x="120" :y="55">{{EndTime(r.date)}}</text>
+                            </g>
+                        </g>
+                    </g>
+                </svg>
+            </b-col>
+        </b-row>
+        <!--<div>
+        <b-button v-b-modal="'modalC'">Test</b-button>
+        <b-modal id="modalC">
+            <b-button-group vertical>
+                <b-button v-for="y in stati" :variant="'outline-' + stati[y.value].variant" class="mb-1">
+                    <svg viewBox="0 0 32 32" style="display: inline-block; stroke-width: 2px; fill: none; stroke: currentcolor; pointer-events: none; height: 1.9rem; width: 1.9rem; vertical-align: middle;">
+                        <g v-html="stati[y.value].htm"></g>
+                    </svg>
+                    <span>
+                        {{stati[y.value].text}}
+                    </span>
+                </b-button>
+            </b-button-group>
+        </b-modal>
+    </div>-->
+        <b-modal id="modalw" cancel-title="Annulla" @ok="walkin" @close="remWalkin" @cancel="remWalkin" size="xl"
+            title="Walk-in">
+            <b-row>
+                <b-col v-if="W" cols="3">
+                    <b-form-group label="Coperti" label-for="cp" label-class="font-weight-bold">
+                        <b-form-select id="cp" v-model="W.num">
+                            <b-form-select-option v-for="n in 20" :value="n">{{n + ' p'}}</b-form-select-option>
+                        </b-form-select>
+                    </b-form-group>
+                </b-col>
+            </b-row>
+            <b-row>
+                <b-col cols="2" class="mb-2" v-for="y in tables">
+                    <b-button :variant="Status(W,y.id)" @click="Toggle(W,y.id)">
+                        {{y.txt}}
+                    </b-button>
+                </b-col>
+            </b-row>
+        </b-modal>
+        <b-modal id="modalresponse" cancel-title="Annulla" size="xl" title="Last Response">
+            {{lastResponse}}
+        </b-modal>
+    </div>
+    <script type="text/javascript">
+        let offsetX, offsetY;
+        // Function to draw the rectangle
+        // Function to check if the mouse is inside the rectangle
+        function isMouseInRect(mx, my, rectg) {
+            return mx > rectg.x && mx < rectg.x + 40 && my > rectg.y && my < rectg.y + 40;
+        }
+        // Function to get mouse position relative to the canvas
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+        // Initial draw
+        Date.prototype.addHours = function (h) {
+            this.setTime(this.getTime() + (h * 60 * 60 * 1000));
+            return this;
+        }
+        function Ajax() {
+            return {
+                type: "POST",
+                url: "",
+                data: {},
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (response) { },
+                failure: function (response) {
+                    alert(response.d);
+                }
+            };
+        }
+        var app = new Vue({
+            el: '#app',
+            data: function () {
+                TiNitTime = new Date()
+                TiNitTime.setHours(18, 0, 0, 0)
+                return {
+                    dOpen: false,
+                    preserveTodayHash: false,
+                    vguests: false,
+                    saving: false,
+                    lastResponse: "",
+                    test: 0,
+                    iNitTime: TiNitTime,
+                    H: true,
+                    TableShow: false,
+                    RowsShow: false,
+                    Coperti: [],
+                    W: null,
+                    data: new Date().toISOString().substring(0, 10),
+                    stati: {
+                        confirmed: { variant: "primary", text: "Confermato", value: "confirmed", htm: '<g transform="translate(0, -1)"><path d="M7.8 6.2L7.8 9.7M5.5 12.8L26.5 12.8M23.8 6.2L23.8 9.7M3 9C3 8.4 3.5 7.9 4 7.9L28 7.9C28.6 7.9 29 8.4 29 9L29 28C29 28.6 28.5 29 28 29L4 29C3.4 29 3 28.6 3 28L3 9ZM12 21.1L14.3 23.5C14.7 23.9 15.4 23.9 15.7 23.5L21.1 18"></path></g>' },
+                        arrived: { variant: "warning", text: "Arrivato", value: "arrived", htm: '<svg viewBox="0 0 32 32" style="display: inline-block; stroke-width: 2px; fill: none; stroke: currentcolor; pointer-events: none; height: 1.9rem; width: 1.9rem; vertical-align: middle;"><g><path d="M14.6 29.2C14.9 29.7 15.5 29.7 15.9 29.3 15.9 29.3 25.1 19.4 25.1 12.7 25.1 6.1 21.1 3 15.2 3 9.4 3 6 6.4 6 12.7 6 19.1 14.6 29.2 14.6 29.2ZM11 15.1L13.3 17.5C13.7 17.9 14.4 17.9 14.7 17.5L20.1 12"></path></g></svg>' },
+                        late: { variant: "danger", text: "In Ritardo", value: "late", htm: '<svg viewBox="0 0 32 32" style="display: inline-block; stroke-width: 2px; fill: none; stroke: currentcolor; pointer-events: none; height: 1.9rem; width: 1.9rem; vertical-align: middle;"><g><g><path fill="currentColor" stroke-width="0" d="M15.37 19.95L16.67 19.95 16.67 11.07 15.37 11.07 15.37 19.95ZM16.01 24.11C16.7 24.11 17.26 23.55 17.26 22.86 17.26 22.17 16.7 21.61 16.01 21.61 15.32 21.61 14.76 22.17 14.76 22.86 14.76 23.55 15.32 24.11 16.01 24.11Z"></path><path stroke-width="1.3" d="M15.54 2.87C15.8 2.39 16.24 2.39 16.5 2.87L30.55 28.13C30.82 28.61 30.59 29 30.04 29L2 29C1.45 29 1.22 28.61 1.48 28.13L15.54 2.87Z"></path></g></g></svg>' },
+                        seated: { variant: "warning", text: "Seduto", value: "seated", htm: '<path d="M6.3 26.5L10.7 26.5M8.5 12.8L8.5 26.2M1.3 12.8L15.7 12.8M15.8 17.1L12.8 26.4M24.8 17.1L27.4 26.5M13 16L24.6 16C25.1 16 25.7 15.5 25.8 15L28.4 3"></path>' },
+                        finished: { variant: "info", text: "Finito", value: "finished", htm: '<path d="M22.2 7.9C21.2 7.2 20 6.7 18.7 6.3 17.8 6.1 16.9 6 16 6 9.9 6 5 10.9 5 17 5 23.1 9.9 28 16 28L16 28C22.1 28 27 23.1 27 17M14 13.1L18.4 17.6C18.7 17.9 19.4 17.9 19.8 17.6L29.1 8"></path' },
+                        noshow: { variant: "danger", text: "No Show", value: "noshow", htm: '<g transform="translate(0, 7)"><path stroke="currentColor" stroke-width="1.3" d="M14.806 16.59c8.686 0 14.133-6.603 14.133-6.603.37-.403.375-1.06-.014-1.467 0 0-5.434-6.54-14.12-6.54C6.12 1.98.674 8.532.674 8.532c-.372.4-.376 1.06 0 1.454 0 0 5.447 6.602 14.132 6.602zm.194-.026c4.01 0 7.258-3.272 7.258-7.308S19.008 1.95 15 1.95c-4.01 0-7.258 3.27-7.258 7.306s3.25 7.308 7.258 7.308zm-9.92 2.192L24.92.244"></path><ellipse fill="currentColor" cx="14.758" cy="9.5" rx="3.629" ry="3.654"></ellipse></g>' },
+                        cancelled: { variant: "danger", text: "Cancellato", value: "cancelled", htm: '<g stroke-linecap="square"><path d="M5.5 6.5L25.5 26.5M25 7L5 27"></path></g>' },
+                        unconfirmed: { variant: "danger", text: "Non Confermato", value: "unconfirmed", htm: '<svg viewBox="0 0 32 32" style="display: inline-block; stroke-width: 2px; fill: none; stroke: currentcolor; pointer-events: none; height: 1.9rem; width: 1.9rem; vertical-align: middle;"><g><g><path fill="currentColor" stroke-width="0" d="M15.37 19.95L16.67 19.95 16.67 11.07 15.37 11.07 15.37 19.95ZM16.01 24.11C16.7 24.11 17.26 23.55 17.26 22.86 17.26 22.17 16.7 21.61 16.01 21.61 15.32 21.61 14.76 22.17 14.76 22.86 14.76 23.55 15.32 24.11 16.01 24.11Z"></path><path stroke-width="1.3" d="M15.54 2.87C15.8 2.39 16.24 2.39 16.5 2.87L30.55 28.13C30.82 28.61 30.59 29 30.04 29L2 29C1.45 29 1.22 28.61 1.48 28.13L15.54 2.87Z"></path></g></g></svg>' }
+                    },
+                    reservations: [],
+                    tables: [
+                        { "id": 1, "txt": "01", "d": false, "x": 210, "y": 150 },
+                        { "id": 2, "txt": "02", "d": false, "x": 210, "y": 10 },
+                        { "id": 3, "txt": "03", "d": false, "x": 300, "y": 10 },
+                        { "id": 4, "txt": "04", "d": false, "x": 390, "y": 80 },
+                        { "id": 5, "txt": "05", "d": false, "x": 390, "y": 150 },
+                        { "id": 6, "txt": "06", "d": false, "x": 300, "y": 290 },
+                        { "id": 7, "txt": "07", "d": false, "x": 210, "y": 290 },
+                        { "id": 8, "txt": "08", "d": false, "x": 300, "y": 150 },
+                        { "id": 9, "txt": "09", "d": false, "x": 300, "y": 80 },
+                        { "id": 10, "txt": "10", "d": false, "x": 390, "y": 290 },
+                        { "id": 11, "txt": "3B", "d": false, "x": 390, "y": 10 },
+                        { "id": 12, "txt": "12", "d": false, "x": 100, "y": 500 },
+                        { "id": 13, "txt": "13", "d": false, "x": 10, "y": 500 },
+                        { "id": 14, "txt": "14", "d": false, "x": 10, "y": 430 },
+                        { "id": 15, "txt": "15", "d": false, "x": 10, "y": 360 },
+                        { "id": 16, "txt": "16", "d": false, "x": 10, "y": 290 },
+                        { "id": 17, "txt": "17", "d": false, "x": 10, "y": 220 },
+                        { "id": 18, "txt": "18", "d": false, "x": 10, "y": 150 },
+                        { "id": 19, "txt": "19", "d": false, "x": 10, "y": 80 },
+                        { "id": 20, "txt": "20", "d": false, "x": 10, "y": 10 },
+                        { "id": 21, "txt": "21", "d": false, "x": 100, "y": 10 },
+                        { "id": 22, "txt": "22", "d": false, "x": 100, "y": 80 }],
+                };
+            },
+            created: function () {
+                if (window.location.hash === "") {
+                    window.location.hash = this.data + "/1/1";
+                } else {
+                    let h = window.location.hash.split("/")
+                    if (h[0] == "#today") {
+                        this.preserveTodayHash = true
+                        this.data = new Date().toISOString().substring(0, 10)
+                    } else {
+                        this.data = h[0].substring(1, 11)
+                    }
+                    this.TableShow = (h[1] == '1')
+                    this.RowsShow = (h[1] == '2')
+                    this.H = (h[2] == '1')
+                }
+                window.onhashchange = this.ChangeHash;
+            },
+            mounted: function () {
+                //const canvas = document.getElementById('canvas');
+                //const ctx = canvas.getContext('2d');
+                //this.vueCanvas = ctx;
+                this.getdata()
+                setInterval(() => this.getdata(), 10000);
+                //canvas.addEventListener('mousedown', (e) => {
+                //    const mousePos = getMousePos(canvas, e);
+                //    let found = false
+                //    for (x = 0; x < this.tables.length; x++) {
+                //        if (!found && isMouseInRect(mousePos.x, mousePos.y, this.tables[x])) {
+                //            found = true
+                //            this.tables[x].d = true;
+                //            offsetX = mousePos.x - this.tables[x].x;
+                //            offsetY = mousePos.y - this.tables[x].y;
+                //        } else {
+                //            this.tables[x].d = false;
+                //        }
+                //    }
+                //});
+                //// Mouse move event
+                //canvas.addEventListener('mousemove', (e) => {
+                //    for (x = 0; x < this.tables.length ; x++) {
+                //        if (this.tables[x].d) {
+                //            const mousePos = getMousePos(canvas, e);
+                //            this.tables[x].x = mousePos.x - offsetX;
+                //            this.tables[x].y = mousePos.y - offsetY;
+                //        }
+                //    }
+                //    this.drawRect();
+                //});
+                //// Mouse up event
+                //canvas.addEventListener('mouseup', () => {
+                //    for (x = 0; x < this.tables.length ; x++) {
+                //        this.tables[x].d = false;
+                //    }
+                //});
+            },
+            watch: {
+                RowsShow() {
+                    let h = window.location.hash.split("/")
+                    h[1] = this.RowsShow ? "2" : (this.TableShow ? "1" : "0")
+                    window.location.hash = h.join("/")
+                },
+                TableShow() {
+                    let h = window.location.hash.split("/")
+                    h[1] = this.TableShow ? "1" : (this.RowsShow ? "2" : "0")
+                    window.location.hash = h.join("/")
+                },
+                H() {
+                    let h = window.location.hash.split("/")
+                    h[2] = this.H ? "1" : "0"
+                    window.location.hash = h.join("/")
+                },
+                data() {
+                    let h = window.location.hash.split("/")
+                    if (this.preserveTodayHash && h[0] == "#today") {
+                        this.preserveTodayHash = false
+                    } else {
+                        h[0] = this.data
+                    }
+                    window.location.hash = h.join("/")
+                    this.getdata()
+                }
+            },
+            computed: {
+                ospiti() {
+                    return this.reservations.filter(x => x.status != "cancelled" && x.status != 'noshow').reduce((y, x) => y + x.num, 0)
+                },
+                ospitiAttivi() {
+                    return this.reservations.filter(x => x.status != "cancelled" && x.status != 'noshow' && x.status != 'finished').reduce((y, x) => y + x.num, 0)
+                },
+                listStyle() {
+                    return this.isMobile() ? {} : { 'height': '80vh', 'overflow': 'auto' }
+                }
+            },
+            methods: {
+                Activate(r) {
+                    this.test += 1
+                    if (!r) return
+                    this.reservations.forEach(x => x.active = false)
+                    r.active = !r.active
+                    var h = window.location.hash
+                    window.location.hash = r.id
+                    this.$nextTick(() => {
+                        window.location.hash = h
+                    });
+                },
+                ChangeHash() { },
+                isMobile() { return screen.width <= 760; },
+                remWalkin() {
+                    this.reservations.pop()
+                },
+                setWalkin() {
+                    this.W = {
+                        status: "seated",
+                        num: 2,
+                        date: new Date(),
+                        name: "",
+                        notes: "[]"
+                    }
+                    this.reservations.push(this.W)
+                },
+                walkin: function () {
+                    var self = this;
+                    var Aj = Ajax();
+                    Aj.data = JSON.stringify({ coperti: this.W.num, tavoli: this.W.notes });
+                    Aj.url = "/api/reservations?method=InsertWalkin";
+                    Aj.success = function (response) {
+                        self.reservations = JSON.parse(response.d).objects;
+                        //self.drawRect()
+                    }
+                    $.ajax(Aj);
+                    //InsertWalkin(coperti As Integer, tavoli As String)
+                },
+                tableresv(id) {
+                    return this.reservations.filter(w => this.Tables(w).findIndex(k => k == id) >= 0)
+                },
+                tablecolor(r) {
+                    return (r.length > 0) ? ((r.findIndex(w => w.status == "seated") >= 0) ? "yellow" : "cyan") : "lightgray"
+                },
+                //drawRect: function () {
+                //    this.vueCanvas.clearRect(0, 0, canvas.width, canvas.height);
+                //    if (this.isMobile()) this.vueCanvas.scale(0.85,0.85)
+                //    for (x = this.tables.length - 1; x >= 0; x--) {
+                //        let r = this.tableresv(this.tables[x].id) 
+                //        this.vueCanvas.fillStyle = this.tablecolor(r);
+                //        //if (r.length > 0) this.vueCanvas.fillStyle = 'cyan';
+                //        //if (r.findIndex(w => w.status == "seated") >= 0) this.vueCanvas.fillStyle = 'yellow';
+                //        this.vueCanvas.fillRect(this.tables[x].x, this.tables[x].y, 40, 40);
+                //        this.vueCanvas.font = "16px Arial";
+                //        this.vueCanvas.fillStyle = 'black';
+                //        this.vueCanvas.fillText(this.tables[x].txt, this.tables[x].x + 10, this.tables[x].y + 25);
+                //        this.vueCanvas.font = "12px Arial";
+                //        for (j = 0; j < r.length; j++) {
+                //            this.vueCanvas.fillText(this.FormatTime(r[j].date), this.tables[x].x + 45, this.tables[x].y + 5 + j * 15);
+                //        }
+                //    }
+                //},
+                ChangeStatus(x, s) {
+                    x.status = s;
+                    x.updated = new Date();
+                    if (!this.Active(x)) x.notes = []
+                    this.savedata(x);
+                },
+                Active(x) {
+                    return x.status == "seated" || x.status == "confirmed" || x.status == "late"
+                },
+                Tables: function (x) {
+                    if (!this.Active(x)) return []
+                    let t = []
+                    try {
+                        t = x.notes == '' ? [] : JSON.parse(x.notes)
+                    } catch (error) {
+                    }
+                    return t
+                },
+                Sovrapposizione: function (x, y) {
+                    try {
+                        let interv = Date.parse(x.date) - Date.parse(y.date)
+                        let h2 = 120 * 60000
+                        return interv < h2 && -interv < h2
+                    } catch (error) {
+                        return false
+                    }
+                },
+                Status: function (x, y) {
+                    let p = this.reservations.filter(z => z.notes && this.Tables(z).findIndex(k => k == y) >= 0 && this.Sovrapposizione(x, z))
+                    if (p.length == 0) return ""
+                    if (p.length == 1) return p[0].id == x.id ? "success" : "danger"
+                    return (p.findIndex(z => z.id == x.id) >= 0) ? "warning" : "danger"
+                },
+                Toggle: function (x, y) {
+                    let t = this.Tables(x)
+                    let j = t.findIndex(w => w == y)
+                    if (j >= 0) { t.splice(j, 1) } else { t.push(y) }
+                    x.notes = JSON.stringify(t)
+                    this.savedata(x)
+                },
+                FormatTime: function (y) {
+                    let w = new Date(Date.parse(y))
+                    return w.getHours() + ":" + (w.getMinutes() < 10 ? "0" : "") + w.getMinutes()
+                },
+                EndTime: function (y) {
+                    let w = new Date(Date.parse(y)).addHours(2)
+                    return w.getHours() + ":" + (w.getMinutes() < 10 ? "0" : "") + w.getMinutes()
+                },
+                savedata: function (x) {
+                    //this.drawRect()
+                    var y = x;
+                    this.saving = true;
+                    var self = this;
+                    var Aj = Ajax();
+                    Aj.data = JSON.stringify({ s: JSON.stringify(x) });
+                    Aj.url = "/api/reservations?method=UpdateReservation";
+                    Aj.success = (response) => {
+                        self.saving = false;
+                    }
+                    Aj.error = () => {
+                        console.log("errore update")
+                        setTimeout(() => { self.savedata(y) }, 1000);
+                    }
+                    $.ajax(Aj);
+                },
+                getdata: function () {
+                    if (this.saving) return;
+                    var self = this;
+                    var Aj = Ajax();
+                    Aj.data = JSON.stringify({ data: this.data });
+                    Aj.url = "/api/reservations?method=GetReservations";
+                    Aj.success = function (response) {
+                        self.lastResponse = response;
+                        try {
+                            let idactive = null
+                            let active = self.reservations.find(x => x.active)
+                            if (active) idactive = active.id
+                            self.reservations = JSON.parse(response.d).objects ?? [];
+                            let now = new Date();
+                            self.reservations.forEach(r => {
+                                if (r.status === 'confirmed') {
+                                    let resDate = new Date(Date.parse(r.date));
+                                    let diffMins = (now - resDate) / 60000;
+                                    if (diffMins > 15) {
+                                        r.status = 'late';
+                                    }
+                                }
+                            });
+                            if (idactive) {
+                                let a = self.reservations.find(x => x.id == idactive);
+                                if (a) a.active = true;
+                            }
+                        } catch {
+                            self.reservations = [];
+                        }
+                        //self.drawRect()
+                    }
+                    $.ajax(Aj);
+                },
+            }
+        });
+    </script>
+</body>
+</html>

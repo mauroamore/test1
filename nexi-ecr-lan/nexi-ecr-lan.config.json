@@ -1,0 +1,10 @@
+{
+  "host": "192.168.1.240",
+  "port": 8081,
+  "terminalId": "37105051",
+  "cashRegisterId": "00000001",
+  "lrcMode": "stxetx",
+  "connectTimeoutMs": 5000,
+  "responseTimeoutMs": 120000,
+  "transactionLogPath": "transactions-log.json"
+}

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monitor Deliveroo</title>
+  <style>
+    :root { font-family: Arial, sans-serif; color: #17202a; background: #f3f5f7; }
+    body { margin: 0; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: #17202a; color: white; }
+    h1 { margin: 0; font-size: 24px; }
+    button { border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: 700; }
+    main { padding: 24px; display: grid; gap: 20px; }
+    section { background: white; border: 1px solid #d9dee3; border-radius: 8px; overflow: hidden; }
+    section h2 { margin: 0; padding: 14px 16px; font-size: 17px; border-bottom: 1px solid #e4e7eb; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #edf0f2; }
+    th { background: #fafbfc; font-size: 12px; text-transform: uppercase; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 9px; font-size: 12px; font-weight: 700; }
+    .placed { background: #fff2cc; color: #765b00; }
+    .accepted, .confirmed { background: #d9f2df; color: #17652b; }
+    .canceled, .rejected { background: #f8d7da; color: #842029; }
+    pre { max-width: 900px; max-height: 180px; overflow: auto; margin: 0; white-space: pre-wrap; font-size: 12px; }
+    .muted { color: #65717c; padding: 16px; }
+    .error { color: #842029; padding: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Monitor Deliveroo</h1>
+    <button id="refresh">Aggiorna</button>
+  </header>
+  <main>
+    <section>
+      <h2>Ordini</h2>
+      <div id="orders" class="muted">Caricamento...</div>
+    </section>
+    <section>
+      <h2>Ultimi webhook</h2>
+      <div id="logs" class="muted">Caricamento...</div>
+    </section>
+  </main>
+  <script>
+    const service = 'DeliverooService.asmx/';
+    async function call(method) {
+      const response = await fetch(service + method, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: '{}' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      return data.d || data;
+    }
+    function status(value) {
+      const text = value || 'sconosciuto';
+      return '<span class="status ' + text.toLowerCase() + '">' + text + '</span>';
+    }
+    async function refresh() {
+      document.querySelector('#orders').textContent = 'Caricamento...';
+      document.querySelector('#logs').textContent = 'Caricamento...';
+      try {
+        const orders = await call('GetOrders');
+        document.querySelector('#orders').innerHTML = orders.length ? '<div class="table-wrap"><table><thead><tr><th>Display</th><th>Stato</th><th>Totale</th><th>Ricevuto</th><th>ID</th></tr></thead><tbody>' + orders.map(o => '<tr><td>' + o.display + '</td><td>' + status(o.status) + '</td><td>' + Number(o.total).toFixed(2) + ' ' + o.currency + '</td><td>' + o.received + '</td><td>' + o.id + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="muted">Nessun ordine.</div>';
+        const logs = await call('GetWebhookLogs');
+        document.querySelector('#logs').innerHTML = logs.length ? '<div class="table-wrap"><table><thead><tr><th>Data</th><th>Percorso</th><th>Processato</th><th>Payload</th></tr></thead><tbody>' + logs.map(l => '<tr><td>' + l.received + '</td><td>' + l.path + '</td><td>' + (l.processed ? 'Si' : 'No') + '</td><td><pre>' + l.payload.replace(/</g, '&lt;') + '</pre></td></tr>').join('') + '</tbody></table></div>' : '<div class="muted">Nessun webhook.</div>';
+      } catch (error) {
+        document.querySelector('#orders').innerHTML = '<div class="error">Errore: ' + error.message + '</div>';
+        document.querySelector('#logs').innerHTML = '<div class="error">Errore: ' + error.message + '</div>';
+      }
+    }
+    document.querySelector('#refresh').addEventListener('click', refresh);
+    refresh();
+  </script>
+</body>
+</html>

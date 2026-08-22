@@ -1,0 +1,19 @@
+{
+  "name": "nexi-ecr-lan",
+  "version": "0.1.0",
+  "description": "Node.js/TypeScript client for Nexi ECR-LAN / ECR17 PosConnector amount exchange.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "nexi-ecr-lan": "bin/nexi-ecr-lan.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "npm test"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "devDependencies": {}
+}

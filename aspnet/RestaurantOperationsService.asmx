@@ -1,0 +1,118 @@
+<%@ WebService Language="C#" Class="RestaurantOperationsService" %>
+
+using System;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
+using System.Web.Script.Services;
+using System.Web.Services;
+using MySql.Data.MySqlClient;
+
+[ScriptService]
+[WebService(Namespace = "http://thaiprincess.it/restaurant-operations/")]
+[WebServiceBinding(ConformsTo = WsiProfiles.BasicProfile1_1)]
+public class RestaurantOperationsService : WebService
+{
+    private const int TimeoutSeconds = 15;
+    private readonly JavaScriptSerializer serializer = new JavaScriptSerializer();
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string GetState()
+    {
+        RequireKey();
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var command = new MySqlCommand("SELECT state_payload, updated_at_utc FROM restaurant_state_snapshot ORDER BY id DESC LIMIT 1", connection))
+        {
+            command.CommandTimeout = TimeoutSeconds;
+            using (var reader = command.ExecuteReader())
+            {
+                if (!reader.Read()) return "{\"ok\":true,\"has_state\":false,\"tables\":[]}";
+                var raw = reader["state_payload"] == DBNull.Value ? "{}" : reader["state_payload"].ToString();
+                var parsed = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }.DeserializeObject(raw) as Dictionary<string, object>;
+                var tables = new List<object>();
+                var rawTables = parsed == null ? null : parsed["tables"] as object[];
+                if (rawTables != null) foreach (var value in rawTables)
+                {
+                    var table = value as Dictionary<string, object>;
+                    if (table == null) continue;
+                    var items = table.ContainsKey("items") ? table["items"] as object[] : null;
+                    var tho = table.ContainsKey("tho") ? table["tho"] : null;
+                    tables.Add(new Dictionary<string, object>
+                    {
+                        { "id", table.ContainsKey("id") ? table["id"] : null },
+                        { "occupied", table.ContainsKey("occupied") && Convert.ToBoolean(table["occupied"]) },
+                        { "covers", table.ContainsKey("covers") ? table["covers"] : 0 },
+                        { "items_count", items == null ? 0 : items.Length },
+                        { "tho", tho }
+                    });
+                }
+                return serializer.Serialize(new Dictionary<string, object>
+                {
+                    { "ok", true },
+                    { "has_state", true },
+                    { "updated_at_utc", reader["updated_at_utc"] == DBNull.Value ? null : Convert.ToDateTime(reader["updated_at_utc"]).ToString("o") },
+                    { "tables", tables }
+                });
+            }
+        }
+    }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string OpenTable(string payload) { RequireKey(); return Queue("open_table", payload); }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string AdoptWalkIn(string payload) { RequireKey(); return Queue("adopt_walkin", payload); }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string MoveReservation(string payload) { RequireKey(); return Queue("move_reservation", payload); }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string ClearReservation(string payload) { RequireKey(); return Queue("clear_reservation", payload); }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string GetCommandStatus(string commandId)
+    {
+        RequireKey();
+        var statuses = new Dictionary<string, object>();
+        if (String.IsNullOrWhiteSpace(commandId)) return serializer.Serialize(new Dictionary<string, object> { { "statuses", statuses } });
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var command = new MySqlCommand("SELECT applied_at_utc FROM restaurant_command_queue WHERE client_command_id = @id LIMIT 1", connection))
+        {
+            command.CommandTimeout = TimeoutSeconds;
+            command.Parameters.AddWithValue("@id", commandId);
+            var applied = command.ExecuteScalar();
+            statuses[commandId] = applied == null || applied == DBNull.Value ? null : Convert.ToDateTime(applied).ToString("o");
+        }
+        return serializer.Serialize(new Dictionary<string, object> { { "statuses", statuses } });
+    }
+
+    private string Queue(string operation, string payload)
+    {
+        var commandId = operation + "-" + Guid.NewGuid().ToString("N");
+        var command = new Dictionary<string, object> { { "client_command_id", commandId }, { "type", operation } };
+        var payloadObject = String.IsNullOrWhiteSpace(payload) ? null : serializer.DeserializeObject(payload) as Dictionary<string, object>;
+        if (payloadObject != null) foreach (var item in payloadObject) command[item.Key] = item.Value;
+        var body = serializer.Serialize(command);
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var insert = new MySqlCommand("INSERT INTO restaurant_command_queue (client_command_id, command_json) VALUES (@id, @json)", connection))
+        {
+            insert.CommandTimeout = TimeoutSeconds;
+            insert.Parameters.AddWithValue("@id", commandId);
+            insert.Parameters.AddWithValue("@json", body);
+            insert.ExecuteNonQuery();
+        }
+        return serializer.Serialize(new Dictionary<string, object> { { "ok", true }, { "command_id", commandId }, { "status", "queued" } });
+    }
+
+    private void RequireKey()
+    {
+        var expected = System.Configuration.ConfigurationManager.AppSettings["RestaurantSyncKey"];
+        var supplied = Context.Request.Headers["X-Restaurant-Operations-Key"] ?? Context.Request.QueryString["key"];
+        if (String.IsNullOrWhiteSpace(expected) || !String.Equals(expected, supplied, StringComparison.Ordinal)) throw new UnauthorizedAccessException("Unauthorized");
+    }
+}

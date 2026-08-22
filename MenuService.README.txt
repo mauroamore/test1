@@ -1,0 +1,27 @@
+INSTALLAZIONE
+
+1. Copiare MenuService.asmx nella directory pubblica dell'applicazione ASP.NET.
+2. Verificare che Web.config contenga una connection string chiamata:
+
+   MySqlConnectionString
+
+3. Verificare che il progetto abbia già il riferimento a MySql.Data.dll.
+4. Aprire nel browser:
+
+   https://DOMINIO/MenuService.asmx
+
+ENDPOINT
+
+GET:
+  /MenuService.asmx/GetMenu
+
+La risposta e' XML ASMX con un nodo <string> contenente il JSON del menu.
+Il formato e' compatibile con Service.asmx/GetMenu e con il gestionale locale.
+
+NOTE
+
+- Il file non contiene credenziali.
+- Le credenziali restano nel Web.config del server.
+- Le categorie lette sono v2_categories.
+- Gli articoli attivi letti sono v2_products WHERE is_active = 1.
+- Gli ID degli articoli vengono mantenuti.

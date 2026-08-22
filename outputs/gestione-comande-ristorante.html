@@ -3108,6 +3108,7 @@
         }
         const payload = await response.json();
         if (payload.state) {
+          const previousSyncState = JSON.stringify(state);
           // Una comanda Sigonella aperta in modifica resta locale fino alla scelta
           // dell'operatore nel dialogo di chiusura; il polling non deve ripristinare
           // i prezzi ricevuti dal server mentre si sta lavorando.
@@ -3143,7 +3144,9 @@
               persistLocalOrderDraft();
             }
           }
-          render();
+          // Il polling puo' ricevere lo stesso snapshot ogni pochi secondi. Evita di
+          // ricreare il modal della comanda quando non e' cambiato alcun dato.
+          if (previousSyncState !== JSON.stringify(state)) render();
         } else {
           saveState();
         }

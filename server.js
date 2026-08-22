@@ -5,6 +5,14 @@ const childProcess = require("child_process");
 const dns = require("dns");
 // Prefer IPv4: the Raspberry has no working IPv6 route to the remote hosting.
 dns.setDefaultResultOrder("ipv4first");
+const originalDnsLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === "function") {
+    callback = options;
+    options = {};
+  }
+  return originalDnsLookup.call(dns, hostname, { ...(options || {}), family: 4 }, callback);
+};
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 

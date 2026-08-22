@@ -6904,7 +6904,11 @@
         })
       }).catch(() => {});
       if (order.source) {
-        state.deliveryOrders = (state.deliveryOrders || []).filter(item => item.id !== order.id);
+        // Conserva un tombstone nello stato condiviso: il feed esterno puo'
+        // riproporre l'ordine al polling, ma non deve farlo riapparire dopo
+        // che l'operatore lo ha liberato.
+        order.deliveryDismissed = true;
+        order.kitchenClosed = true;
       } else {
         await finishReservationForOrder(order);
         order.items = [];
@@ -6921,7 +6925,7 @@
         order.activeCourse = 0;
         order.courseSequence = [0];
       }
-      saveState();
+      await saveState();
       render();
       closeOrderModal();
       document.getElementById("confirmFreeTableModal").close();

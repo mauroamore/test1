@@ -3129,8 +3129,19 @@
           // already loaded by refreshReservations instead of briefly replacing
           // it with an older snapshot and rendering a blinking table.
           const loadedReservations = Array.isArray(state.reservations) ? state.reservations : [];
+          // In remote mode a manual Pick-up is sent through a command, not through
+          // the shared snapshot. Keep it visible until the create command is applied.
+          const localUnsyncedPickupOrders = (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [])
+            .filter(order => order && unsyncedRemoteOrders.has(order.id))
+            .map(order => structuredClone(order));
           state = payload.state;
           state.reservations = loadedReservations;
+          if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
+          localUnsyncedPickupOrders.forEach(localOrder => {
+            if (!state.deliveryOrders.some(order => String(order.id) === String(localOrder.id))) {
+              state.deliveryOrders.push(localOrder);
+            }
+          });
           const removedEmptyPickupDraft = normalizeSharedState();
           if (removedEmptyPickupDraft) saveState();
           if (editingSigonellaOrder) {

@@ -7017,7 +7017,6 @@
       if (REMOTE_MODE) { remoteSelectedOrderId = id; unsyncedRemoteOrders.add(id); } else state.selectedTable = id;
       saveState();
       render();
-      openOrderModal(id);
       document.getElementById("pickupCustomerNameInput").value = "";
       document.getElementById("pickupAsapInput").checked = true;
       document.getElementById("pickupTimeInput").value = "";
@@ -7048,7 +7047,8 @@
         alert("Inserisci un nome cliente.");
         return;
       }
-      const order = findOrderById(pendingPickupOrderId);
+      const confirmedOrderId = pendingPickupOrderId;
+      const order = findOrderById(confirmedOrderId);
       if (order) {
         order.customerName = name;
         order.pickupTime = document.getElementById("pickupAsapInput").checked
@@ -7063,6 +7063,7 @@
       pendingPickupOrderId = null;
       document.getElementById("pickupDetailsModal").close();
       render();
+      openOrderModal(confirmedOrderId).catch(error => alert(`Errore apertura comanda: ${error.message || error}`));
     });
 
     document.getElementById("editRoomBtn").addEventListener("click", () => {

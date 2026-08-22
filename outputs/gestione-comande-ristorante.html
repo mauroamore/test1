@@ -6954,11 +6954,29 @@
     });
 
     let pendingPickupOrderId = null;
+    let pendingPickupConfirmed = false;
+
+    function discardPendingPickupOrder() {
+      if (!pendingPickupOrderId) return;
+      const discardedId = pendingPickupOrderId;
+      state.deliveryOrders = (state.deliveryOrders || []).filter(order => order.id !== discardedId);
+      unsyncedRemoteOrders.delete(discardedId);
+      if (remoteSelectedOrderId === discardedId) remoteSelectedOrderId = null;
+      if (state.selectedTable === discardedId) state.selectedTable = null;
+      pendingPickupOrderId = null;
+      pendingPickupConfirmed = false;
+      const pickupDialog = document.getElementById("pickupDetailsModal");
+      if (pickupDialog && pickupDialog.open) pickupDialog.close();
+      saveState();
+      closeOrderModal();
+      render();
+    }
 
     document.getElementById("addPickupOrderBtn").addEventListener("click", () => {
       if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
       const id = "manual-" + Date.now();
       pendingPickupOrderId = id;
+      pendingPickupConfirmed = false;
       state.deliveryOrders.push({
         id,
         source: "manual",
@@ -6993,15 +7011,16 @@
     });
 
     document.getElementById("pickupCancelBtn").addEventListener("click", () => {
-      document.getElementById("pickupDetailsModal").close();
-      if (pendingPickupOrderId) {
-        state.deliveryOrders = (state.deliveryOrders || []).filter(order => order.id !== pendingPickupOrderId);
-        unsyncedRemoteOrders.delete(pendingPickupOrderId);
-        pendingPickupOrderId = null;
-        saveState();
-      }
-      closeOrderModal();
-      render();
+      discardPendingPickupOrder();
+    });
+
+    document.getElementById("pickupDetailsModal").addEventListener("cancel", event => {
+      event.preventDefault();
+      discardPendingPickupOrder();
+    });
+
+    document.getElementById("pickupDetailsModal").addEventListener("close", () => {
+      if (!pendingPickupConfirmed && pendingPickupOrderId) discardPendingPickupOrder();
     });
 
     document.getElementById("pickupConfirmBtn").addEventListener("click", () => {
@@ -7021,6 +7040,7 @@
         // viene mandato in cucina (vedi sendPickupOrderRemote), per non trasmettere nulla
         // mentre e' ancora in fase di composizione.
       }
+      pendingPickupConfirmed = true;
       pendingPickupOrderId = null;
       document.getElementById("pickupDetailsModal").close();
       render();

@@ -4722,7 +4722,15 @@
       if (owner) tableId = owner.id;
       if (!(await acquireTableLock(tableId))) return;
       if (REMOTE_MODE) remoteSelectedOrderId = tableId; else state.selectedTable = tableId;
-      const order = currentOrder();
+      let order = currentOrder();
+      if (!order && REMOTE_MODE) {
+        await syncFromServer();
+        order = currentOrder();
+      }
+      if (!order) {
+        console.warn("Comanda non trovata durante l'apertura", tableId);
+        return;
+      }
       // Le bozze locali valgono solo per i tavoli: un ordine delivery deve sempre
       // aprirsi dalla copia condivisa, altrimenti una vecchia bozza puo' nascondere
       // le righe appena risolte dal server.

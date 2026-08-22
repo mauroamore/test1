@@ -2625,6 +2625,10 @@
       courseActivationOrder: []
     };
 
+    // Identifica una bozza Pick-up ancora nel modal, così la normalizzazione dello
+    // stato condiviso non la elimina mentre l'operatore sta compilando i dati.
+    let pendingPickupOrderId = null;
+    let pendingPickupConfirmed = false;
     let state = loadState();
     clearCoversFromFreeTables();
     let editRoom = false;
@@ -2847,6 +2851,11 @@
       if (!state || typeof state !== "object") state = structuredClone(initialState);
       if (!Array.isArray(state.tables)) state.tables = structuredClone(initialState.tables);
       if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
+      const deliveryCountBeforeCleanup = state.deliveryOrders.length;
+      state.deliveryOrders = state.deliveryOrders.filter(order =>
+        !(order && order.source === "manual" && order.customerName === "Nuovo ritiro" && order.id !== pendingPickupOrderId)
+      );
+      const removedEmptyPickupDraft = state.deliveryOrders.length !== deliveryCountBeforeCleanup;
       if (!state.settings || typeof state.settings !== "object") state.settings = structuredClone(initialState.settings);
       state.settings.kitchenColumns = clamp(Number(state.settings.kitchenColumns || 6), 1, 12);
       state.settings.kitchenSummaryWidth = clamp(Number(state.settings.kitchenSummaryWidth || 260), 160, 600);
@@ -2872,6 +2881,7 @@
         });
       });
       clearCoversFromFreeTables();
+      return removedEmptyPickupDraft;
     }
 
     function loadLocalOrderDraft(orderId, fallback) {
@@ -3121,7 +3131,8 @@
           const loadedReservations = Array.isArray(state.reservations) ? state.reservations : [];
           state = payload.state;
           state.reservations = loadedReservations;
-          normalizeSharedState();
+          const removedEmptyPickupDraft = normalizeSharedState();
+          if (removedEmptyPickupDraft) saveState();
           if (editingSigonellaOrder) {
             const refreshedOrder = (state.deliveryOrders || []).find(order => String(order.id) === String(editingSigonellaOrder.id));
             if (refreshedOrder) {
@@ -6952,9 +6963,6 @@
       render();
       openOrderModal(nextId);
     });
-
-    let pendingPickupOrderId = null;
-    let pendingPickupConfirmed = false;
 
     function discardPendingPickupOrder() {
       if (!pendingPickupOrderId) return;

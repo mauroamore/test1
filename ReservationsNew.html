@@ -680,8 +680,7 @@
                     if (s === "finished") return
                     if (!x || x.status === s) return
                     const wasSeated = x.status === "seated"
-                    const leavingSeated = wasSeated && s !== "seated"
-                    if (this.HasTableCommand(x) && !leavingSeated) {
+                    if (this.HasTableCommand(x)) {
                         this.$bvToast.toast("La comanda contiene articoli: cambia lo stato da Gestione Comande.", { title: "Comanda presente", variant: "warning", solid: true })
                         return
                     }

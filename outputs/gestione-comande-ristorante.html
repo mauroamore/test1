@@ -6994,10 +6994,12 @@
     });
 
     document.getElementById("pickupCancelBtn").addEventListener("click", () => {
+      const canceledPickupId = pendingPickupOrderId;
       document.getElementById("pickupDetailsModal").close();
-      if (pendingPickupOrderId) {
-        state.deliveryOrders = (state.deliveryOrders || []).filter(order => order.id !== pendingPickupOrderId);
-        unsyncedRemoteOrders.delete(pendingPickupOrderId);
+      if (canceledPickupId) {
+        state.deliveryOrders = (state.deliveryOrders || []).filter(order => order.id !== canceledPickupId);
+        unsyncedRemoteOrders.delete(canceledPickupId);
+        if (remoteSelectedOrderId === canceledPickupId) remoteSelectedOrderId = null;
         pendingPickupOrderId = null;
         saveState();
       }

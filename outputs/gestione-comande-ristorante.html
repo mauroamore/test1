@@ -6980,7 +6980,8 @@
         receivedAt: new Date().toISOString()
       });
       if (REMOTE_MODE) { remoteSelectedOrderId = id; unsyncedRemoteOrders.add(id); } else state.selectedTable = id;
-      saveState();
+      // La bozza vuota resta solo in memoria: salvarla qui crea una gara con
+      // l'annullamento e puo' farla ricomparire dopo il refresh.
       render();
       document.getElementById("pickupCustomerNameInput").value = "";
       document.getElementById("pickupAsapInput").checked = true;

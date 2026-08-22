@@ -26,7 +26,7 @@ function fetchIpv4(resource, options = {}) {
       port: target.port || undefined,
       path: `${target.pathname}${target.search}`,
       method: options.method || "GET",
-      headers: options.headers || {},
+      headers: { ...(options.headers || {}), Connection: "close" },
       family: 4,
       lookup: (hostname, lookupOptions, callback) =>
         originalDnsLookup.call(dns, hostname, { ...(lookupOptions || {}), family: 4 }, callback)

@@ -19,6 +19,11 @@ dns.lookup = function (hostname, options, callback) {
 function fetchIpv4(resource, options = {}) {
   const target = new URL(resource);
   const transport = target.protocol === "https:" ? https : http;
+  const body = options.body === undefined || options.body === null ? null : Buffer.from(String(options.body), "utf8");
+  const headers = { ...(options.headers || {}), Connection: "close" };
+  if (body && headers["Content-Length"] === undefined && headers["content-length"] === undefined) {
+    headers["Content-Length"] = body.length;
+  }
   return new Promise((resolve, reject) => {
     const request = transport.request({
       protocol: target.protocol,
@@ -26,7 +31,7 @@ function fetchIpv4(resource, options = {}) {
       port: target.port || undefined,
       path: `${target.pathname}${target.search}`,
       method: options.method || "GET",
-      headers: { ...(options.headers || {}), Connection: "close" },
+      headers,
       family: 4,
       lookup: (hostname, lookupOptions, callback) =>
         originalDnsLookup.call(dns, hostname, { ...(lookupOptions || {}), family: 4 }, callback)
@@ -40,7 +45,7 @@ function fetchIpv4(resource, options = {}) {
     });
     request.setTimeout(Number(options.timeout || 30000), () => request.destroy(new Error("Request timeout")));
     request.on("error", reject);
-    if (options.body !== undefined && options.body !== null) request.write(options.body);
+    if (body) request.write(body);
     request.end();
   });
 }

@@ -5740,6 +5740,8 @@
       if (line.noTurns) return false;
       const monitorName = monitorForLine(line);
       const monitor = (state.settings.monitors || []).find(item => item.name === monitorName);
+      const categoryTurns = state.settings.categoryTurns || {};
+      if (Object.prototype.hasOwnProperty.call(categoryTurns, line.category)) return categoryTurns[line.category] !== false;
       return monitor ? monitor.turns !== false : state.settings.categoryTurns?.[line.category] !== false;
     }
 

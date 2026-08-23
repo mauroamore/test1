@@ -755,6 +755,9 @@
                     let j = t.findIndex(w => w == y)
                     if (j >= 0) { t.splice(j, 1) } else { t.push(y) }
                     x.notes = JSON.stringify(t)
+                    // Il Walk-in provvisorio non ha ancora un id server: i tavoli
+                    // selezionati vengono inviati insieme a InsertWalkin.
+                    if (!x.id) return
                     this.savedata(x)
                 },
                 FormatTime: function (y) {

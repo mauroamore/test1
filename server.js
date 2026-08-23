@@ -65,6 +65,7 @@ const RESTAURANT_SYNC_KEY = process.env.RESTAURANT_SYNC_KEY || "";
 const RESTAURANT_SYNC_INTERVAL_MS = Number(process.env.RESTAURANT_SYNC_INTERVAL_MS || 5000);
 const REALTIME_URL = (process.env.REALTIME_URL || "https://vorrei-realtime.onrender.com").replace(/\/$/, "");
 const REALTIME_KEY = process.env.REALTIME_KEY || RESTAURANT_SYNC_KEY;
+const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
 const clients = new Set();
 const tableLocks = new Map();
 let fiscalReceiptInProgress = false;
@@ -1305,6 +1306,13 @@ const server = http.createServer((request, response) => {
     clients.add(response);
     request.on("close", () => clients.delete(response));
     return;
+  }
+  if ((request.url === "/reservations" || request.url === "/reservations/" || request.url === "/ReservationsNew") && request.method === "GET") {
+    if (!REALTIME_KEY) return sendJson(response, 503, { ok: false, error: "REALTIME_KEY non configurata" });
+    const target = new URL(RESERVATIONS_REMOTE_URL);
+    target.searchParams.set("key", REALTIME_KEY);
+    response.writeHead(302, { Location: target.toString(), "Cache-Control": "no-store" });
+    return response.end();
   }
   if (request.url === "/api/version" && request.method === "GET") {
     return sendJson(response, 200, { version: APP_VERSION, packageVersion: require("./package.json").version });

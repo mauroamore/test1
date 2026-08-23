@@ -142,6 +142,23 @@
     .selected-order-course { margin-bottom: 12px; }
     .selected-order-course > strong { display: block; padding: 6px 0; color: var(--accent); font-size: 13px; }
     .selected-order-course-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); }
+    .selected-order-course-head.active {
+      background: #dbf6e8 !important;
+      border-left: 4px solid var(--ready) !important;
+      border-radius: 5px;
+      padding: 6px 8px;
+    }
+    .selected-order-course-head.active strong { color: #176b4a; }
+    .selected-order-course-current { margin-left: auto; color: #176b4a; font-size: 12px; font-weight: 800; }
+    .selected-order-active-course {
+      margin: -4px 0 12px;
+      padding: 8px 10px;
+      border-radius: 5px;
+      background: #dbf6e8;
+      border-left: 4px solid var(--ready);
+      color: #176b4a;
+      font-size: 13px;
+    }
     .selected-order-course-action { width: 30px; min-height: 30px; padding: 0; }
     .selected-order-line { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: start; }
     .selected-order-line .qty { font-weight: 700; color: var(--accent); }
@@ -735,7 +752,8 @@
     .table-button {
       position: absolute;
       display: grid;
-      gap: 8px;
+      grid-template-rows: auto auto auto auto;
+      gap: 4px;
       place-items: center;
       width: 148px;
       height: 116px;
@@ -746,8 +764,10 @@
       box-shadow: 0 10px 22px rgba(31, 41, 51, 0.10);
       user-select: none;
       touch-action: none;
-      white-space: nowrap;
       overflow: hidden;
+      box-sizing: border-box;
+      min-width: 0;
+      padding: 7px 6px 6px;
     }
 
     .table-button strong { font-size: calc(21px * var(--table-scale, 1)); }
@@ -805,10 +825,13 @@
     .table-meta {
       display: flex;
       justify-content: center;
-      flex-wrap: nowrap;
-      gap: calc(14px * var(--table-scale, 1));
+      flex-wrap: wrap;
+      gap: 2px calc(10px * var(--table-scale, 1));
       font-size: calc(14px * var(--table-scale, 1));
-      white-space: nowrap;
+      line-height: 1.15;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .table-title {
@@ -818,11 +841,29 @@
       gap: calc(10px * var(--table-scale, 1));
       min-width: 0;
       max-width: 100%;
+      width: 100%;
+      overflow: hidden;
     }
 
     .table-time {
       font-size: calc(13px * var(--table-scale, 1));
       font-weight: 600;
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .table-button > small {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: calc(10px * var(--table-scale, 1));
+      line-height: 1.1;
     }
 
     .table-button.free { background: #ffffff; border-top: 5px solid #98a2b3; }
@@ -832,6 +873,7 @@
     .table-button.covers-only { background: #eef4ff; border-top: 5px solid #6b8fd6; }
     .table-button.ready { background: #dbf6e8; border-top: 5px solid var(--ready); }
     .table-button.paid { background: #e9e3f8; border-top: 5px solid #7656a8; }
+    .table-button.partial-paid { background: #fff7df; border-top: 5px solid #c58b22; }
 
     /* Palmare: elenco tavoli in tabella (una riga per tavolo) al posto della piantina libera. */
     table.table-list { width: 100%; border-collapse: collapse; font-size: 15px; }
@@ -2283,7 +2325,6 @@
           </div>
           <div class="row">
             <button class="secondary grow" id="precontoBtn" type="button">Preconto</button>
-            <button class="grow" id="paymentBtn" type="button">Pagamento</button>
           </div>
           <button class="ghost" id="freeTableBtn">Libera tavolo</button>
         </section>
@@ -2614,9 +2655,9 @@
         splitCovers: {},
         splitLabels: {},
         paidSplits: {},
-        selectedCourse: 0,
         activeCourse: 0,
         courseSequence: [1],
+        dismissedCourses: [],
         items: []
       })),
       menu: defaultMenu,
@@ -2657,6 +2698,8 @@
     let editingSplitLabelAccount = null;
     let pendingCloseTableId = null;
     let pendingCloseCourse = null;
+    let modalSelectedCourse = null;
+    const pendingCourseActivations = new Map();
     let pendingJoinTableId = null;
     let pendingJoinTableIds = [];
     let orderModalSnapshot = null;
@@ -3045,8 +3088,9 @@
             if (!table.splitCovers || typeof table.splitCovers !== "object") table.splitCovers = {};
             if (!table.splitLabels || typeof table.splitLabels !== "object") table.splitLabels = {};
             if (!table.paidSplits || typeof table.paidSplits !== "object") table.paidSplits = {};
-            table.selectedCourse = courseNumber(table.selectedCourse);
-            table.activeCourse = courseNumber(table.activeCourse || table.selectedCourse);
+            table.activeCourse = activeCourseNumber(table.activeCourse);
+            delete table.selectedCourse;
+            delete table.insertionCourse;
             if (!Array.isArray(table.courseSequence)) table.courseSequence = [];
             table.items = (table.items || []).map(line => ({
               ...line,
@@ -3066,6 +3110,11 @@
               const key = `${table.id}:${course}`;
               if (!saved.courseActivationOrder.includes(key)) saved.courseActivationOrder.push(key);
             });
+          });
+          saved.deliveryOrders.forEach(order => {
+            delete order.selectedCourse;
+            delete order.insertionCourse;
+            order.activeCourse = activeCourseNumber(order.activeCourse);
           });
           return saved;
         }
@@ -3123,6 +3172,23 @@
           state = payload.state;
           state.reservations = loadedReservations;
           normalizeSharedState();
+          pendingCourseActivations.forEach((course, orderId) => {
+            const pendingOrder = [...(state.tables || []), ...(state.deliveryOrders || [])]
+              .find(order => String(order.id) === String(orderId));
+            if (!pendingOrder) {
+              pendingCourseActivations.delete(orderId);
+              return;
+            }
+            if (activeCourseNumber(pendingOrder.activeCourse) === course) {
+              pendingCourseActivations.delete(orderId);
+              return;
+            }
+            pendingOrder.activeCourse = course;
+            if (!Array.isArray(state.courseActivationOrder)) state.courseActivationOrder = [];
+            const key = `${pendingOrder.id}:${course}`;
+            state.courseActivationOrder = state.courseActivationOrder.filter(value => value !== key);
+            state.courseActivationOrder.push(key);
+          });
           if (editingSigonellaOrder) {
             const refreshedOrder = (state.deliveryOrders || []).find(order => String(order.id) === String(editingSigonellaOrder.id));
             if (refreshedOrder) {
@@ -3251,10 +3317,14 @@
         const previousItems = course > 0 ? itemsForCourse(order, course - 1) : [];
         const previousReady = course === 0 || (previousItems.length > 0 && previousItems.every(item => item.kitchenStatus === "Completo"));
         const courseComplete = group.items.every(item => item.kitchenStatus === "Completo");
-        const activeCourse = courseNumber(order.activeCourse ?? order.selectedCourse);
-        const canActivate = !orderHasUnsentChangesForSend(order) && !courseComplete && (course <= activeCourse || previousReady);
+        const activeCourse = activeCourseNumber(order.activeCourse);
+        const canActivate = !orderHasUnsentChangesForSend(order)
+          && !courseComplete
+          && course === nextCourseToActivate(order)
+          && previousReady;
         const action = order.source ? "" : `<button class="course-activate selected-order-course-action ${course === activeCourse ? "active" : ""}" type="button" ${canActivate ? "" : "disabled"} data-course="${course}" title="${canActivate ? `Attiva ${courseLabel(course)} in cucina` : "Completa la sequenza precedente o invia prima le modifiche"}">▶</button>`;
-        return `<section class="selected-order-course"><div class="selected-order-course-head"><strong>${courseLabel(course)}</strong>${action}</div>${group.items.map(line => {
+        const activeLabel = course === activeCourse ? `<span class="selected-order-course-current">ATTIVA</span>` : "";
+        return `<section class="selected-order-course"><div class="selected-order-course-head ${course === activeCourse ? "active" : ""}"><strong>${courseLabel(course)}</strong>${activeLabel}${action}</div>${group.items.map(line => {
           const statusClass = line.kitchenStatus === "Completo" ? "completo" : line.kitchenStatus === "In preparazione" ? "in-preparazione" : "";
           const statusLabel = line.kitchenStatus || "Da preparare";
           return `<div class="selected-order-line ${statusClass}" title="${escapeHtml(statusLabel)}"><span class="qty">${Number(line.qty || 0)}x</span><span>${escapeHtml(line.name || line.id || "Articolo")}${line.lineNote ? `<br><small>${escapeHtml(line.lineNote)}</small>` : ""}</span><span class="price">${money.format(Number(line.qty || 0) * lineUnitPrice(line))}</span></div>`;
@@ -3270,7 +3340,15 @@
       const discountMarkup = discountCents > 0
         ? `<div class="selected-order-adjustment"><span>Sconto accordato</span><span>-${money.format(discountCents / 100)}</span></div>`
         : "";
-      body.innerHTML = `<div class="selected-order-meta"><strong>${escapeHtml(orderTicketLabel(order))}</strong><br>${escapeHtml(meta)}</div><div class="selected-order-lines">${groupedMarkup || `<div class="selected-order-empty">Nessun articolo.</div>`}</div>${order.notes ? `<div class="selected-order-notes">${escapeHtml(order.notes)}</div>` : ""}${discountMarkup}<div class="selected-order-total"><span>Totale</span><span>${money.format(orderTotal(order) - discountCents / 100)}</span></div>`;
+      const paymentMarkup = paymentSummary(order)
+        ? `<div class="selected-order-adjustment"><span>Pagamento</span><strong>${escapeHtml(paymentSummary(order))}</strong></div>`
+        : "";
+      const rawActiveCourse = Number(order.activeCourse);
+      const activeCourse = Number.isFinite(rawActiveCourse) && rawActiveCourse >= 0 ? courseNumber(rawActiveCourse) : null;
+      const activeCourseMarkup = order.source || !lines.some(line => lineUsesTurns(line))
+        ? ""
+        : `<div class="selected-order-active-course">In cucina: <strong>${activeCourse === null ? "Nessuna" : courseLabel(activeCourse)}</strong></div>`;
+      body.innerHTML = `<div class="selected-order-meta"><strong>${escapeHtml(orderTicketLabel(order))}</strong><br>${escapeHtml(meta)}</div>${activeCourseMarkup}<div class="selected-order-lines">${groupedMarkup || `<div class="selected-order-empty">Nessun articolo.</div>`}</div>${order.notes ? `<div class="selected-order-notes">${escapeHtml(order.notes)}</div>` : ""}${discountMarkup}${paymentMarkup}<div class="selected-order-total"><span>Totale</span><span>${money.format(orderTotal(order) - discountCents / 100)}</span></div>`;
       body.querySelectorAll(".selected-order-course-action").forEach(button => button.addEventListener("click", () => {
         activateCourse(order, Number(button.dataset.course));
         saveState();
@@ -3391,13 +3469,15 @@
       const root = document.getElementById("paymentRows");
       root.innerHTML = paymentRows.map((row, index) => {
         const locked = row.paid || row.processing;
+        const fiscalWarning = row.fiscal && row.fiscal.status && row.fiscal.status !== "issued";
+        const posWarning = row.pos && row.pos.status === "manual";
         return `<div class="payment-row ${row.paid ? "payment-row-paid" : ""}" data-payment-index="${index}">
           <button class="ghost payment-remove" type="button" title="Rimuovi pagante" aria-label="Rimuovi pagante" ${locked ? "disabled" : ""}>×</button>
           <input class="payment-payer" value="${escapeHtml(row.payer || `P${index + 1}`)}" placeholder="P${index + 1}" ${locked ? "disabled" : ""}>
           ${paymentMode === "shares" ? `<input class="payment-covers" type="number" min="1" step="1" value="${Number(row.covers || 1)}" aria-label="Coperti" ${locked ? "disabled" : ""}>` : ""}
           <input class="payment-amount" type="text" inputmode="decimal" value="${Number(row.amount || 0).toFixed(2).replace(".", ",")}" aria-label="Importo" ${locked ? "disabled" : ""}>
           <select class="payment-method" aria-label="Metodo di pagamento" ${locked ? "disabled" : ""}>${paymentMethods.map(method => `<option ${method === row.method ? "selected" : ""}>${method}</option>`).join("")}</select>
-          <button class="ghost payment-paid" type="button" title="${row.processing ? "Emissione scontrino in corso" : row.paid ? "Pagamento completato" : "Esegui pagamento"}" ${locked ? "disabled" : ""}>${row.processing ? "Attendi..." : row.paid ? "Pagata" : "Paga"}</button>
+          <button class="ghost payment-paid" type="button" title="${row.processing ? "Emissione scontrino in corso" : posWarning ? "Pagamento registrato manualmente sul POS" : fiscalWarning ? `Pagamento registrato: ${row.fiscal.error || "problema fiscale"}` : row.paid ? "Pagamento completato" : "Esegui pagamento"}" ${locked ? "disabled" : ""}>${row.processing ? "Attendi..." : row.paid ? (fiscalWarning || posWarning ? "Pagata*" : "Pagata") : "Paga"}</button>
         </div>`;
       }).join("");
       root.querySelectorAll(".payment-payer").forEach(input => input.addEventListener("input", event => { paymentRows[Number(event.target.closest("[data-payment-index]").dataset.paymentIndex)].payer = event.target.value; }));
@@ -3445,13 +3525,21 @@
       const order = findOrderById(paymentOrderId);
       if (!order) return;
       const usesCard = row.method === "Carta" || row.method === "Bancomat";
+      const usesCash = row.method === "Contanti";
+      const gestionaleOnly = row.method === "Altro";
       const posReady = state.settings.posSimulation === true;
       const fiscalReady = state.settings.fiscalPrinter?.enabled === true && Boolean(state.settings.fiscalPrinter?.host);
+      let manualPos = false;
       if (usesCard && !posReady) {
-        showPaymentError("POS non collegato: il pagamento con carta non è stato eseguito.", "Attiva la simulazione POS nel Setup");
-        return;
+        row.pos = { status: "failed", failedAt: new Date().toISOString(), note: "Il POS non ha completato la transazione" };
+        manualPos = window.confirm("Il pagamento con carta non è riuscito sul POS.\n\nVuoi continuare comunque e registrarlo come effettuato manualmente sul POS?");
+        if (!manualPos) {
+          showPaymentError("Pagamento annullato.", "Puoi scegliere un altro metodo di pagamento");
+          renderPaymentRows();
+          return;
+        }
       }
-      if (!fiscalReady && !posReady) {
+      if (!usesCash && !gestionaleOnly && !fiscalReady && !posReady && !manualPos) {
         showPaymentError("Stampante fiscale non collegata: il pagamento non è stato eseguito.", "Configura e abilita la stampante fiscale nel Setup");
         return;
       }
@@ -3460,7 +3548,7 @@
         return;
       }
 
-      if (fiscalReady) {
+      if (fiscalReady && !gestionaleOnly) {
         if (fiscalPaymentInProgress) {
           showPaymentError("Emissione fiscale già in corso.", "Attendi la risposta della stampante");
           return;
@@ -3471,6 +3559,7 @@
         const balance = document.getElementById("paymentBalance");
         balance.className = "payment-balance";
         balance.innerHTML = `<span class="payment-balance-label">Emissione scontrino...</span><span class="payment-balance-value">Attendere la risposta Epson</span><span class="payment-balance-label"></span><span class="payment-balance-value"></span>`;
+        let retryFiscal = false;
         try {
           const fiscalRequest = fiscalReceiptForPayment(row);
           const response = await fetch("/api/fiscal-printer/receipt", {
@@ -3503,27 +3592,89 @@
           };
         } catch (error) {
           row.processing = false;
-          renderPaymentRows();
-          const message = error.outcomeUncertain
-            ? "Esito fiscale incerto: non riprovare subito."
-            : "Scontrino fiscale non emesso.";
-          const detail = error.outcomeUncertain
-            ? "Controlla la stampante o il giornale fiscale prima di un nuovo tentativo"
-            : error.message;
-          showPaymentError(message, detail);
-          return;
+          row.fiscal = {
+            status: error.outcomeUncertain ? "uncertain" : "failed",
+            error: error.message || "Scontrino fiscale non emesso",
+            outcomeUncertain: error.outcomeUncertain === true,
+            failedAt: new Date().toISOString()
+          };
+          if (usesCash && fiscalReady && window.confirm("Pagamento registrato.\n\nVuoi stampare lo scontrino fiscale?")) {
+            row.fiscal = null;
+            retryFiscal = true;
+          }
+          if (!usesCash) {
+            renderPaymentRows();
+            const message = error.outcomeUncertain
+              ? "Esito fiscale incerto: non riprovare subito."
+              : "Scontrino fiscale non emesso.";
+            const detail = error.outcomeUncertain
+              ? "Controlla la stampante o il giornale fiscale prima di un nuovo tentativo"
+              : error.message;
+            showPaymentError(message, detail);
+            return;
+          }
+          showPaymentError("Pagamento in contanti registrato, scontrino non emesso.", error.message || "Controlla la stampante fiscale");
         } finally {
           fiscalPaymentInProgress = false;
         }
+        if (retryFiscal) return startPaymentForRow(index);
+      } else if (usesCash && !fiscalReady) {
+        row.fiscal = {
+          status: "not_configured",
+          error: "Stampante fiscale non configurata",
+          failedAt: new Date().toISOString()
+        };
+        window.confirm("Pagamento registrato.\n\nVuoi stampare lo scontrino fiscale? Configura prima la stampante fiscale nel Setup.");
       }
 
       row.processing = false;
       row.paid = true;
+      if (manualPos) {
+        row.pos = { status: "manual", recordedAt: new Date().toISOString(), note: "Pagamento effettuato manualmente sul POS" };
+      }
+      if (paymentMode === "single") {
+        const dueCents = paymentDueCents(order);
+        const paidCents = paymentRows.filter(item => item.paid).reduce((sum, item) => sum + paymentCents(item.amount), 0);
+        const remainingCents = Math.max(0, dueCents - paidCents);
+        if (remainingCents > 0) {
+          const openRow = paymentRows.find(item => !item.paid);
+          if (openRow) openRow.amount = remainingCents / 100;
+          else paymentRows.push({ payer: `P${paymentRows.length + 1}`, amount: remainingCents / 100, method: row.method || "Contanti", paid: false });
+        }
+      }
+      persistPartialPayment(order);
       renderPaymentRows();
       updatePaymentBalance();
       const due = paymentDueCents(order);
       const paid = paymentRows.filter(item => item.paid).reduce((sum, item) => sum + paymentCents(item.amount), 0);
       if (paymentRows.length && paymentRows.every(item => item.paid) && paid === due) finalizePaidOrder();
+    }
+
+    function persistPartialPayment(order) {
+      if (!order) return;
+      const paidCents = paymentRows.filter(row => row.paid).reduce((sum, row) => sum + paymentCents(row.amount), 0);
+      if (paidCents <= 0) return;
+      const dueCents = paymentDueCents(order);
+      const complete = paidCents >= dueCents;
+      order.status = complete ? "Pagato" : "Pagamento parziale";
+      order.paymentStatus = complete ? "paid" : "partial";
+      order.payment = {
+        status: complete ? "paid" : "partial",
+        paidAt: order.payment?.paidAt || null,
+        lastPaymentAt: new Date().toISOString(),
+        amount: paidCents / 100,
+        dueAmount: dueCents / 100,
+        originalAmount: orderTotal(order),
+        discount: paymentDiscount,
+        discountType: paymentDiscountType,
+        tip: paymentTip,
+        mode: paymentMode,
+        payments: structuredClone(paymentRows)
+      };
+      order.occupied = true;
+      saveState();
+      renderTables();
+      renderSelectedOrder();
     }
 
     function changePaymentCovers(index, value) {
@@ -3569,6 +3720,7 @@
       if (!fixed || fixed.paid) return;
       const due = paymentDueCents(order);
       const fixedAndPaid = paymentRows.reduce((sum, row, index) => sum + (row.paid || index === fixedIndex ? paymentCents(row.amount) : 0), 0);
+      if (paymentMode === "single") return;
       const open = paymentRows.filter((row, index) => !row.paid && index !== fixedIndex);
       const remaining = Math.max(0, due - fixedAndPaid);
       if (!open.length) return;
@@ -3596,6 +3748,7 @@
         paymentRows = Array.from({ length: covers }, (_, index) => ({ payer: `P${index + 1}`, covers: 1, amount: paymentDueCents(order) / 100 / covers, method: "Contanti", paid: false }));
       }
       document.getElementById("paymentContext").textContent = mode === "single" ? "Conto unico" : "Pagamento per quote";
+      document.getElementById("addPaymentBtn").hidden = mode === "single";
       renderPaymentRows();
       updatePaymentBalance();
     }
@@ -3615,24 +3768,44 @@
       if (order && order.status === "Pagato") return;
       if (!order) return;
       const isNewOrder = paymentOrderId !== order.id;
+      const hasSavedPartialPayment = order.paymentStatus === "partial" && order.payment;
       paymentOrderId = order.id;
-      if (isNewOrder) {
+      // Lo stesso tavolo può ospitare più comande nel tempo: l'id del tavolo
+      // non basta per capire se sconto e mancia appartengono alla comanda corrente.
+      if (isNewOrder || !hasSavedPartialPayment) {
         paymentDiscount = "0";
         paymentDiscountType = "amount";
         paymentTip = "0";
+      }
+      if (hasSavedPartialPayment) {
+        paymentDiscount = order.payment.discount ?? "0";
+        paymentDiscountType = order.payment.discountType || "amount";
+        paymentTip = order.payment.tip ?? "0";
       }
       document.getElementById("paymentDiscountInput").value = paymentDiscount === "0" ? "" : paymentDiscount;
       document.getElementById("paymentTipInput").value = paymentTip === "0" ? "" : paymentTip;
       const due = paymentDueCents(order);
       paymentMode = order.splitMode ? "split" : "single";
       const accounts = order.splitMode ? Array.from({ length: Number(order.splitCount || 0) }, (_, i) => String(i + 1)).filter(account => paymentAccountTotal(order, account) > 0) : [];
-      paymentRows = accounts.length ? accounts.map((account, index) => ({ payer: `P${index + 1}`, amount: paymentAccountTotal(order, account), method: "Contanti", paid: false, account })) : [{ payer: "P1", amount: due / 100, method: "Contanti", paid: false }];
+      const savedPayments = Array.isArray(order.payment?.payments) && order.payment.payments.length
+        ? structuredClone(order.payment.payments)
+        : null;
+      paymentRows = savedPayments || (accounts.length
+        ? accounts.map((account, index) => ({ payer: `P${index + 1}`, amount: paymentAccountTotal(order, account), method: "Contanti", paid: false, account }))
+        : [{ payer: "P1", amount: due / 100, method: "Contanti", paid: false }]);
+      if (!accounts.length && savedPayments) {
+        const paidCents = savedPayments.filter(row => row.paid).reduce((sum, row) => sum + paymentCents(row.amount), 0);
+        const remainingCents = Math.max(0, due - paidCents);
+        paymentRows = savedPayments.filter(row => row.paid);
+        if (remainingCents > 0) paymentRows.push({ payer: `P${paymentRows.length + 1}`, amount: remainingCents / 100, method: "Contanti", paid: false });
+      }
       const modeToggle = document.getElementById("paymentModeToggle");
       modeToggle.hidden = Boolean(order.splitMode);
       modeToggle.classList.toggle("active", paymentMode === "shares");
       modeToggle.setAttribute("aria-pressed", paymentMode === "shares" ? "true" : "false");
       modeToggle.textContent = paymentMode === "shares" ? "Conto unico" : "Per quote";
       document.getElementById("paymentContext").textContent = accounts.length ? "Conti separati" : "Conto unico";
+      document.getElementById("addPaymentBtn").hidden = !accounts.length && paymentMode === "single";
       document.getElementById("paymentDue").textContent = money.format(orderTotal(order));
       renderPaymentRows();
       updatePaymentBalance();
@@ -3789,6 +3962,7 @@
         return reservation ? (reservation.status === "seated" ? "seated" : "reserved") : "free";
       }
       if (Number(order.covers || 0) > 0 && !order.items.length) return "covers-only";
+      if (order.status === "Pagamento parziale" || order.paymentStatus === "partial") return "partial-paid";
       if (order.status === "Pagato") return "paid";
       if (order.status === "Pronta") return "ready";
       return "busy";
@@ -3835,6 +4009,19 @@
       return order.status;
     }
 
+    function paymentSummary(order) {
+      if (!order || (order.status !== "Pagato" && order.status !== "Pagamento parziale" && order.paymentStatus !== "paid" && order.paymentStatus !== "partial" && order.payment?.status !== "paid" && order.payment?.status !== "partial")) return "";
+      const payments = Array.isArray(order.payment?.payments) ? order.payment.payments : [];
+      const methods = [...new Set(payments.map(row => row.method).filter(Boolean))];
+      const amount = order.payment?.amount ?? order.total;
+      const value = amount != null ? money.format(Number(amount)) : "";
+      const label = order.paymentStatus === "partial" || order.payment?.status === "partial" ? "Pagato parzialmente" : "Pagato";
+      const due = order.payment?.dueAmount != null && amount != null && order.paymentStatus === "partial"
+        ? ` · Da pagare ${money.format(Math.max(0, Number(order.payment.dueAmount) - Number(amount)))} `
+        : "";
+      return `${label}${value ? ` ${value}` : ""}${due}${methods.length ? ` · ${methods.join(" + ")}` : ""}`.trim();
+    }
+
     function tableTooltip(order) {
       order = (!REMOTE_MODE && localOrderDraftId === order.id && localOrderDraft) ? localOrderDraft : order;
       const owner = tableOwnerFor(order.id);
@@ -3842,6 +4029,8 @@
       const reservation = tableReservationFor(order);
       if (reservation) return `${reservation.status === "seated" ? "Seduto" : "Prenotato"}: ${reservationDisplayName(reservation)} - ${reservation.covers || reservation.num || 0} coperti`;
       const status = tableLabel(order);
+      const paid = paymentSummary(order);
+      if (paid) return paid;
       if (!order.coversEnteredAt || status === "Libero") return status;
       const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(order.coversEnteredAt).getTime()) / 60000));
       if (elapsedMinutes < 60) return `${status} - occupato da ${elapsedMinutes} min`;
@@ -4228,8 +4417,38 @@
       return Math.max(0, Math.min(course, 3));
     }
 
+    function activeCourseNumber(value) {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) && numeric >= 0 ? courseNumber(numeric) : -1;
+    }
+
     function courseLabel(value) {
       return `Sequenza ${courseNumber(value)}`;
+    }
+
+    function courseIsClosed(order, course) {
+      const normalized = courseNumber(course);
+      const lines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === normalized);
+      if (!lines.length) {
+        const usedCourses = (order.items || [])
+          .filter(line => lineUsesTurns(line))
+          .map(line => courseNumber(line.course));
+        const highestUsed = usedCourses.length ? Math.max(...usedCourses) : -1;
+        if (normalized > highestUsed) return false;
+      }
+      if ((order.dismissedCourses || []).some(value => courseNumber(value) === normalized)) return true;
+      return lines.length > 0 && lines.every(line => line.kitchenStatus === "Completo");
+    }
+
+    function courseIsSelectable(order, course) {
+      const normalized = courseNumber(course);
+      if (courseIsClosed(order, normalized)) return false;
+      const usedCourses = (order.items || [])
+        .filter(line => lineUsesTurns(line))
+        .map(line => courseNumber(line.course));
+      if (!usedCourses.length) return normalized === 0;
+      const highest = Math.max(...usedCourses);
+      return normalized <= Math.min(3, highest + 1);
     }
 
     function linesByCourse(lines) {
@@ -4254,17 +4473,26 @@
     function courseForNewItem(order) {
       const turnLines = (order.items || []).filter(line => lineUsesTurns(line));
       const usedCourses = [...new Set(turnLines.map(line => courseNumber(line.course)))].sort((a, b) => a - b);
-      const dismissed = new Set((order.dismissedCourses || []).map(courseNumber));
-      const selected = courseNumber(order.selectedCourse);
-      const selectedLines = turnLines.filter(line => courseNumber(line.course) === selected);
-      const selectedOpen = !dismissed.has(selected) && !(selectedLines.length > 0 && selectedLines.every(line => line.kitchenStatus === "Completo"));
-      if (selectedOpen) return selected;
-      for (const course of usedCourses) {
-        const lines = turnLines.filter(line => courseNumber(line.course) === course);
-        const closed = dismissed.has(course) || (lines.length > 0 && lines.every(line => line.kitchenStatus === "Completo"));
-        if (!closed) return course;
+      const highest = usedCourses.length ? Math.max(...usedCourses) : -1;
+      for (let course = 0; course <= Math.min(3, highest + 1); course += 1) {
+        if (!courseIsClosed(order, course)) return course;
       }
-      return usedCourses.length ? Math.max(...usedCourses) + 1 : 0;
+      return Math.min(3, highest + 1);
+    }
+
+    function nextCourseToActivate(order) {
+      const currentActive = activeCourseNumber(order.activeCourse);
+      if (currentActive >= 0 && !courseIsClosed(order, currentActive)) return currentActive + 1;
+      for (let course = 0; course <= 3; course += 1) {
+        if (!courseIsClosed(order, course)) return course;
+      }
+      return -1;
+    }
+
+    function selectedCourseForModal(order) {
+      return modalSelectedCourse === null || modalSelectedCourse === undefined
+        ? courseForNewItem(order)
+        : courseNumber(modalSelectedCourse);
     }
 
     function splitHasContent(order, account) {
@@ -4480,10 +4708,11 @@
       controls.className = "course-controls";
       const button = document.createElement("button");
       button.type = "button";
-      const selected = courseNumber(course) === courseNumber(order.selectedCourse);
-      const currentActive = courseNumber(order.activeCourse ?? order.selectedCourse);
+      const selected = courseNumber(course) === selectedCourseForModal(order);
+      const currentActive = activeCourseNumber(order.activeCourse);
       const headingActive = PALMARE_MODE ? courseNumber(course) === currentActive : selected;
       button.className = `course-title ${headingActive ? "active" : ""}`;
+      button.disabled = courseIsClosed(order, course);
       button.setAttribute("aria-pressed", headingActive ? "true" : "false");
       button.title = deliveryOrder ? label : `Inserisci i nuovi piatti nella ${courseLabel(course)}`;
       button.textContent = label;
@@ -4492,10 +4721,8 @@
         button.title = deliveryOrder ? label : `Sequenza attiva: ${headingActive ? "si'" : "no"}`;
       } else button.addEventListener("click", () => {
         const selected = courseNumber(course);
-        order.selectedCourse = selected;
-          saveState();
-          // Anche i tasti sequenza rapidi accanto a "Piatti" dipendono da selectedCourse (quale
-        // e' evidenziato come attivo): senza richiamare anche renderMenu() restano indietro.
+        modalSelectedCourse = modalSelectedCourse === selected ? null : selected;
+        // Aggiorna subito i pulsanti del modal senza persistere la destinazione.
         renderMenu();
         renderOrder();
       });
@@ -4510,7 +4737,10 @@
       const courseLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === courseNumberValue);
       const courseCompleted = courseLines.length > 0 && courseLines.every(line => line.kitchenStatus === "Completo");
       const hasUnsentChanges = orderHasUnsentChangesForSend(order);
-      const canActivate = !hasUnsentChanges && !courseCompleted && (courseNumberValue <= currentActive || previousReady);
+      const canActivate = !hasUnsentChanges
+        && !courseCompleted
+        && courseNumberValue === nextCourseToActivate(order)
+        && previousReady;
       activate.className = `course-activate ${courseNumberValue === currentActive ? "active" : ""}`;
       activate.disabled = !canActivate;
       activate.textContent = "▶";
@@ -4537,15 +4767,17 @@
 
     function activateCourse(order, course) {
       const normalized = courseNumber(course);
-      const currentActive = courseNumber(order.activeCourse ?? order.selectedCourse);
+      const currentActive = activeCourseNumber(order.activeCourse);
       const previousCourse = normalized - 1;
       const currentLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === normalized);
       if (currentLines.length > 0 && currentLines.every(line => line.kitchenStatus === "Completo")) return;
+      if (normalized !== nextCourseToActivate(order)) return;
       if (normalized > currentActive && previousCourse >= 0) {
         const previousLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === previousCourse);
         if (!previousLines.length || !previousLines.every(line => line.kitchenStatus === "Completo")) return;
       }
       order.activeCourse = normalized;
+      pendingCourseActivations.set(String(order.id), normalized);
       if (!Array.isArray(order.courseSequence)) order.courseSequence = [];
       order.courseSequence = order.courseSequence.filter(value => courseNumber(value) !== normalized);
       order.courseSequence.push(normalized);
@@ -4741,6 +4973,7 @@
         }
       }
       const draftOrder = !REMOTE_MODE && !order.source ? localOrderDraft : order;
+      modalSelectedCourse = draftOrder.source ? null : courseForNewItem(draftOrder);
       orderModalSnapshot = structuredClone(draftOrder);
       const editableOrder = draftOrder;
       if (!REMOTE_MODE && isNewOrder) {
@@ -4775,6 +5008,12 @@
       // un refresh remoto non deve spostare la comanda appena aperta su un altro tavolo.
       if (REMOTE_MODE) remoteSelectedOrderId = order.id;
       else state.selectedTable = order.id;
+      // Ogni ingresso nella comanda riparte dalla prima categoria del menu,
+      // senza ereditare la categoria lasciata aperta nell'ultima modifica.
+      const firstCategory = Array.isArray(state.settings.categories) && state.settings.categories.length
+        ? state.settings.categories[0]
+        : (state.menu[0] && state.menu[0].category) || "Tutti";
+      state.category = firstCategory;
       saveState();
       // Ogni apertura riparte dai piatti: la comanda resta da richiamare col suo tasto.
       const initialView = requestedView === "menu" || requestedView === "comanda"
@@ -4821,7 +5060,7 @@
         const owner = tableOwnerFor(table.id);
         const effectiveTable = (!REMOTE_MODE && localOrderDraftId === table.id && localOrderDraft) ? localOrderDraft : table;
         const displayOrder = owner && (owner.occupied || owner.items.length) ? owner : effectiveTable;
-        const activeCourse = courseNumber(displayOrder.selectedCourse);
+        const activeCourse = activeCourseNumber(displayOrder.activeCourse);
         const lockMark = visibleLockedTables.has(String(table.id)) ? `<span class="table-lock-icon" title="Tavolo in uso da un'altra istanza">&#128274;</span>` : "";
         const isFree = !displayOrder.occupied && !displayOrder.items.length;
         const enteredTime = displayOrder.coversEnteredAt ? new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(new Date(displayOrder.coversEnteredAt)) : "";
@@ -4829,7 +5068,7 @@
           ? `<strong>TV${table.id} · principale TV${owner.id}${lockMark}</strong>`
           : isFree
           ? `<strong>TV${table.id}${lockMark}</strong>`
-          : `<span class="table-title"><strong>TV${table.id}${lockMark}</strong><span class="table-time">${enteredTime}</span></span><span class="table-meta"><span>Pax: ${Number(displayOrder.covers || 0)}</span><span>Seq: ${activeCourse}</span></span><span>${money.format(orderTotal(displayOrder))}</span>`;
+          : `<span class="table-title"><strong>TV${table.id}${lockMark}</strong><span class="table-time">${enteredTime}</span></span><span class="table-meta"><span>Pax: ${Number(displayOrder.covers || 0)}</span><span>Seq: ${activeCourse}</span></span><span>${money.format(orderTotal(displayOrder))}</span>${paymentSummary(displayOrder) ? `<small>${escapeHtml(paymentSummary(displayOrder))}</small>` : ""}`;
         button.addEventListener("click", () => {
           if (editRoom) {
             selectedRoomTableId = table.id;
@@ -4948,7 +5187,7 @@
       sequenceList.id = "burgerSequenceList";
       panel.appendChild(sequenceList);
 
-      ["sendBtn", "precontoBtn", "paymentBtn"].forEach(id => {
+      ["sendBtn", "precontoBtn"].forEach(id => {
         panel.appendChild(document.getElementById(id));
       });
       // "Libera tavolo" non compare sul palmare (resta un'azione da fare al POS principale).
@@ -5048,13 +5287,14 @@
       for (let course = 0; course <= maxCourse; course += 1) {
         const button = document.createElement("button");
         button.type = "button";
-        const active = courseNumber(order.selectedCourse) === course;
+        const active = modalSelectedCourse !== null && courseNumber(modalSelectedCourse) === course;
         button.className = `ghost seq-btn ${active ? "active" : ""}`;
+        button.disabled = courseIsClosed(order, course);
         button.textContent = String(course);
         button.title = `Aggiungi i prossimi piatti alla ${courseLabel(course)}`;
         button.addEventListener("click", () => {
-          order.selectedCourse = course;
-          saveState();
+          if (courseIsClosed(order, course)) return;
+          modalSelectedCourse = modalSelectedCourse === course ? null : course;
           renderMenu();
           renderOrder();
         });
@@ -5403,8 +5643,6 @@
         renderSplitControls(order);
       }
       document.getElementById("precontoBtn").hidden = isDeliveryOrder;
-      document.getElementById("paymentBtn").textContent = isDeliveryOrder ? "Consegnato" : "Pagamento";
-      document.getElementById("paymentBtn").disabled = order.status === "Pagato";
       document.getElementById("total").textContent = money.format(visibleOrderTotal(order));
 
       // "Invia" ha senso solo se c'e' qualcosa di nuovo da mandare in cucina rispetto
@@ -5425,7 +5663,6 @@
         document.getElementById("notes").classList.toggle("remote-blocked", !remoteEditable);
         document.getElementById("sendBtn").classList.toggle("remote-blocked", !remoteEditable);
         document.getElementById("precontoBtn").classList.add("remote-blocked");
-        document.getElementById("paymentBtn").classList.add("remote-blocked");
         document.getElementById("freeTableBtn").classList.add("remote-blocked");
       }
 
@@ -5438,8 +5675,12 @@
       // ordini gia' arrivati prima di questa modifica non hanno mai avuto).
       const immediateLines = isDeliveryOrder ? [] : lines.filter(line => !lineUsesTurns(line));
       const turnLines = isDeliveryOrder ? lines : lines.filter(line => lineUsesTurns(line));
-      const maxCourse = isDeliveryOrder ? 0 : availableCourseCountFromLines(turnLines);
-      order.selectedCourse = Math.min(courseNumber(order.selectedCourse), Math.max(0, maxCourse));
+      // La destinazione puo' essere una sequenza ancora vuota: non limitarla
+      // al numero delle sequenze gia' presenti, altrimenti il render la riporta a 0.
+      const selectedCourse = isDeliveryOrder ? 0 : selectedCourseForModal(order);
+      const maxCourse = isDeliveryOrder
+        ? 0
+        : Math.max(availableCourseCountFromLines(turnLines), selectedCourse);
 
       if (!isDeliveryOrder) root.appendChild(renderSplitCoverLine(order));
 
@@ -5496,7 +5737,7 @@
         }
 
         if (!courseLines.length) {
-          if (course !== order.selectedCourse) continue;
+          if (course !== selectedCourse) continue;
           const empty = document.createElement("div");
           empty.className = "empty";
           empty.textContent = order.splitMode && order.selectedSplit !== "T"
@@ -5560,7 +5801,7 @@
             if (Number.isFinite(course)) return courseNumber(course);
           }
         }
-        return courseNumber(order.activeCourse ?? order.selectedCourse);
+        return activeCourseNumber(order.activeCourse);
       };
       const monitorLines = order => compactMonitorLines((Array.isArray(order.items) ? order.items : [])
         .filter(line => monitorForLine(line) === selectedKitchenMonitor && (Number(line.sentQty || 0) > 0 || (order.source && ["preparazione", "in_preparation", "ready_for_pickup", "awaiting_collection", "ready_for_collection"].includes(String(order.status || "").toLowerCase()))))
@@ -6015,6 +6256,13 @@
       document.getElementById("confirmCloseModal").showModal();
     }
 
+    function advanceActiveCourseAfterClose(order, closedCourse) {
+      if (!order) return;
+      // La chiusura non attiva mai la sequenza successiva: l'operatore deve
+      // premere esplicitamente il relativo tasto di attivazione.
+      order.activeCourse = -1;
+    }
+
     function requestCloseKitchenCourse(orderId, course) {
       if (REMOTE_MODE) return;
       const order = findOrderById(orderId);
@@ -6038,6 +6286,7 @@
         currentOrder.items = currentLines;
         if (!Array.isArray(currentOrder.dismissedCourses)) currentOrder.dismissedCourses = [];
         if (!currentOrder.dismissedCourses.includes(courseValue)) currentOrder.dismissedCourses.push(courseValue);
+        advanceActiveCourseAfterClose(currentOrder, courseValue);
         const turnCourses = [...new Set(currentLines.filter(line => lineUsesTurns(line)).map(line => courseNumber(line.course)))];
           if (currentLines.length > 0 && currentLines.every(line => line.kitchenStatus === "Completo") && turnCourses.every(value => currentOrder.dismissedCourses.includes(value))) {
             currentOrder.status = "Completato";
@@ -6069,6 +6318,7 @@
       if (pendingCloseCourse !== null) {
         if (!Array.isArray(order.dismissedCourses)) order.dismissedCourses = [];
         if (!order.dismissedCourses.includes(pendingCloseCourse)) order.dismissedCourses.push(pendingCloseCourse);
+        advanceActiveCourseAfterClose(order, pendingCloseCourse);
         const allLinesComplete = Array.isArray(order.items) && order.items.length > 0 && order.items.every(line => line.kitchenStatus === "Completo");
         const closeLines = Array.isArray(order.items) ? order.items : [];
         const turnCourses = [...new Set(closeLines.filter(line => lineUsesTurns(line)).map(line => courseNumber(line.course)))];
@@ -6246,8 +6496,7 @@
       table.splitCovers = structuredClone(archived.splitCovers || {});
       table.splitLabels = structuredClone(archived.splitLabels || {});
       table.paidSplits = {};
-      table.selectedCourse = courseNumber(archived.selectedCourse);
-      table.activeCourse = courseNumber(archived.activeCourse || archived.selectedCourse);
+      table.activeCourse = activeCourseNumber(archived.activeCourse);
       table.courseSequence = structuredClone(archived.courseSequence || [1]);
       state.history.splice(historyIndex, 1);
       saveState();
@@ -6428,12 +6677,14 @@
       const order = currentOrder();
       if (REMOTE_MODE && !isRemoteEditableOrder(order)) return;
       const isDeliveryOrder = Boolean(order.source);
-      // Il tasto titolo di createCourseButton ("Inserisci i nuovi piatti nella Sequenza X") imposta
-      // order.selectedCourse proprio per scegliere dove atterrano i nuovi piatti: va rispettato
-      // qui su entrambe le piattaforme, altrimenti il bottone mentirebbe sul suo stesso effetto.
-      const course = !isDeliveryOrder && lineUsesTurns(item)
-        ? courseForNewItem(order)
-        : 0;
+      // La destinazione scelta nel modal resta transitoria e non viene salvata nell'ordine.
+      let course = 0;
+      if (!isDeliveryOrder && lineUsesTurns(item)) {
+        const explicit = modalSelectedCourse;
+        course = explicit !== null && explicit !== undefined && !courseIsClosed(order, explicit)
+          ? courseNumber(explicit)
+          : courseForNewItem(order);
+      }
       if (Array.isArray(order.dismissedCourses)) {
         order.dismissedCourses = order.dismissedCourses.filter(value => courseNumber(value) !== course);
       }
@@ -6530,7 +6781,7 @@
         return;
       }
       line.course = nextCourse;
-      order.selectedCourse = line.course;
+      modalSelectedCourse = line.course;
       replaceLineKey(line);
     }
 
@@ -6596,6 +6847,7 @@
 
     function closeOrderModal() {
       backToMenu();
+      modalSelectedCourse = null;
       document.getElementById("orderModal").close();
       document.body.classList.remove("order-screen");
       releaseTableLock();
@@ -6822,16 +7074,8 @@
       if (!order || order.source || (!order.occupied && !order.items.length)) return;
       openPrecontoModal(order);
     });
-    document.getElementById("paymentBtn").addEventListener("click", () => {
-      // "Consegnato" resta sempre solo LAN da remoto, anche sui Pick-up manuali: l'unica
-      // azione concessa li' e' "Invia".
-      if (REMOTE_MODE) return;
-      const order = currentOrder();
-      if (!order || order.status === "Pagato" || (!order.occupied && !order.items.length)) return;
-      openPaymentModal(order);
-    });
-
     document.getElementById("addPaymentBtn").addEventListener("click", () => {
+      if (paymentMode === "single") return;
       paymentRows.push({ payer: `P${paymentRows.length + 1}`, amount: 0, covers: paymentMode === "shares" ? 1 : undefined, method: "Contanti", paid: false });
       renderPaymentRows();
       updatePaymentBalance();
@@ -6902,6 +7146,28 @@
       document.getElementById("confirmFreeTableModal").showModal();
     });
 
+    function createFreshTable(table) {
+      return {
+        id: table.id,
+        x: table.x,
+        y: table.y,
+        occupied: false,
+        covers: 0,
+        notes: "",
+        status: "Nuova",
+        splitMode: false,
+        selectedSplit: "T",
+        splitCount: 7,
+        splitCovers: {},
+        splitLabels: {},
+        paidSplits: {},
+        activeCourse: 0,
+        courseSequence: [1],
+        dismissedCourses: [],
+        items: []
+      };
+    }
+
     async function freeCurrentTable() {
       if (REMOTE_MODE) return;
       // La conferma puo' arrivare mentre il tavolo e' ancora una bozza locale:
@@ -6922,6 +7188,16 @@
           payload: structuredClone(order)
         })
       }).catch(() => {});
+      // Una nuova apertura deve partire senza alcun dato transazionale ereditato.
+      delete order.payment;
+      delete order.paymentStatus;
+      delete order.paymentMethod;
+      delete order.paymentReference;
+      delete order.fiscalReceipt;
+      delete order.fiscalPayment;
+      delete order.discount;
+      delete order.discountType;
+      delete order.tip;
       if (order.source) {
         // Conserva un tombstone nello stato condiviso: il feed esterno puo'
         // riproporre l'ordine al polling, ma non deve farlo riapparire dopo
@@ -6932,19 +7208,12 @@
         if (remoteSelectedOrderId === order.id) remoteSelectedOrderId = null;
       } else {
         await finishReservationForOrder(order);
-        order.items = [];
-        order.notes = "";
-        order.coversEnteredAt = null;
-        order.status = "Nuova";
-        order.occupied = false;
-        order.splitMode = false;
-        order.selectedSplit = "T";
-        order.splitCount = 7;
-        order.splitCovers = {};
-        order.paidSplits = {};
-        order.selectedCourse = 0;
-        order.activeCourse = 0;
-        order.courseSequence = [0];
+        const linkedIds = Array.isArray(order.linkedTables) ? order.linkedTables.map(Number) : [];
+        const tableIds = [Number(order.id), ...linkedIds].filter(Number.isFinite);
+        tableIds.forEach(tableId => {
+          const tableIndex = state.tables.findIndex(table => Number(table.id) === tableId);
+          if (tableIndex >= 0) state.tables[tableIndex] = createFreshTable(state.tables[tableIndex]);
+        });
       }
       await saveState();
       render();
@@ -6970,9 +7239,9 @@
         splitCovers: {},
         splitLabels: {},
         paidSplits: {},
-        selectedCourse: 0,
         activeCourse: 0,
         courseSequence: [1],
+        dismissedCourses: [],
         items: []
       });
       state.selectedTable = nextId;
@@ -6999,7 +7268,6 @@
         collectionCode: null,
         pickupTime: null,
         items: [],
-        selectedCourse: 0,
         activeCourse: 0,
         kitchenClosed: false,
         receivedAt: new Date().toISOString()
@@ -7417,24 +7685,17 @@
     document.getElementById("resetBtn").addEventListener("click", () => {
       if (REMOTE_MODE) return;
       if (!confirm("Cancellare tutte le comande aperte?")) return;
-      state.tables.forEach(table => {
-        table.items = [];
-        table.notes = "";
-        table.linkedTables = [];
-        table.covers = 0;
-        table.coversEnteredAt = null;
-        table.status = "Nuova";
-        table.occupied = false;
-        clearReservationPayload(table);
-        table.splitMode = false;
-        table.selectedSplit = "T";
-        table.splitCount = 7;
-        table.splitCovers = {};
-        table.paidSplits = {};
-        table.selectedCourse = 0;
-      });
+      state.tables = state.tables.map(createFreshTable);
       state.deliveryOrders = [];
+      state.history = [];
+      state.selectedTable = null;
+      state.selectedOrderId = null;
       clearLocalOrderDraft();
+      paymentRows = [];
+      paymentOrderId = null;
+      paymentDiscount = "0";
+      paymentDiscountType = "amount";
+      paymentTip = "0";
       saveState({ resetDeliveryOrders: true });
       render();
     });

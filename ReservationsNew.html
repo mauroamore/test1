@@ -627,10 +627,14 @@
                         name: "",
                         notes: "[]"
                     }
-                    this.reservations.push(this.W)
                 },
-                walkin: function () {
+                walkin: function (bvModalEvt) {
                     var self = this;
+                    if (!self.W || self.Tables(self.W).length === 0) {
+                        if (bvModalEvt && bvModalEvt.preventDefault) bvModalEvt.preventDefault();
+                        self.$bvToast.toast("Seleziona almeno un tavolo prima di confermare il walk-in.", { title: "Tavolo mancante", variant: "warning", solid: true });
+                        return;
+                    }
                     var Aj = Ajax();
                     self.saving = true;
                     Aj.data = JSON.stringify({ coperti: this.W.num, tavoli: this.W.notes });
@@ -743,14 +747,17 @@
                     }
                 },
                 Status: function (x, y) {
-                    let p = this.reservations.filter(z => z.notes && this.Tables(z).findIndex(k => k == y) >= 0 && this.Sovrapposizione(x, z))
+                    let source = this.reservations.slice()
+                    if (this.W && source.indexOf(this.W) < 0) source.push(this.W)
+                    let p = source.filter(z => z.notes && this.Tables(z).findIndex(k => k == y) >= 0 && this.Sovrapposizione(x, z))
+                    const sameReservation = item => item === x || (item && x && item.id && x.id && String(item.id) === String(x.id))
                     if (p.length == 0) return ""
-                    if (p.length == 1) return p[0].id == x.id ? "success" : "danger"
-                    return (p.findIndex(z => z.id == x.id) >= 0) ? "warning" : "danger"
+                    if (p.length == 1) return sameReservation(p[0]) ? "success" : "danger"
+                    return p.some(sameReservation) ? "warning" : "danger"
                 },
                 Toggle: function (x, y) {
                     // Dopo l'arrivo del cliente il controllo dei tavoli passa a Gestione Comande.
-                    if (!x || x.status === "seated") return
+                    if (!x || (x.status === "seated" && x !== this.W)) return
                     let t = this.Tables(x)
                     let j = t.findIndex(w => w == y)
                     if (j >= 0) { t.splice(j, 1) } else { t.push(y) }

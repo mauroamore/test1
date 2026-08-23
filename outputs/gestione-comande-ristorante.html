@@ -4251,6 +4251,22 @@
       return maxCourse;
     }
 
+    function courseForNewItem(order) {
+      const turnLines = (order.items || []).filter(line => lineUsesTurns(line));
+      const usedCourses = [...new Set(turnLines.map(line => courseNumber(line.course)))].sort((a, b) => a - b);
+      const dismissed = new Set((order.dismissedCourses || []).map(courseNumber));
+      const selected = courseNumber(order.selectedCourse);
+      const selectedLines = turnLines.filter(line => courseNumber(line.course) === selected);
+      const selectedOpen = !dismissed.has(selected) && !(selectedLines.length > 0 && selectedLines.every(line => line.kitchenStatus === "Completo"));
+      if (selectedOpen) return selected;
+      for (const course of usedCourses) {
+        const lines = turnLines.filter(line => courseNumber(line.course) === course);
+        const closed = dismissed.has(course) || (lines.length > 0 && lines.every(line => line.kitchenStatus === "Completo"));
+        if (!closed) return course;
+      }
+      return usedCourses.length ? Math.max(...usedCourses) + 1 : 0;
+    }
+
     function splitHasContent(order, account) {
       if (account === "T") return order.items.length > 0 || Number(order.covers || 0) > 0;
       const hasLines = order.items.some(line => line.splitAccount === account);
@@ -6414,7 +6430,7 @@
       // order.selectedCourse proprio per scegliere dove atterrano i nuovi piatti: va rispettato
       // qui su entrambe le piattaforme, altrimenti il bottone mentirebbe sul suo stesso effetto.
       const course = !isDeliveryOrder && lineUsesTurns(item)
-        ? courseNumber(order.selectedCourse)
+        ? courseForNewItem(order)
         : 0;
       if (Array.isArray(order.dismissedCourses)) {
         order.dismissedCourses = order.dismissedCourses.filter(value => courseNumber(value) !== course);

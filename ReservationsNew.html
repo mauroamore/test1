@@ -608,7 +608,10 @@
                 ChangeHash() { },
                 isMobile() { return screen.width <= 760; },
                 remWalkin() {
-                    this.reservations.pop()
+                    if (!this.W) return
+                    const index = this.reservations.findIndex(item => item === this.W || (this.W.id && item.id === this.W.id))
+                    if (index >= 0) this.reservations.splice(index, 1)
+                    this.W = null
                 },
                 setWalkin() {
                     this.W = {
@@ -629,17 +632,24 @@
                 walkin: function () {
                     var self = this;
                     var Aj = Ajax();
+                    self.saving = true;
                     Aj.data = JSON.stringify({ coperti: this.W.num, tavoli: this.W.notes });
                     Aj.url = "/ReservationsProxy.ashx?method=InsertWalkin";
                     Aj.success = function (response) {
                         var parsed = typeof response.d === "string" ? JSON.parse(response.d) : response.d;
+                        self.saving = false;
                         self.reservations = (parsed && parsed.objects ? parsed.objects : []).map(function (reservation) {
                             reservation.num = Number(reservation.num || reservation.coperti || reservation.guests || 0);
                             reservation.notes = reservation.notes == null ? "[]" : reservation.notes;
                             return reservation;
                         });
                         self.publishReservationEvent({ date: self.data, type: "walkin" });
+                        self.W = null;
                         //self.drawRect()
+                    }
+                    Aj.error = function () {
+                        self.saving = false;
+                        self.$bvToast.toast("Impossibile creare il walk-in.", { title: "Operazione non riuscita", variant: "danger", solid: true });
                     }
                     $.ajax(Aj);
                     //InsertWalkin(coperti As Integer, tavoli As String)

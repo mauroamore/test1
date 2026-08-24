@@ -2739,7 +2739,7 @@
         status: "Nuova",
         splitMode: false,
         selectedSplit: "T",
-        splitCount: 7,
+        splitCount: 6,
         splitCovers: {},
         splitLabels: {},
         paidSplits: {},
@@ -3172,7 +3172,7 @@
             if (typeof table.sentCovers !== "number") table.sentCovers = (table.items || []).some(line => Number(line.sentQty || 0) > 0) ? Number(table.covers || 0) : 0;
             if (typeof table.splitMode !== "boolean") table.splitMode = false;
             if (!table.selectedSplit) table.selectedSplit = "T";
-            if (typeof table.splitCount !== "number" || table.splitCount < 7) table.splitCount = 7;
+            if (typeof table.splitCount !== "number" || table.splitCount < 6) table.splitCount = 6;
             if (!table.splitCovers || typeof table.splitCovers !== "object") table.splitCovers = {};
             if (!table.splitLabels || typeof table.splitLabels !== "object") table.splitLabels = {};
             if (!table.paidSplits || typeof table.paidSplits !== "object") table.paidSplits = {};
@@ -5108,7 +5108,7 @@
         editableOrder.splitMode = typeof coverChoice === "object" ? Boolean(coverChoice.splitMode) : false;
         if (editableOrder.splitMode) {
           editableOrder.selectedSplit = "T";
-          editableOrder.splitCount = Math.max(7, Number(editableOrder.splitCount || 7));
+          editableOrder.splitCount = Math.max(6, Number(editableOrder.splitCount || 6));
         }
         editableOrder.covers = covers;
         editableOrder.coversEnteredAt = new Date().toISOString();
@@ -6653,7 +6653,7 @@
       table.occupied = true;
       table.splitMode = Boolean(archived.splitMode);
       table.selectedSplit = archived.selectedSplit || "T";
-      table.splitCount = archived.splitCount || 7;
+      table.splitCount = archived.splitCount || 6;
       table.splitCovers = structuredClone(archived.splitCovers || {});
       table.splitLabels = structuredClone(archived.splitLabels || {});
       table.paidSplits = {};
@@ -7318,7 +7318,7 @@
         status: "Nuova",
         splitMode: false,
         selectedSplit: "T",
-        splitCount: 7,
+        splitCount: 6,
         splitCovers: {},
         splitLabels: {},
         paidSplits: {},
@@ -7396,7 +7396,7 @@
         status: "Nuova",
         splitMode: false,
         selectedSplit: "T",
-        splitCount: 7,
+        splitCount: 6,
         splitCovers: {},
         splitLabels: {},
         paidSplits: {},
@@ -7583,7 +7583,7 @@
       const order = currentOrder();
       order.splitMode = true;
       order.selectedSplit = order.selectedSplit || "T";
-      order.splitCount = Math.max(7, Number(order.splitCount || 7));
+      order.splitCount = Math.max(6, Number(order.splitCount || 6));
       saveState();
       renderOrder();
     });

@@ -4989,7 +4989,22 @@
     function askCoverCount(tableId, initialValue) {
       const modal = document.getElementById("coverCountModal");
       const input = document.getElementById("coverCountInput");
+      const cancelButton = document.getElementById("coverCountCancelBtn");
+      const confirmButton = document.getElementById("coverCountConfirmBtn");
       document.getElementById("coverCountTitle").textContent = `Coperti Tavolo ${tableId}`;
+      if (PALMARE_MODE) {
+        cancelButton.textContent = "Separato";
+        cancelButton.className = "secondary";
+        cancelButton.title = "Apri la comanda con conti separati";
+        confirmButton.textContent = "Unico";
+        confirmButton.title = "Apri la comanda con conto unico";
+      } else {
+        cancelButton.textContent = "Annulla";
+        cancelButton.className = "ghost";
+        cancelButton.title = "Annulla";
+        confirmButton.textContent = "Conferma";
+        confirmButton.title = "Conferma";
+      }
       input.value = String(initialValue || 2);
       modal.showModal();
       requestAnimationFrame(() => { input.focus(); input.select(); });
@@ -5001,20 +5016,28 @@
           modal.close();
           resolve(value);
         };
-        document.getElementById("coverCountConfirmBtn").onclick = () => {
+        const readCovers = () => {
           const covers = Math.floor(Number(input.value));
           if (!Number.isFinite(covers) || covers < 1) {
             input.setCustomValidity("Inserisci almeno 1 coperto.");
             input.reportValidity();
-            return;
+            return null;
           }
           input.setCustomValidity("");
-          finish(covers);
+          return covers;
         };
-        document.getElementById("coverCountCancelBtn").onclick = () => finish(null);
+        confirmButton.onclick = () => {
+          const covers = readCovers();
+          if (covers !== null) finish(PALMARE_MODE ? { covers, splitMode: false } : covers);
+        };
+        cancelButton.onclick = () => {
+          if (!PALMARE_MODE) return finish(null);
+          const covers = readCovers();
+          if (covers !== null) finish({ covers, splitMode: true });
+        };
         document.getElementById("coverCountCloseBtn").onclick = () => finish(null);
         input.onkeydown = event => {
-          if (event.key === "Enter") { event.preventDefault(); document.getElementById("coverCountConfirmBtn").click(); }
+          if (event.key === "Enter") { event.preventDefault(); confirmButton.click(); }
           if (event.key === "Escape") finish(null);
         };
       });
@@ -5075,11 +5098,17 @@
           }
           if (match === "same") seatReservationOnTable(reservation, order);
         }
-        const covers = await askCoverCount(order.id, order.covers || 2);
-        if (covers === null) {
+        const coverChoice = await askCoverCount(order.id, order.covers || 2);
+        if (coverChoice === null) {
           clearLocalOrderDraft();
           releaseTableLock();
           return;
+        }
+        const covers = typeof coverChoice === "object" ? coverChoice.covers : coverChoice;
+        editableOrder.splitMode = typeof coverChoice === "object" ? Boolean(coverChoice.splitMode) : false;
+        if (editableOrder.splitMode) {
+          editableOrder.selectedSplit = "T";
+          editableOrder.splitCount = Math.max(7, Number(editableOrder.splitCount || 7));
         }
         editableOrder.covers = covers;
         editableOrder.coversEnteredAt = new Date().toISOString();

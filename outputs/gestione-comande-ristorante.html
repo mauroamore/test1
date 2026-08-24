@@ -956,8 +956,11 @@
       padding: 0 0 10px;
     }
     body.palmare-mode .palmare-table-filters button {
+      flex: 1 1 0;
+      min-width: 0;
       min-height: 40px;
       padding: 6px 10px;
+      white-space: nowrap;
     }
     body.palmare-mode .palmare-table-filters button.active {
       background: var(--brand);
@@ -5201,14 +5204,12 @@
         completion: rows.filter(({ displayOrder }) => tableNeedsCompletion(displayOrder)).length,
         occupied: rows.filter(({ table, displayOrder }) => tableClass(table).includes("busy") || Boolean(displayOrder?.occupied)).length,
         free: rows.filter(({ table, displayOrder }) => tableClass(table).includes("free") && !displayOrder?.occupied && !displayOrder?.items?.length).length,
-        ready: rows.filter(({ table }) => tableClass(table).includes("ready")).length
       };
       const filters = [
         ["all", "Tutti"],
         ["completion", "Da completare"],
         ["occupied", "Occupati"],
         ["free", "Liberi"],
-        ["ready", "Pronti"]
       ];
       const filterBar = document.createElement("div");
       filterBar.className = "palmare-table-filters";

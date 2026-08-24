@@ -2479,6 +2479,17 @@
       </div>
     </div>
   </dialog>
+  <dialog class="label-modal" id="splitDetailsModal">
+    <div class="modal-head">
+      <h2 id="splitDetailsTitle">Sottoconto</h2>
+      <button class="ghost" id="splitDetailsCloseBtn" type="button" title="Annulla">X</button>
+    </div>
+    <div class="modal-content stack">
+      <label>Numero di coperti <input id="splitDetailsCoversInput" type="number" min="1" step="1" inputmode="numeric"></label>
+      <label>Nome (facoltativo) <input id="splitDetailsNameInput" type="text" autocomplete="off" placeholder="Es. Marco"></label>
+      <div class="row"><button class="secondary" id="splitDetailsCancelBtn" type="button">Annulla</button><button class="primary" id="splitDetailsSaveBtn" type="button">Conferma</button></div>
+    </div>
+  </dialog>
 
   <dialog class="label-modal" id="confirmCloseModal">
     <div class="modal-head">
@@ -4648,7 +4659,17 @@
         const button = document.createElement("button");
         button.className = splitButtonClass(order, account);
         button.textContent = account;
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
+          const currentCovers = Number((order.splitCovers || {})[account] || 0);
+          if (account !== "T" && currentCovers <= 0) {
+            const details = await askSplitDetails(order, account);
+            if (!details) return;
+            if (!order.splitCovers) order.splitCovers = {};
+            if (!order.splitLabels) order.splitLabels = {};
+            order.splitCovers[account] = details.covers;
+            if (details.name) order.splitLabels[account] = details.name;
+            else delete order.splitLabels[account];
+          }
           order.selectedSplit = account;
           saveState();
           renderOrder();
@@ -7617,6 +7638,42 @@
         render();
       });
     });
+
+    function askSplitDetails(order, account) {
+      const modal = document.getElementById("splitDetailsModal");
+      const coversInput = document.getElementById("splitDetailsCoversInput");
+      const nameInput = document.getElementById("splitDetailsNameInput");
+      document.getElementById("splitDetailsTitle").textContent = `Sottoconto ${account}`;
+      coversInput.value = "1";
+      nameInput.value = order.splitLabels?.[account] || "";
+      modal.showModal();
+      requestAnimationFrame(() => { coversInput.focus(); coversInput.select(); });
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = value => {
+          if (settled) return;
+          settled = true;
+          modal.close();
+          resolve(value);
+        };
+        const save = () => {
+          const covers = Math.floor(Number(coversInput.value));
+          if (!Number.isFinite(covers) || covers < 1) {
+            coversInput.setCustomValidity("Inserisci almeno 1 coperto.");
+            coversInput.reportValidity();
+            return;
+          }
+          coversInput.setCustomValidity("");
+          finish({ covers, name: nameInput.value.trim() });
+        };
+        document.getElementById("splitDetailsSaveBtn").onclick = save;
+        document.getElementById("splitDetailsCancelBtn").onclick = () => finish(null);
+        document.getElementById("splitDetailsCloseBtn").onclick = () => finish(null);
+        modal.addEventListener("cancel", () => finish(null), { once: true });
+        coversInput.onkeydown = event => { if (event.key === "Enter") { event.preventDefault(); save(); } };
+        nameInput.onkeydown = event => { if (event.key === "Enter") { event.preventDefault(); save(); } };
+      });
+    }
 
     function closeSplitLabelModal() {
       const modal = document.getElementById("splitLabelModal");

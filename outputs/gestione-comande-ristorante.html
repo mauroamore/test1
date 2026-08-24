@@ -3176,6 +3176,12 @@
             if (!table.splitCovers || typeof table.splitCovers !== "object") table.splitCovers = {};
             if (!table.splitLabels || typeof table.splitLabels !== "object") table.splitLabels = {};
             if (!table.paidSplits || typeof table.paidSplits !== "object") table.paidSplits = {};
+            // Il precedente default era 7: riduciamo i vecchi ordini a 6 solo quando
+            // il sottoconto 7 non contiene piatti/coperti, preservando dati eventualmente
+            // già assegnati a quel conto.
+            const splitSevenInUse = table.items.some(line => String(line.splitAccount || "") === "7") ||
+              Number(table.splitCovers["7"] || 0) > 0 || Boolean(table.splitLabels["7"]);
+            if (table.splitCount === 7 && !splitSevenInUse) table.splitCount = 6;
             table.activeCourse = activeCourseNumber(table.activeCourse);
             delete table.selectedCourse;
             delete table.insertionCourse;

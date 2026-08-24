@@ -5172,7 +5172,7 @@
       const rows = state.tables.map(table => {
         const owner = state.tables.find(candidate => Array.isArray(candidate.linkedTables) && candidate.linkedTables.includes(table.id));
         const displayOrder = owner && (owner.occupied || owner.items.length) ? owner : table;
-        return { table, displayOrder };
+        return { table, owner, displayOrder };
       });
       const counts = {
         all: rows.length,
@@ -5203,7 +5203,7 @@
       list.className = "table-list";
       list.innerHTML = "<thead><tr><th>Tavolo</th><th>Stato</th><th>Pax</th></tr></thead><tbody></tbody>";
       const tbody = list.querySelector("tbody");
-      rows.filter(({ table, displayOrder }) => tableMatchesPalmareFilter(table, displayOrder)).forEach(({ table, displayOrder }) => {
+      rows.filter(({ table, displayOrder }) => tableMatchesPalmareFilter(table, displayOrder)).forEach(({ table, owner, displayOrder }) => {
         const lockMark = visibleLockedTables.has(String(table.id)) ? `<span class="table-lock-icon" title="Tavolo in uso da un'altra istanza">&#128274;</span>` : "";
         const row = document.createElement("tr");
         row.className = tableClass(table);

@@ -65,9 +65,11 @@ const RESTAURANT_SYNC_KEY = process.env.RESTAURANT_SYNC_KEY || "";
 const RESTAURANT_SYNC_INTERVAL_MS = Number(process.env.RESTAURANT_SYNC_INTERVAL_MS || 5000);
 const REALTIME_URL = (process.env.REALTIME_URL || "https://vorrei-realtime.onrender.com").replace(/\/$/, "");
 const REALTIME_KEY = process.env.REALTIME_KEY || RESTAURANT_SYNC_KEY;
+const UPDATE_KEY = process.env.UPDATE_KEY || "";
 const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
 const clients = new Set();
 const tableLocks = new Map();
+let updateInProgress = false;
 let fiscalReceiptInProgress = false;
 const TABLE_LOCK_TTL_MS = 15000;
 function readJsonFile(filePath, fallback = null) {
@@ -174,6 +176,22 @@ if (sharedState && !Number.isFinite(Number(sharedState.stateRevision))) sharedSt
 function sendJson(response, status, body) {
   response.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
   response.end(JSON.stringify(body));
+}
+
+function updateAuthorized(request) {
+  if (!UPDATE_KEY) return false;
+  const headerKey = request.headers["x-update-key"] || "";
+  return headerKey === UPDATE_KEY;
+}
+
+function runUpdateScript() {
+  return new Promise((resolve, reject) => {
+    const script = path.join(ROOT, "scripts", "update-app.sh");
+    childProcess.execFile("bash", [script], { cwd: ROOT, timeout: 180000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) return reject(new Error((stderr || stdout || error.message).trim()));
+      resolve((stdout || "Aggiornamento completato").trim());
+    });
+  });
 }
 
 function publishRealtimeEvent(event, data = {}) {
@@ -1316,6 +1334,18 @@ const server = http.createServer((request, response) => {
   }
   if (request.url === "/api/version" && request.method === "GET") {
     return sendJson(response, 200, { version: APP_VERSION, packageVersion: require("./package.json").version });
+  }
+  if (request.url === "/api/admin/update" && request.method === "POST") {
+    if (!updateAuthorized(request)) return sendJson(response, 401, { ok: false, error: "Chiave aggiornamento non valida" });
+    if (updateInProgress) return sendJson(response, 409, { ok: false, error: "Aggiornamento già in corso" });
+    updateInProgress = true;
+    return runUpdateScript().then(output => {
+      updateInProgress = false;
+      sendJson(response, 200, { ok: true, output });
+    }).catch(error => {
+      updateInProgress = false;
+      sendJson(response, 500, { ok: false, error: error.message });
+    });
   }
   const requestPath = request.url.split("?")[0];
   const requested = requestPath === "/" ? "/outputs/gestione-comande-ristorante.html" : requestPath;

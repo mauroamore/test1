@@ -2128,7 +2128,7 @@
 
   <section class="setup-screen" id="setupScreen" hidden>
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div><div class="device-profile"><label for="deviceModeInput">Operatività dispositivo</label><select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
-    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Categorie</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Stampante fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button></div>
+    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Categorie</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Stampante fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
     <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Categorie</h2><span class="small">Sincronizzate dal menu online</span></div><div class="panel-body setup-list" id="setupCategoryList"></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="monitors" hidden><div class="panel-header"><h2>Monitor</h2><button class="primary" id="addMonitorSetupBtn" type="button">Aggiungi monitor</button></div><div class="panel-body stack"><div class="monitor-setup" id="setupMonitorSetup"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="printers" hidden><div class="panel-header"><h2>Stampanti</h2><button class="primary" id="addPrinterBtn" type="button">Aggiungi stampante</button></div><div class="panel-body setup-list" id="setupPrinterList"></div></section>
@@ -2139,6 +2139,14 @@
         <label>Layout tastiera ricerca menu <select id="menuSearchKeyboardInput"><option value="numeric">Numerica</option><option value="text">Testo</option></select></label>
         <div class="small">La tastiera numerica è utile quando cerchi soprattutto per codice o numero articolo.</div>
         <div class="small">Quando attiva, il pulsante Paga completa il pagamento nel gestionale senza collegarsi a un terminale reale.</div>
+      </div>
+    </section>
+    <section class="panel setup-tab-panel" data-setup-panel="update" hidden>
+      <div class="panel-header"><h2>Aggiornamento software</h2><span class="small" id="updateVersionInfo">Verifica versione in corso…</span></div>
+      <div class="panel-body stack">
+        <label>Chiave amministrativa <input id="updateKeyInput" type="password" autocomplete="off" placeholder="UPDATE_KEY"></label>
+        <div class="small">Salva un backup dello stato, scarica il codice da GitHub ed esegue i controlli automatici. Il servizio non viene riavviato automaticamente.</div>
+        <div class="row"><button class="primary" id="updateSoftwareBtn" type="button">Verifica e aggiorna</button><span class="small" id="updateStatus" role="status"></span></div>
       </div>
     </section>
     <section class="panel setup-tab-panel" data-setup-panel="fiscal" hidden>
@@ -7464,7 +7472,35 @@
       document.querySelectorAll("[data-setup-tab]").forEach(item => item.classList.toggle("active", item === button));
       document.querySelectorAll("[data-setup-panel]").forEach(panel => panel.hidden = panel.dataset.setupPanel !== tab);
       if (tab === "monitors" || tab === "printers" || tab === "fiscal" || tab === "pos") renderSetup();
+      if (tab === "update") loadUpdateVersion();
     }));
+
+    async function loadUpdateVersion() {
+      const target = document.getElementById("updateVersionInfo");
+      try {
+        const response = await fetch("/api/version", { cache: "no-store" });
+        const info = await response.json();
+        target.textContent = `Installata: ${info.packageVersion || "?"} · build ${info.version || "local"}`;
+      } catch (error) { target.textContent = "Versione non disponibile"; }
+    }
+
+    document.getElementById("updateSoftwareBtn").addEventListener("click", async () => {
+      const key = document.getElementById("updateKeyInput").value.trim();
+      const status = document.getElementById("updateStatus");
+      const button = document.getElementById("updateSoftwareBtn");
+      if (!key) { status.textContent = "Inserisci la chiave amministrativa."; return; }
+      if (!window.confirm("Avviare il controllo e l'aggiornamento del software?")) return;
+      button.disabled = true;
+      status.textContent = "Aggiornamento in corso…";
+      try {
+        const response = await fetch("/api/admin/update", { method: "POST", headers: { "X-Update-Key": key } });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Aggiornamento non riuscito");
+        status.textContent = result.output || "Aggiornamento completato. Riavviare il servizio.";
+        loadUpdateVersion();
+      } catch (error) { status.textContent = error.message; }
+      finally { button.disabled = false; }
+    });
     document.getElementById("posSimulationInput").addEventListener("change", event => {
       state.settings.posSimulation = event.target.checked;
       saveState();

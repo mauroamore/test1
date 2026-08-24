@@ -2145,7 +2145,7 @@
       <div class="panel-header"><h2>Aggiornamento software</h2><span class="small" id="updateVersionInfo">Verifica versione in corso…</span></div>
       <div class="panel-body stack">
         <label>Chiave amministrativa <input id="updateKeyInput" type="password" autocomplete="off" placeholder="UPDATE_KEY"></label>
-        <div class="small">Salva un backup dello stato, scarica il codice da GitHub ed esegue i controlli automatici. Il servizio non viene riavviato automaticamente.</div>
+        <div class="small">Salva un backup dello stato, scarica il codice da GitHub, esegue i controlli automatici e riavvia il servizio se tutto passa.</div>
         <div class="row"><button class="primary" id="updateSoftwareBtn" type="button">Verifica e aggiorna</button><span class="small" id="updateStatus" role="status"></span></div>
       </div>
     </section>
@@ -7496,7 +7496,7 @@
         const response = await fetch("/api/admin/update", { method: "POST", headers: { "X-Update-Key": key } });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Aggiornamento non riuscito");
-        status.textContent = result.output || "Aggiornamento completato. Riavviare il servizio.";
+        status.textContent = result.output || "Aggiornamento completato. Riavvio del servizio in corso…";
         loadUpdateVersion();
       } catch (error) { status.textContent = error.message; }
       finally { button.disabled = false; }

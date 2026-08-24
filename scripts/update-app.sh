@@ -24,4 +24,4 @@ fi
 npm install --omit=dev
 npm run check
 
-echo "Codice aggiornato e verificato. Riavviare il servizio gestione-comande.service per applicare la nuova versione."
+echo "Codice aggiornato e verificato. Il servizio verrà riavviato dal backend."

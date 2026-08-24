@@ -66,6 +66,7 @@ const RESTAURANT_SYNC_INTERVAL_MS = Number(process.env.RESTAURANT_SYNC_INTERVAL_
 const REALTIME_URL = (process.env.REALTIME_URL || "https://vorrei-realtime.onrender.com").replace(/\/$/, "");
 const REALTIME_KEY = process.env.REALTIME_KEY || RESTAURANT_SYNC_KEY;
 const UPDATE_KEY = process.env.UPDATE_KEY || "";
+const SERVICE_NAME = process.env.SERVICE_NAME || "gestione-comande.service";
 const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
 const clients = new Set();
 const tableLocks = new Map();
@@ -192,6 +193,14 @@ function runUpdateScript() {
       resolve((stdout || "Aggiornamento completato").trim());
     });
   });
+}
+
+function scheduleServiceRestart() {
+  setTimeout(() => {
+    childProcess.execFile("sudo", ["-n", "systemctl", "restart", SERVICE_NAME], { cwd: ROOT, timeout: 30000 }, error => {
+      if (error) appendLog(path.join(ROOT, "update.log"), `${new Date().toISOString()} riavvio fallito: ${error.message}\n`);
+    });
+  }, 1500).unref();
 }
 
 function publishRealtimeEvent(event, data = {}) {
@@ -1341,7 +1350,8 @@ const server = http.createServer((request, response) => {
     updateInProgress = true;
     return runUpdateScript().then(output => {
       updateInProgress = false;
-      sendJson(response, 200, { ok: true, output });
+      sendJson(response, 200, { ok: true, output, restartScheduled: true });
+      scheduleServiceRestart();
     }).catch(error => {
       updateInProgress = false;
       sendJson(response, 500, { ok: false, error: error.message });

@@ -962,6 +962,14 @@
       padding: 6px 10px;
       white-space: nowrap;
     }
+    body.palmare-mode .palmare-table-filters .filter-icon {
+      display: inline-block;
+      min-width: 1.2em;
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+      vertical-align: -1px;
+    }
     body.palmare-mode .palmare-table-filters button.active {
       background: var(--brand);
       color: #fff;
@@ -5206,18 +5214,20 @@
         free: rows.filter(({ table, displayOrder }) => tableClass(table).includes("free") && !displayOrder?.occupied && !displayOrder?.items?.length).length,
       };
       const filters = [
-        ["all", "Tutti"],
-        ["completion", "Da completare"],
-        ["occupied", "Occupati"],
-        ["free", "Liberi"],
+        ["all", "▦", "Tutti"],
+        ["completion", "!", "Da completare"],
+        ["occupied", "●", "Occupati"],
+        ["free", "○", "Liberi"]
       ];
       const filterBar = document.createElement("div");
       filterBar.className = "palmare-table-filters";
-      filters.forEach(([value, label]) => {
+      filters.forEach(([value, icon, label]) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = `ghost ${palmareTableFilter === value ? "active" : ""}`;
-        button.textContent = `${label} (${counts[value]})`;
+        button.innerHTML = `<span class="filter-icon" aria-hidden="true">${icon}</span> <span>${counts[value]}</span>`;
+        button.title = label;
+        button.setAttribute("aria-label", `${label}: ${counts[value]}`);
         button.addEventListener("click", () => { palmareTableFilter = value; renderTableList(); });
         filterBar.appendChild(button);
       });

@@ -446,6 +446,25 @@
     body.palmare-mode #variationModeButtons[hidden] {
       display: none;
     }
+    /* Il tastierino numerico riduce il viewport dal basso: il dialog centrato dal browser
+       finirebbe sotto la tastiera. Nel palmare il modal dei coperti resta quindi ancorato
+       in alto, nell'area sicura, lasciando spazio al campo e ai comandi. */
+    body.palmare-mode #coverCountModal {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      right: 12px;
+      bottom: auto;
+      left: 12px;
+      width: auto;
+      max-width: none;
+      max-height: calc(100dvh - max(24px, env(safe-area-inset-top) + 12px));
+      margin: 0;
+      transform: none;
+    }
+    body.palmare-mode #coverCountModal input {
+      min-height: 48px;
+      font-size: 20px;
+    }
     body.palmare-mode .tabs button {
       display: flex;
       align-items: center;

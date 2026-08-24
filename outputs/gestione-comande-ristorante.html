@@ -1752,6 +1752,13 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    body.palmare-mode #currentTitle .palmare-cover-count {
+      margin-left: 4px;
+      color: var(--muted);
+      font-size: 0.68em;
+      font-weight: 600;
+      vertical-align: 0.12em;
+    }
     body.palmare-mode #tableToggles {
       grid-column: 2;
       grid-row: 2;
@@ -5738,9 +5745,10 @@
         return;
       }
       const isDeliveryOrder = Boolean(order.source);
-      document.getElementById("currentTitle").textContent = isDeliveryOrder
-        ? orderTicketLabel(order)
-        : `Tavolo ${order.id}`;
+      const title = document.getElementById("currentTitle");
+      if (isDeliveryOrder) title.textContent = orderTicketLabel(order);
+      else if (PALMARE_MODE) title.innerHTML = `TV${escapeHtml(order.id)} <span class="palmare-cover-count">x${Number(order.covers || 0)}</span>`;
+      else title.textContent = `Tavolo ${order.id}`;
       const tableTogglesRoot = document.getElementById("tableToggles");
       // Unire tavoli/coperti/split conto non hanno senso per un ordine delivery: niente strip
       // di collegamento tavoli in quel caso, il resto del modale (articoli/note) e' comune.

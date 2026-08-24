@@ -5215,7 +5215,6 @@
         row.addEventListener("click", () => openOrderModal(table.id).catch(error => alert(`Errore apertura tavolo: ${error.message || error}`)));
         tbody.appendChild(row);
       });
-      if (!tbody.children.length) tbody.innerHTML = '<tr><td colspan="3" class="empty">Nessun tavolo corrisponde al filtro.</td></tr>';
       root.appendChild(list);
     }
 

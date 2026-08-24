@@ -197,6 +197,12 @@
     body.palmare-mode.order-screen > header {
       display: none;
     }
+    /* La schermata ordine usa un dialog aperto nel documento, non il top layer di
+       showModal(): nascondiamo quindi la sala sottostante per impedire che intestazione
+       e filtri sticky dei tavoli restino sopra menu/comanda. */
+    body.palmare-mode.order-screen > main {
+      display: none;
+    }
 
     /* Palmare: la comanda e' una schermata a tutto schermo (non un modal fluttuante), con menu
        e articoli impilati in un'unica colonna invece che affiancati - stessi elementi/id di

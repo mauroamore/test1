@@ -486,6 +486,15 @@
       min-height: 48px;
       font-size: 20px;
     }
+    body.palmare-mode #splitAccountChoiceModal .split-account-choice-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    body.palmare-mode #splitAccountChoiceModal .split-account-choice-buttons button {
+      min-height: 48px;
+      font-size: 18px;
+    }
     body.palmare-mode .tabs button {
       display: flex;
       align-items: center;
@@ -2319,6 +2328,10 @@
       <label>Numero di coperti <input id="coverCountInput" type="number" min="1" step="1" inputmode="numeric"></label>
       <div class="row"><button class="ghost" id="coverCountCancelBtn" type="button">Annulla</button><button class="primary" id="coverCountConfirmBtn" type="button">Conferma</button></div>
     </div>
+  </dialog>
+  <dialog class="label-modal" id="splitAccountChoiceModal">
+    <div class="modal-head"><h2>Sottoconto</h2><button class="icon-btn" id="splitAccountChoiceCloseBtn" type="button" title="Annulla">×</button></div>
+    <div class="modal-content stack"><p>Scegli il sottoconto per questo articolo.</p><div class="split-account-choice-buttons" id="splitAccountChoiceButtons"></div></div>
   </dialog>
   <dialog class="label-modal" id="reservationMatchModal">
     <div class="modal-head"><h2>Prenotazione presente</h2><button class="icon-btn" id="reservationMatchCloseBtn" type="button" title="Annulla">×</button></div>
@@ -5505,6 +5518,34 @@
       });
     }
 
+    function chooseSplitAccount(order) {
+      if (!order?.splitMode || order.selectedSplit !== "T") return Promise.resolve(null);
+      const modal = document.getElementById("splitAccountChoiceModal");
+      const root = document.getElementById("splitAccountChoiceButtons");
+      root.innerHTML = "";
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = account => {
+          if (settled) return;
+          settled = true;
+          modal.close();
+          resolve(account);
+        };
+        for (let index = 1; index <= Number(order.splitCount || 6); index += 1) {
+          const account = String(index);
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `ghost ${splitButtonClass(order, account)}`;
+          button.textContent = account;
+          button.addEventListener("click", () => finish(account));
+          root.appendChild(button);
+        }
+        document.getElementById("splitAccountChoiceCloseBtn").onclick = () => finish(null);
+        modal.addEventListener("cancel", () => finish(null), { once: true });
+        modal.showModal();
+      });
+    }
+
     function renderMenu() {
       const root = document.getElementById("menu");
       root.innerHTML = "";
@@ -5555,24 +5596,32 @@
           longPressed = false;
           longPressTimer = setTimeout(() => {
             longPressed = true;
-            markItemJustAdded(item.id);
-            const addedKey = addItem(item);
-            if (addedKey) editVariation(addedKey);
+            (async () => {
+              const orderNow = currentOrder();
+              const splitAccount = await chooseSplitAccount(orderNow);
+              if (orderNow?.splitMode && orderNow.selectedSplit === "T" && !splitAccount) return;
+              markItemJustAdded(item.id);
+              const addedKey = addItem(item, splitAccount);
+              if (addedKey) editVariation(addedKey);
+            })();
           }, 900);
         });
         button.addEventListener("pointerup", cancelLongPress);
         button.addEventListener("pointercancel", cancelLongPress);
         button.addEventListener("pointerleave", cancelLongPress);
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
           if (longPressed) {
             longPressed = false;
             return;
           }
+          const orderNow = currentOrder();
+          const splitAccount = await chooseSplitAccount(orderNow);
+          if (orderNow?.splitMode && orderNow.selectedSplit === "T" && !splitAccount) return;
           resetMenuSearch();
           // Registra il flash PRIMA di addItem(): quando il suo render() ricrea questo stesso
           // bottone, lo ritrova gia' segnato e lo crea direttamente con la classe attiva.
           markItemJustAdded(item.id);
-          addItem(item);
+          addItem(item, splitAccount);
           playAddFeedback();
         });
         root.appendChild(button);
@@ -6851,7 +6900,7 @@
       notifyHubRiseStatus(order, "accepted").then(() => notifyHubRiseStatus(order, "in_preparation", confirmedTime));
     }
 
-    function addItem(item) {
+    function addItem(item, splitAccountOverride = null) {
       const order = currentOrder();
       if (REMOTE_MODE && !isRemoteEditableOrder(order)) return;
       const isDeliveryOrder = Boolean(order.source);
@@ -6866,7 +6915,9 @@
       if (Array.isArray(order.dismissedCourses)) {
         order.dismissedCourses = order.dismissedCourses.filter(value => courseNumber(value) !== course);
       }
-      const splitAccount = order.splitMode && order.selectedSplit !== "T" ? order.selectedSplit : "";
+      const splitAccount = order.splitMode
+        ? (splitAccountOverride || (order.selectedSplit !== "T" ? order.selectedSplit : ""))
+        : "";
       const key = lineKey(item.id, [], [], item.name, item.price, course);
       const existing = order.items.find(line => line.key === key && (line.splitAccount || "") === splitAccount);
       if (existing) existing.qty += 1;

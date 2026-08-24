@@ -1442,6 +1442,18 @@
       text-transform: uppercase;
     }
 
+    .split-selected-label {
+      margin-left: auto;
+      max-width: 55%;
+      overflow: hidden;
+      color: var(--brand);
+      font-size: 0.95em;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      text-transform: none;
+      white-space: nowrap;
+    }
+
     .split-close {
       width: 22px;
       height: 22px;
@@ -2422,7 +2434,7 @@
         <section class="stack" id="comandaSection">
           <button class="ghost" id="splitStartBtn">conti separati</button>
           <div class="split-label" id="splitLabel" hidden>
-            <span>Sottoconti</span>
+            <span>Sottoconti</span><span class="split-selected-label" id="splitSelectedLabel"></span>
             <button class="ghost split-close" id="splitCloseBtn" type="button" title="Torna al conto standard" hidden aria-label="Torna al conto standard">×</button>
           </div>
           <div class="split-tools" id="splitTools" hidden></div>
@@ -4641,6 +4653,9 @@
     function renderSplitControls(order) {
       document.getElementById("splitStartBtn").hidden = order.splitMode;
       document.getElementById("splitLabel").hidden = !order.splitMode;
+      document.getElementById("splitSelectedLabel").textContent = order.splitMode && order.selectedSplit !== "T"
+        ? (order.splitLabels?.[order.selectedSplit] || "")
+        : "";
       const closeButton = document.getElementById("splitCloseBtn");
       const hasAssignedDishes = order.items.some(line => line.splitAccount && line.splitAccount !== "T");
       closeButton.hidden = !order.splitMode || hasAssignedDishes;

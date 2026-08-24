@@ -928,6 +928,34 @@
     body.palmare-mode #tables table.table-list {
       touch-action: pan-y;
     }
+    body.palmare-mode .palmare-table-filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 0 0 10px;
+    }
+    body.palmare-mode .palmare-table-filters button {
+      min-height: 40px;
+      padding: 6px 10px;
+    }
+    body.palmare-mode .palmare-table-filters button.active {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
+    }
+    body.palmare-mode table.table-list thead {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: var(--panel);
+    }
+    body.palmare-mode table.table-list tbody tr {
+      min-height: 52px;
+    }
+    body.palmare-mode table.table-list td {
+      padding-top: 16px;
+      padding-bottom: 16px;
+    }
 
     body.editing-room .table-button {
       cursor: grab;
@@ -5121,17 +5149,61 @@
       });
     }
 
+    let palmareTableFilter = "all";
+
+    function tableNeedsCompletion(order) {
+      if (!order || Number(order.covers || 0) <= 0) return false;
+      const items = Array.isArray(order.items) ? order.items : [];
+      return items.length === 0 || items.every(item => !lineUsesTurns(item));
+    }
+
+    function tableMatchesPalmareFilter(table, displayOrder) {
+      if (palmareTableFilter === "completion") return tableNeedsCompletion(displayOrder);
+      if (palmareTableFilter === "occupied") return tableClass(table).includes("busy") || Boolean(displayOrder?.occupied);
+      if (palmareTableFilter === "free") return tableClass(table).includes("free") && !displayOrder?.occupied && !displayOrder?.items?.length;
+      if (palmareTableFilter === "ready") return tableClass(table).includes("ready");
+      return true;
+    }
+
     // Palmare: niente piantina/drag, un tavolo per riga in una tabella semplice.
     function renderTableList() {
       const root = document.getElementById("tables");
       root.innerHTML = "";
+      const rows = state.tables.map(table => {
+        const owner = state.tables.find(candidate => Array.isArray(candidate.linkedTables) && candidate.linkedTables.includes(table.id));
+        const displayOrder = owner && (owner.occupied || owner.items.length) ? owner : table;
+        return { table, displayOrder };
+      });
+      const counts = {
+        all: rows.length,
+        completion: rows.filter(({ displayOrder }) => tableNeedsCompletion(displayOrder)).length,
+        occupied: rows.filter(({ table, displayOrder }) => tableClass(table).includes("busy") || Boolean(displayOrder?.occupied)).length,
+        free: rows.filter(({ table, displayOrder }) => tableClass(table).includes("free") && !displayOrder?.occupied && !displayOrder?.items?.length).length,
+        ready: rows.filter(({ table }) => tableClass(table).includes("ready")).length
+      };
+      const filters = [
+        ["all", "Tutti"],
+        ["completion", "Da completare"],
+        ["occupied", "Occupati"],
+        ["free", "Liberi"],
+        ["ready", "Pronti"]
+      ];
+      const filterBar = document.createElement("div");
+      filterBar.className = "palmare-table-filters";
+      filters.forEach(([value, label]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `ghost ${palmareTableFilter === value ? "active" : ""}`;
+        button.textContent = `${label} (${counts[value]})`;
+        button.addEventListener("click", () => { palmareTableFilter = value; renderTableList(); });
+        filterBar.appendChild(button);
+      });
+      root.appendChild(filterBar);
       const list = document.createElement("table");
       list.className = "table-list";
       list.innerHTML = "<thead><tr><th>Tavolo</th><th>Stato</th><th>Pax</th></tr></thead><tbody></tbody>";
       const tbody = list.querySelector("tbody");
-      state.tables.forEach(table => {
-        const owner = state.tables.find(candidate => Array.isArray(candidate.linkedTables) && candidate.linkedTables.includes(table.id));
-        const displayOrder = owner && (owner.occupied || owner.items.length) ? owner : table;
+      rows.filter(({ table, displayOrder }) => tableMatchesPalmareFilter(table, displayOrder)).forEach(({ table, displayOrder }) => {
         const lockMark = visibleLockedTables.has(String(table.id)) ? `<span class="table-lock-icon" title="Tavolo in uso da un'altra istanza">&#128274;</span>` : "";
         const row = document.createElement("tr");
         row.className = tableClass(table);
@@ -5143,6 +5215,7 @@
         row.addEventListener("click", () => openOrderModal(table.id).catch(error => alert(`Errore apertura tavolo: ${error.message || error}`)));
         tbody.appendChild(row);
       });
+      if (!tbody.children.length) tbody.innerHTML = '<tr><td colspan="3" class="empty">Nessun tavolo corrisponde al filtro.</td></tr>';
       root.appendChild(list);
     }
 

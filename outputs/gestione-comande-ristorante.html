@@ -7764,7 +7764,9 @@
 
     if (PALMARE_MODE) {
       document.body.classList.add("palmare-mode");
-      document.getElementById("kitchenBtn").hidden = deviceMode === "kitchen";
+      // Il monitor resta disponibile come schermata dedicata per i dispositivi cucina,
+      // ma il relativo pulsante non deve comparire nella UI palmare operativa.
+      document.getElementById("kitchenBtn").hidden = true;
       document.getElementById("setupBtn").hidden = !DEVICE_SETUP_MODE;
       document.getElementById("deliveryPanel").hidden = true;
       document.getElementById("exportBtn").hidden = true;

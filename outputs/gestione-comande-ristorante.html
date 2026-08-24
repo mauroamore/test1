@@ -312,6 +312,21 @@
       border-top: 1px solid var(--line);
       margin-top: 10px;
     }
+    body.palmare-mode #palmareHeaderActions {
+      display: flex;
+      grid-column: 1 / -1;
+      grid-row: 4;
+      width: 100%;
+      gap: 6px;
+      padding-top: 4px;
+    }
+    body.palmare-mode #palmareHeaderActions[hidden] {
+      display: none;
+    }
+    body.palmare-mode #palmareHeaderActions #sendBtn {
+      flex: 1 1 auto;
+      min-height: 42px;
+    }
     /* Un piatto per riga, non una griglia di card. Ridefinire grid-auto-rows e' necessario:
        altrimenti resta 118px dalla regola base e ogni riga vi si stira sopra (align-self:
        stretch di default), vanificando qualunque altezza/padding dato a .menu-item stesso. */
@@ -2337,6 +2352,7 @@
           <button class="ghost" id="jumpToComandaBtn" type="button" title="Vai alla comanda" aria-label="Vai alla comanda" hidden>&#128220;</button>
           <button class="ghost" id="closeModalBtn" title="Chiudi">X</button>
         </div>
+        <div id="palmareHeaderActions" hidden></div>
         <div class="burger-panel" id="orderBurgerPanel" hidden></div>
         <div id="palmareSplitBar" hidden></div>
       </div>
@@ -5292,9 +5308,9 @@
       sequenceList.id = "burgerSequenceList";
       panel.appendChild(sequenceList);
 
-      ["sendBtn", "precontoBtn"].forEach(id => {
-        panel.appendChild(document.getElementById(id));
-      });
+      document.getElementById("palmareHeaderActions").appendChild(document.getElementById("sendBtn"));
+      document.getElementById("palmareHeaderActions").hidden = false;
+      panel.appendChild(document.getElementById("precontoBtn"));
       // "Libera tavolo" non compare sul palmare (resta un'azione da fare al POS principale).
       document.getElementById("freeTableBtn").hidden = true;
 

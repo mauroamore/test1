@@ -4670,8 +4670,8 @@
       add.className = "ghost";
       add.textContent = "+";
       add.addEventListener("click", () => {
-        order.splitCount += 9;
-        order.selectedSplit = String(order.splitCount - 8);
+        order.splitCount += 8;
+        order.selectedSplit = String(order.splitCount - 7);
         saveState();
         renderOrder();
       });

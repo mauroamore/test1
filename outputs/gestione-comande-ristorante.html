@@ -486,6 +486,22 @@
       min-height: 48px;
       font-size: 20px;
     }
+    body.palmare-mode #splitDetailsModal {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      right: 12px;
+      bottom: auto;
+      left: 12px;
+      width: auto;
+      max-width: none;
+      max-height: calc(100dvh - max(24px, env(safe-area-inset-top) + 12px));
+      margin: 0;
+      transform: none;
+    }
+    body.palmare-mode #splitDetailsModal input {
+      min-height: 48px;
+      font-size: 20px;
+    }
     body.palmare-mode #splitAccountChoiceModal .split-account-choice-buttons {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4676,7 +4692,37 @@
         const button = document.createElement("button");
         button.className = splitButtonClass(order, account);
         button.textContent = account;
+        let longPressTimer = null;
+        let longPressed = false;
+        const cancelLongPress = () => {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        };
+        button.addEventListener("pointerdown", () => {
+          longPressed = false;
+          longPressTimer = setTimeout(async () => {
+            longPressed = true;
+            if (account === "T") return;
+            const details = await askSplitDetails(order, account);
+            if (!details) return;
+            if (!order.splitCovers) order.splitCovers = {};
+            if (!order.splitLabels) order.splitLabels = {};
+            order.splitCovers[account] = details.covers;
+            if (details.name) order.splitLabels[account] = details.name;
+            else delete order.splitLabels[account];
+            order.selectedSplit = account;
+            saveState();
+            renderOrder();
+          }, 2000);
+        });
+        button.addEventListener("pointerup", cancelLongPress);
+        button.addEventListener("pointercancel", cancelLongPress);
+        button.addEventListener("pointerleave", cancelLongPress);
         button.addEventListener("click", async () => {
+          if (longPressed) {
+            longPressed = false;
+            return;
+          }
           const currentCovers = Number((order.splitCovers || {})[account] || 0);
           if (account !== "T" && currentCovers <= 0) {
             const details = await askSplitDetails(order, account);
@@ -7660,7 +7706,7 @@
       const coversInput = document.getElementById("splitDetailsCoversInput");
       const nameInput = document.getElementById("splitDetailsNameInput");
       document.getElementById("splitDetailsTitle").textContent = `Sottoconto ${account}`;
-      coversInput.value = "1";
+      coversInput.value = String(Number((order.splitCovers || {})[account] || 1));
       nameInput.value = order.splitLabels?.[account] || "";
       modal.showModal();
       requestAnimationFrame(() => { coversInput.focus(); coversInput.select(); });

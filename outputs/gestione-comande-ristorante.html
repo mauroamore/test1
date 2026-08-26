@@ -756,6 +756,12 @@
     body.device-kitchen > header,
     body.device-kitchen > main,
     body.device-kitchen > .setup-screen { display: none !important; }
+    body.monitor-only > header,
+    body.monitor-only > main,
+    body.monitor-only > .setup-screen { display: none !important; }
+    body.monitor-only #monitorTabs,
+    body.monitor-only #historyBtn,
+    body.monitor-only #closeKitchenBtn { display: none !important; }
     body.device-cash #kitchenBtn { display: none; }
     .device-profile { display:flex; align-items:center; gap:8px; margin-top:8px; }
     .device-profile select { min-width:220px; }
@@ -8129,7 +8135,23 @@
       setupPalmareBurger();
     }
 
-    if (deviceMode === "kitchen" && !DEVICE_SETUP_MODE) {
+    const monitorHash = decodeURIComponent(window.location.hash.slice(1));
+    const dedicatedMonitorKey = monitorHash.toLowerCase().startsWith("monitor-")
+      ? monitorHash.slice(8).trim().toLowerCase()
+      : "";
+    const dedicatedMonitor = dedicatedMonitorKey
+      ? (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase() === dedicatedMonitorKey)
+      : null;
+
+    if (dedicatedMonitor && !DEVICE_SETUP_MODE) {
+      selectedKitchenMonitor = dedicatedMonitor.name;
+      document.body.classList.add("monitor-only", "kitchen-mode", "device-kitchen");
+      document.querySelector("main").hidden = true;
+      document.getElementById("kitchenScreen").hidden = false;
+      document.getElementById("kitchenTitle").textContent = dedicatedMonitor.name;
+      document.getElementById("kitchenToday").textContent = document.getElementById("today").textContent;
+      renderKitchen();
+    } else if (deviceMode === "kitchen" && !DEVICE_SETUP_MODE) {
       document.body.classList.add("device-kitchen");
       document.getElementById("kitchenBtn").click();
     } else if (deviceMode === "cash") {

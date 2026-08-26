@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestione menu</title>
+  <style>
+    :root { font-family: Inter, system-ui, sans-serif; color: #172033; background: #f5f7fb; }
+    * { box-sizing: border-box; } body { margin: 0; } button, input, select { font: inherit; }
+    .app { max-width: 1200px; margin: auto; padding: 28px; }
+    header { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 24px; }
+    h1, h2, p { margin: 0; } h1 { font-size: 30px; } .muted { color: #64748b; font-size: 14px; margin-top: 5px; }
+    .actions, .toolbar, .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button { border: 0; border-radius: 10px; padding: 11px 16px; cursor: pointer; font-weight: 650; }
+    .primary { color: white; background: #2563eb; } .ghost { background: white; color: #334155; border: 1px solid #d8dee9; }
+    .danger { background: #fff1f2; color: #be123c; } button:disabled { opacity: .5; cursor: default; }
+    .layout { display: grid; grid-template-columns: 230px 1fr; gap: 18px; }
+    .panel { background: white; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 8px 30px #1e293b0b; }
+    .categories { padding: 12px; align-self: start; position: sticky; top: 18px; }
+    .category { width: 100%; text-align: left; background: transparent; color: #475569; margin: 2px 0; }
+    .category.active { background: #eff6ff; color: #1d4ed8; } .count { float: right; color: #94a3b8; }
+    .content { padding: 20px; } .toolbar { margin: 16px 0; } .search { flex: 1; min-width: 220px; }
+    input, select { width: 100%; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px 12px; background: white; color: #172033; }
+    .item { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(110px, .7fr) minmax(150px, 1fr) auto; gap: 10px; align-items: center; padding: 12px 0; border-top: 1px solid #edf0f4; }
+    .item:first-child { border-top: 0; } .price { text-align: right; } .status { min-height: 22px; color: #15803d; font-size: 14px; }
+    .empty { padding: 42px 10px; text-align: center; color: #64748b; } .add-form { background: #f8fafc; padding: 14px; border-radius: 12px; margin-bottom: 12px; }
+    .add-form .fields { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; margin-top: 10px; }
+    @media (max-width: 760px) { .app { padding: 16px; } header { align-items: flex-start; flex-direction: column; } .layout { grid-template-columns: 1fr; } .categories { position: static; display: flex; overflow-x: auto; gap: 6px; } .category { min-width: max-content; width: auto; } .item { grid-template-columns: 1fr 100px; } .item select { grid-column: 1; } .item .delete { grid-column: 2; grid-row: 1 / span 2; } .add-form .fields { grid-template-columns: 1fr 1fr; } .add-form .fields button { grid-column: 1 / -1; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header><div><h1>Menu</h1><p class="muted">Modifica piatti, bevande e categorie del menu operativo.</p></div><div class="actions"><button class="ghost" onclick="location.href='gestione-comande-ristorante.html'">← Torna alle comande</button><button class="primary" id="save">Salva modifiche</button></div></header>
+    <div class="status" id="status" role="status"></div>
+    <div class="layout"><aside class="panel categories" id="categories"></aside><main class="panel content"><div class="toolbar"><input class="search" id="search" type="search" placeholder="Cerca articolo…"><button class="ghost" id="newCategory">+ Categoria</button></div><section class="add-form"><strong>Nuovo articolo</strong><div class="fields"><input id="newName" placeholder="Nome articolo"><input id="newPrice" type="number" min="0" step="0.01" placeholder="Prezzo"><select id="newCategorySelect"></select><button class="primary" id="add">Aggiungi</button></div></section><section id="items"></section></main></div>
+  </div>
+  <script>
+    let state = null, selected = "Tutti", query = "";
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
+    function categories() { return ["Tutti", ...new Set((state.settings?.categories || []).concat((state.menu || []).map(item => item.category).filter(Boolean)))]; }
+    function renderCategories() {
+      const list = categories(); $("categories").innerHTML = list.map(category => `<button class="category ${selected === category ? "active" : ""}" data-category="${esc(category)}">${esc(category)} <span class="count">${category === "Tutti" ? state.menu.length : state.menu.filter(item => item.category === category).length}</span></button>`).join("");
+      $("categories").querySelectorAll("[data-category]").forEach(button => button.onclick = () => { selected = button.dataset.category; render(); });
+      $("newCategorySelect").innerHTML = list.filter(category => category !== "Tutti").map(category => `<option>${esc(category)}</option>`).join("");
+    }
+    function renderItems() {
+      const items = state.menu.filter(item => (selected === "Tutti" || item.category === selected) && (!query || `${item.name} ${item.category}`.toLocaleLowerCase("it-IT").includes(query)));
+      $("items").innerHTML = items.length ? items.map(item => `<div class="item" data-id="${esc(item.id)}"><input data-field="name" value="${esc(item.name)}"><input class="price" data-field="price" type="number" min="0" step="0.01" value="${Number(item.price || 0).toFixed(2)}"><select data-field="category">${categories().filter(category => category !== "Tutti").map(category => `<option ${category === item.category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select><button class="danger delete" data-delete="${esc(item.id)}" title="Elimina articolo">Elimina</button></div>`).join("") : '<div class="empty">Nessun articolo corrisponde alla ricerca.</div>';
+      $("items").querySelectorAll(".item input, .item select").forEach(input => input.onchange = () => { const item = state.menu.find(entry => String(entry.id) === input.closest(".item").dataset.id); if (item) item[input.dataset.field] = input.dataset.field === "price" ? Number(input.value || 0) : input.value.trim(); });
+      $("items").querySelectorAll("[data-delete]").forEach(button => button.onclick = () => { state.menu = state.menu.filter(item => String(item.id) !== button.dataset.delete); render(); });
+    }
+    function render() { renderCategories(); renderItems(); }
+    async function load() { const response = await fetch("/api/state"); if (!response.ok) throw new Error("Stato non disponibile"); state = (await response.json()).state; state.menu ||= []; state.settings ||= {}; render(); }
+    $("search").oninput = event => { query = event.target.value.trim().toLocaleLowerCase("it-IT"); renderItems(); };
+    $("add").onclick = () => { const name = $("newName").value.trim(), category = $("newCategorySelect").value; if (!name || !category) return; state.menu.push({ id: crypto.randomUUID(), name, price: Number($("newPrice").value || 0), category }); $("newName").value = ""; $("newPrice").value = ""; render(); };
+    $("newCategory").onclick = () => { const name = prompt("Nome della nuova categoria"); if (!name?.trim()) return; state.settings.categories ||= []; if (!state.settings.categories.includes(name.trim())) state.settings.categories.push(name.trim()); selected = name.trim(); render(); };
+    $("save").onclick = async () => { $("save").disabled = true; $("status").textContent = "Salvataggio…"; try { const response = await fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }) }); if (!response.ok) throw new Error("Salvataggio non riuscito"); $("status").textContent = "Modifiche salvate."; } catch (error) { $("status").textContent = error.message; } finally { $("save").disabled = false; } };
+    load().catch(error => $("status").textContent = error.message);
+  </script>
+</body>
+</html>

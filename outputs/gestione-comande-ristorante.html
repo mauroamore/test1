@@ -2490,6 +2490,10 @@
       <div class="small" id="qrScanStatus">Inquadra il codice QR del cliente.</div>
     </div>
   </dialog>
+  <dialog class="label-modal" id="qrErrorModal">
+    <div class="modal-head"><h2>QR non acquisito</h2><button class="ghost" id="qrErrorCloseBtn" type="button">X</button></div>
+    <div class="modal-content stack"><div id="qrErrorMessage" role="alert"></div><button class="primary" id="qrErrorOkBtn" type="button">OK</button></div>
+  </dialog>
 
   <dialog class="label-modal preconto-modal" id="precontoModal">
     <div class="modal-head">
@@ -5482,6 +5486,12 @@
     function handleQrDetected(rawValue) {
       try { importQrSelection(rawValue); }
       catch (error) {
+        if (error.message === "Questo QR è già stato acquisito in questa comanda.") {
+          closeQrScanner();
+          document.getElementById("qrErrorMessage").textContent = error.message;
+          document.getElementById("qrErrorModal").showModal();
+          return;
+        }
         document.getElementById("qrScanStatus").textContent = error.message;
         if (qrScanTimer) { clearInterval(qrScanTimer); qrScanTimer = null; }
         qrScanStream?.getTracks().forEach(track => track.stop());
@@ -5551,6 +5561,8 @@
       });
     }
     document.getElementById("qrScanCloseBtn").addEventListener("click", closeQrScanner);
+    document.getElementById("qrErrorCloseBtn").addEventListener("click", () => document.getElementById("qrErrorModal").close());
+    document.getElementById("qrErrorOkBtn").addEventListener("click", () => document.getElementById("qrErrorModal").close());
     document.getElementById("qrScanBtn").addEventListener("click", openQrScanner);
 
     function setupPalmareBurger() {

@@ -5481,6 +5481,15 @@
       document.getElementById("qrScanVideo").srcObject = null;
       document.getElementById("qrScanModal").close();
     }
+    function handleQrDetected(rawValue) {
+      try { importQrSelection(rawValue); }
+      catch (error) {
+        document.getElementById("qrScanStatus").textContent = error.message;
+        if (qrScanTimer) { clearInterval(qrScanTimer); qrScanTimer = null; }
+        qrScanStream?.getTracks().forEach(track => track.stop());
+        qrScanStream = null;
+      }
+    }
     function importQrSelection(raw) {
       let payload;
       try { payload = JSON.parse(String(raw).trim()); } catch (_) { throw new Error("QR non valido: contenuto non leggibile."); }
@@ -5526,14 +5535,14 @@
             const context = canvas.getContext("2d", { willReadFrequently: true });
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             const code = window.jsQR(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-            if (code?.data) importQrSelection(code.data);
+            if (code?.data) handleQrDetected(code.data);
           }, 300);
           return;
         }
         const detector = new BarcodeDetector({ formats: ["qr_code"] });
         qrScanTimer = setInterval(async () => {
           if (!video.videoWidth) return;
-          try { const codes = await detector.detect(video); if (codes[0]?.rawValue) importQrSelection(codes[0].rawValue); } catch (_) { /* continua la scansione */ }
+          try { const codes = await detector.detect(video); if (codes[0]?.rawValue) handleQrDetected(codes[0].rawValue); } catch (_) { /* continua la scansione */ }
         }, 300);
       } catch (error) { status.textContent = "Impossibile usare la fotocamera o caricare il lettore QR. Puoi incollare il contenuto del QR."; }
     }

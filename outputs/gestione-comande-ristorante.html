@@ -5474,6 +5474,10 @@
       if (payload?.v !== 1 || payload.restaurant !== "thai-princess" || !Array.isArray(payload.items)) throw new Error("QR non riconosciuto per questo ristorante.");
       const order = currentOrder();
       if (!order) throw new Error("Apri prima una comanda.");
+      const qrId = typeof payload.id === "string" ? payload.id.trim() : "";
+      if (!qrId) throw new Error("QR non valido: manca l’identificativo della selezione.");
+      order.customerQrIds = Array.isArray(order.customerQrIds) ? order.customerQrIds : [];
+      if (order.customerQrIds.includes(qrId)) throw new Error("Questo QR è già stato acquisito in questa comanda.");
       const missing = [], selections = [];
       for (const entry of payload.items) {
         const item = state.menu.find(menuItem => String(menuItem.id) === String(entry.id));
@@ -5483,6 +5487,8 @@
       }
       if (!selections.length) throw new Error("Il QR non contiene articoli presenti nel menu.");
       selections.forEach(({ item, qty }) => { for (let index = 0; index < qty; index += 1) addItem(item); });
+      order.customerQrIds.push(qrId);
+      saveState();
       closeQrScanner();
       if (missing.length) alert(`Importati gli articoli disponibili. ID non trovati: ${missing.join(", ")}`);
     }

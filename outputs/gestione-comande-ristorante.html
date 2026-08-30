@@ -2488,8 +2488,6 @@
       <video id="qrScanVideo" playsinline muted></video>
       <canvas id="qrScanCanvas" hidden></canvas>
       <div class="small" id="qrScanStatus">Inquadra il codice QR del cliente.</div>
-      <label>Oppure incolla il contenuto del QR<textarea id="qrScanInput" rows="3" placeholder='{"v":1,"restaurant":"thai-princess","items":[...]}'></textarea></label>
-      <button class="primary" id="qrScanPasteBtn" type="button">Acquisisci contenuto</button>
     </div>
   </dialog>
 
@@ -5518,7 +5516,6 @@
     async function openQrScanner() {
       const modal = document.getElementById("qrScanModal");
       const status = document.getElementById("qrScanStatus");
-      document.getElementById("qrScanInput").value = "";
       modal.showModal();
       try {
         qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
@@ -5544,7 +5541,7 @@
           if (!video.videoWidth) return;
           try { const codes = await detector.detect(video); if (codes[0]?.rawValue) handleQrDetected(codes[0].rawValue); } catch (_) { /* continua la scansione */ }
         }, 300);
-      } catch (error) { status.textContent = "Impossibile usare la fotocamera o caricare il lettore QR. Puoi incollare il contenuto del QR."; }
+      } catch (error) { status.textContent = "Impossibile usare la fotocamera o il lettore QR."; }
     }
     function loadQrFallback() {
       return new Promise((resolve, reject) => {
@@ -5555,7 +5552,6 @@
     }
     document.getElementById("qrScanCloseBtn").addEventListener("click", closeQrScanner);
     document.getElementById("qrScanBtn").addEventListener("click", openQrScanner);
-    document.getElementById("qrScanPasteBtn").addEventListener("click", () => { try { importQrSelection(document.getElementById("qrScanInput").value); } catch (error) { document.getElementById("qrScanStatus").textContent = error.message; } });
 
     function setupPalmareBurger() {
       const panel = document.getElementById("orderBurgerPanel");

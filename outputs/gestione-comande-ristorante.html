@@ -2485,6 +2485,7 @@
     <div class="modal-head"><h2>Acquisisci QR cliente</h2><button class="ghost" id="qrScanCloseBtn" type="button">X</button></div>
     <div class="modal-content stack">
       <video id="qrScanVideo" playsinline muted></video>
+      <canvas id="qrScanCanvas" hidden></canvas>
       <div class="small" id="qrScanStatus">Inquadra il codice QR del cliente.</div>
       <label>Oppure incolla il contenuto del QR<textarea id="qrScanInput" rows="3" placeholder='{"v":1,"restaurant":"thai-princess","items":[...]}'></textarea></label>
       <button class="primary" id="qrScanPasteBtn" type="button">Acquisisci contenuto</button>
@@ -5490,18 +5491,38 @@
       const status = document.getElementById("qrScanStatus");
       document.getElementById("qrScanInput").value = "";
       modal.showModal();
-      if (!("BarcodeDetector" in window)) { status.textContent = "Fotocamera QR non supportata: incolla il contenuto qui sotto."; return; }
       try {
         qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
         const video = document.getElementById("qrScanVideo");
         video.srcObject = qrScanStream;
         await video.play();
+        if (!("BarcodeDetector" in window)) {
+          status.textContent = "Lettura QR compatibile attivata: inquadra il codice.";
+          if (!window.jsQR) await loadQrFallback();
+          qrScanTimer = setInterval(() => {
+            if (!video.videoWidth || !window.jsQR) return;
+            const canvas = document.getElementById("qrScanCanvas");
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            const context = canvas.getContext("2d", { willReadFrequently: true });
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const code = window.jsQR(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+            if (code?.data) importQrSelection(code.data);
+          }, 300);
+          return;
+        }
         const detector = new BarcodeDetector({ formats: ["qr_code"] });
         qrScanTimer = setInterval(async () => {
           if (!video.videoWidth) return;
           try { const codes = await detector.detect(video); if (codes[0]?.rawValue) importQrSelection(codes[0].rawValue); } catch (_) { /* continua la scansione */ }
         }, 300);
-      } catch (error) { status.textContent = "Impossibile usare la fotocamera. Puoi incollare il contenuto del QR."; }
+      } catch (error) { status.textContent = "Impossibile usare la fotocamera o caricare il lettore QR. Puoi incollare il contenuto del QR."; }
+    }
+    function loadQrFallback() {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+        script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+      });
     }
     document.getElementById("qrScanCloseBtn").addEventListener("click", closeQrScanner);
     document.getElementById("qrScanPasteBtn").addEventListener("click", () => { try { importQrSelection(document.getElementById("qrScanInput").value); } catch (error) { document.getElementById("qrScanStatus").textContent = error.message; } });

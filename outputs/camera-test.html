@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test fotocamera</title>
+  <style>body{font-family:system-ui,sans-serif;max-width:620px;margin:auto;padding:24px;background:#f5f7fb;color:#172033}main{background:#fff;padding:20px;border-radius:16px;box-shadow:0 8px 30px #0001}video{width:100%;margin:16px 0;border-radius:12px;background:#111;min-height:220px}button{border:0;border-radius:9px;padding:12px 16px;background:#2563eb;color:#fff;font-weight:700}#status{margin-top:14px;min-height:24px}</style>
+</head>
+<body><main><h1>Test fotocamera</h1><p>Questa pagina non usa chiavi e non salva immagini.</p><video id="video" autoplay playsinline muted></video><button id="start">Attiva fotocamera</button><div id="status">Premi il pulsante.</div></main>
+<script>
+  const video = document.getElementById("video"), status = document.getElementById("status");
+  let stream;
+  document.getElementById("start").onclick = async () => {
+    if (!window.isSecureContext) { status.textContent = "Contesto non sicuro: usa localhost o HTTPS."; return; }
+    if (!navigator.mediaDevices?.getUserMedia) { status.textContent = "getUserMedia non disponibile in questo browser."; return; }
+    try { stream?.getTracks().forEach(track => track.stop()); stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false }); video.srcObject = stream; status.textContent = "Fotocamera attiva. Se richiesto, autorizza il permesso nel browser."; }
+    catch (error) { status.textContent = `Errore fotocamera: ${error.name} — ${error.message || "permesso negato"}`; }
+  };
+</script></body>
+</html>

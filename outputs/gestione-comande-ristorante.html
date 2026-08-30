@@ -2471,6 +2471,7 @@
           </div>
           <div class="row">
             <button class="warning grow" id="sendBtn">Invia</button>
+            <button class="ghost" id="qrScanBtn" type="button" title="Acquisisci QR cliente" aria-label="Acquisisci QR cliente">QR</button>
           </div>
           <div class="row">
             <button class="secondary grow" id="precontoBtn" type="button">Preconto</button>
@@ -5461,6 +5462,17 @@
     // funzionare identici da dove sono stati mossi, nessuna logica duplicata.
     let qrScanStream = null;
     let qrScanTimer = null;
+    let qrAudioContext = null;
+    function beepQrSuccess() {
+      try {
+        qrAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = qrAudioContext.createOscillator();
+        const gain = qrAudioContext.createGain();
+        oscillator.frequency.value = 880; gain.gain.setValueAtTime(0.12, qrAudioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, qrAudioContext.currentTime + 0.16);
+        oscillator.connect(gain).connect(qrAudioContext.destination); oscillator.start(); oscillator.stop(qrAudioContext.currentTime + 0.16);
+      } catch (_) { /* audio non disponibile */ }
+    }
     function closeQrScanner() {
       if (qrScanTimer) { clearInterval(qrScanTimer); qrScanTimer = null; }
       qrScanStream?.getTracks().forEach(track => track.stop());
@@ -5489,6 +5501,7 @@
       selections.forEach(({ item, qty }) => { for (let index = 0; index < qty; index += 1) addItem(item); });
       order.customerQrIds.push(qrId);
       saveState();
+      beepQrSuccess();
       closeQrScanner();
       if (missing.length) alert(`Importati gli articoli disponibili. ID non trovati: ${missing.join(", ")}`);
     }
@@ -5531,17 +5544,11 @@
       });
     }
     document.getElementById("qrScanCloseBtn").addEventListener("click", closeQrScanner);
+    document.getElementById("qrScanBtn").addEventListener("click", openQrScanner);
     document.getElementById("qrScanPasteBtn").addEventListener("click", () => { try { importQrSelection(document.getElementById("qrScanInput").value); } catch (error) { document.getElementById("qrScanStatus").textContent = error.message; } });
 
     function setupPalmareBurger() {
       const panel = document.getElementById("orderBurgerPanel");
-
-      const qrButton = document.createElement("button");
-      qrButton.type = "button";
-      qrButton.className = "ghost";
-      qrButton.textContent = "Scansiona QR cliente";
-      qrButton.addEventListener("click", openQrScanner);
-      panel.appendChild(qrButton);
 
       panel.appendChild(document.querySelector(".tabs"));
 

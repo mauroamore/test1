@@ -2344,7 +2344,7 @@
   </dialog>
 
   <dialog id="printPreviewModal">
-    <form method="dialog" class="modal-card"><div class="modal-head"><h2>Anteprima ESC/POS</h2><button class="icon-btn" value="cancel">×</button></div><pre id="printPreviewText"></pre><div class="row"><button class="primary" value="cancel">Chiudi</button></div></form>
+    <form method="dialog" class="modal-card"><div class="modal-head"><h2>Anteprima ESC/POS</h2><button class="icon-btn" value="cancel">×</button></div><div id="printPreviewStatus" class="small" role="status" aria-live="polite">Preparazione invio...</div><pre id="printPreviewText"></pre><div class="row"><button class="primary" value="cancel">Chiudi</button></div></form>
   </dialog>
 
   <dialog id="monitorModal">
@@ -6628,9 +6628,11 @@
     async function simulatePrinterTest(printer, row) {
       const button = row?.querySelector(".printer-test");
       const status = row?.querySelector(".printer-test-status");
+      const previewStatus = document.getElementById("printPreviewStatus");
       if (!printer.host) { if (status) status.textContent = "Inserisci l'IP"; return; }
       if (button) button.disabled = true;
       if (status) { status.textContent = "Invio..."; status.style.color = ""; }
+      if (previewStatus) { previewStatus.textContent = `Invio a ${printer.host}:${printer.port || 9100}...`; previewStatus.style.color = ""; }
       const payload = escPosTest(printer);
       document.getElementById("printPreviewText").textContent = payload.replace(/\x1b/g, "<ESC>").replace(/\x1d/g, "<GS>");
       document.getElementById("printPreviewModal").showModal();
@@ -6639,8 +6641,10 @@
         const result = await response.json().catch(() => ({}));
         if (!response.ok || result.ok === false) throw new Error(result.error || `Errore HTTP ${response.status}`);
         if (status) { status.textContent = "Inviata"; status.style.color = "#176b4a"; }
+        if (previewStatus) { previewStatus.textContent = `Test inviato correttamente a ${printer.host}:${printer.port || 9100}.`; previewStatus.style.color = "#176b4a"; }
       } catch (error) {
         if (status) { status.textContent = `Errore: ${error.message}`; status.style.color = "#a33b32"; }
+        if (previewStatus) { previewStatus.textContent = `Test non riuscito: ${error.message}`; previewStatus.style.color = "#a33b32"; }
       } finally {
         if (button) button.disabled = false;
       }

@@ -7639,7 +7639,8 @@
       const printer = (state.settings.printers || []).find(item => item.name === state.settings.precontoPrinter);
       if (!printer?.host) { window.alert("Configura una stampante per il preconto nel Setup > Stampanti."); return; }
       const width = Number(printer.width) === 58 ? 32 : 48;
-      const line = "-".repeat(width);
+      // Separators are printed with the normal font; keep them within its safe width.
+      const line = "-".repeat(Number(printer.width) === 58 ? 24 : 32);
       const fit = (value, size) => String(value || "").slice(0, size).padEnd(size, " ");
       const amount = value => {
         // ESC/POS riceve testo a 8 bit: elimina simboli/spazi Unicode prima dell'invio.
@@ -7647,7 +7648,7 @@
         return `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, "0")} EUR`;
       };
       const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "");
-      const itemWidth = printer.width === 58 ? 24 : 40;
+      const itemWidth = printer.width === 58 ? 32 : 48;
       const coverLine = Number(order.covers || 0) > 0
         ? `${Number(order.covers)} x ${fit("Coperto", Math.max(8, itemWidth - amount(Number(order.covers) * Number(state.settings.coverCharge || 0)).length - 5))} ${amount(Number(order.covers) * Number(state.settings.coverCharge || 0))}`
         : "";

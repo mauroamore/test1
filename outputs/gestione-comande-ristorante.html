@@ -7647,9 +7647,19 @@
         return `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, "0")} EUR`;
       };
       const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "");
-      const coverLine = Number(order.covers || 0) > 0 ? `${Number(order.covers)} x Coperto (cover charge)\n${amount(Number(order.covers) * Number(state.settings.coverCharge || 0)).padStart(width, " ")}` : "";
-      const textRows = (order.items || []).map(item => `${String(Number(item.qty || 0)).padStart(3, " ")} x ${fit(item.name || "Articolo", width - 7)}\n${amount(Number(item.qty || 0) * (Number(item.price || 0) + lineExtraTotal(item))).padStart(width, " ")}`).join("\n");
-      const payload = `\x1b@\x1ba\x01${line}\n${fit("PRECONTO", width)}\n${tableLabel ? fit(tableLabel, width) + "\n" : ""}${line}\n${coverLine}${coverLine && textRows ? "\n" : ""}${textRows}\n${line}\nTotale originale\n${amount(orderTotal(order)).padStart(width, " ")}\n${discountCents > 0 ? `Sconto\n${amount(discountCents / 100).padStart(width, " ")}\n` : ""}TOTALE\n${amount(due / 100).padStart(width, " ")}\n${line}\n\n`;
+      const itemWidth = printer.width === 58 ? 24 : 40;
+      const coverLine = Number(order.covers || 0) > 0
+        ? `${Number(order.covers)} x ${fit("Coperto", Math.max(8, itemWidth - amount(Number(order.covers) * Number(state.settings.coverCharge || 0)).length - 5))} ${amount(Number(order.covers) * Number(state.settings.coverCharge || 0))}`
+        : "";
+      // Keep each item, including its amount, on one physical printer line.
+      // Some ESC/POS printers expose fewer columns than their nominal width.
+      const textRows = (order.items || []).map(item => {
+        const qty = `${Number(item.qty || 0)} x `;
+        const price = amount(Number(item.qty || 0) * (Number(item.price || 0) + lineExtraTotal(item)));
+        const nameWidth = Math.max(8, itemWidth - qty.length - price.length - 1);
+        return `${qty}${fit(item.name || "Articolo", nameWidth)} ${price}`;
+      }).join("\n");
+      const payload = `\x1b@\x1ba\x01${line}\n${fit("PRECONTO", width)}\n${tableLabel ? fit(tableLabel, width) + "\n" : ""}${line}\n\x1ba\x00\x1b\x21\x01${coverLine}${coverLine && textRows ? "\n" : ""}${textRows}\n${line}\nTotale originale\n${amount(orderTotal(order))}\n${discountCents > 0 ? `Sconto\n${amount(discountCents / 100)}\n` : ""}TOTALE\n${amount(due / 100)}\n\x1b\x21\x00${line}\n\n`;
       if (printer.preview !== false) {
         document.getElementById("printPreviewText").textContent = payload.replace(/\x1b/g, "<ESC>").replace(/\x1d/g, "<GS>");
         document.getElementById("printPreviewStatus").textContent = `Anteprima preconto - ${printer.name}`;

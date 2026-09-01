@@ -6642,7 +6642,8 @@
       });
       for (const { printer, lines } of grouped.values()) {
         const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine");
-        const text = lines.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`).join("\n");
+        const coverText = Number(order.covers || 0) > 0 ? `${Number(order.covers)} x Coperto (cover charge)` : "";
+        const text = [coverText, ...lines.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`)].filter(Boolean).join("\n");
         const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n${text}\n\n`;
         try {
           const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "order", printer, payload }) });
@@ -7646,8 +7647,9 @@
         return `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, "0")} EUR`;
       };
       const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "");
+      const coverLine = Number(order.covers || 0) > 0 ? `${Number(order.covers)} x Coperto (cover charge)\n${amount(Number(order.covers) * Number(state.settings.coverCharge || 0)).padStart(width, " ")}` : "";
       const textRows = (order.items || []).map(item => `${String(Number(item.qty || 0)).padStart(3, " ")} x ${fit(item.name || "Articolo", width - 7)}\n${amount(Number(item.qty || 0) * (Number(item.price || 0) + lineExtraTotal(item))).padStart(width, " ")}`).join("\n");
-      const payload = `\x1b@\x1ba\x01${line}\n${fit("PRECONTO", width)}\n${tableLabel ? fit(tableLabel, width) + "\n" : ""}${line}\n${textRows}\n${line}\nTotale originale\n${amount(orderTotal(order)).padStart(width, " ")}\n${discountCents > 0 ? `Sconto\n${amount(discountCents / 100).padStart(width, " ")}\n` : ""}TOTALE\n${amount(due / 100).padStart(width, " ")}\n${line}\n\n`;
+      const payload = `\x1b@\x1ba\x01${line}\n${fit("PRECONTO", width)}\n${tableLabel ? fit(tableLabel, width) + "\n" : ""}${line}\n${coverLine}${coverLine && textRows ? "\n" : ""}${textRows}\n${line}\nTotale originale\n${amount(orderTotal(order)).padStart(width, " ")}\n${discountCents > 0 ? `Sconto\n${amount(discountCents / 100).padStart(width, " ")}\n` : ""}TOTALE\n${amount(due / 100).padStart(width, " ")}\n${line}\n\n`;
       if (printer.preview !== false) {
         document.getElementById("printPreviewText").textContent = payload.replace(/\x1b/g, "<ESC>").replace(/\x1d/g, "<GS>");
         document.getElementById("printPreviewStatus").textContent = `Anteprima preconto - ${printer.name}`;

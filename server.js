@@ -256,7 +256,9 @@ function printEscPosRaw(host, port, text, { timeoutMs = 7000, cut = true } = {})
     const net = require("net");
     const socket = net.createConnection({ host, port }, () => {
       const body = Buffer.isBuffer(text) ? text : Buffer.from(String(text || ""), "utf8");
-      const chunks = [Buffer.from([0x1b, 0x40]), body, Buffer.from("\n\n\n", "ascii")];
+      // Lascia spazio sufficiente prima del taglio: alcune Epson tagliano il
+      // rotolo mentre l'ultima riga è ancora troppo vicina alla lama.
+      const chunks = [Buffer.from([0x1b, 0x40]), body, Buffer.from("\n\n\n\n\n\n\n\n", "ascii")];
       if (cut) chunks.push(Buffer.from([0x1d, 0x56, 0x00]));
       socket.end(Buffer.concat(chunks));
     });
@@ -1365,6 +1367,29 @@ const server = http.createServer((request, response) => {
     response.write("retry: 2000\n\n");
     clients.add(response);
     request.on("close", () => clients.delete(response));
+    return;
+  }
+  if (request.url === "/api/print/raw" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => body += chunk);
+    request.on("end", async () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
+        const host = String(input.host || printer.host || "").trim();
+        const port = Number(input.port || printer.port || 9100);
+        const payload = String(input.payload || input.text || "");
+        if (!host || !/^[A-Za-z0-9.-]+$/.test(host)) return sendJson(response, 400, { ok: false, error: "Stampante non valida" });
+        if (!Number.isInteger(port) || port < 1 || port > 65535) return sendJson(response, 400, { ok: false, error: "Porta non valida" });
+        if (!payload) return sendJson(response, 400, { ok: false, error: "Contenuto di stampa vuoto" });
+        const result = await printEscPosRaw(host, port, payload);
+        fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} raw ${host}:${port} ${JSON.stringify(input.job || "document") }\n`);
+        return sendJson(response, 200, result);
+      } catch (error) {
+        fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} ERROR ${error.stack || error}\n`);
+        return sendJson(response, 502, { ok: false, error: String(error.message || error) });
+      }
+    });
     return;
   }
   if ((request.url === "/reservations" || request.url === "/reservations/" || request.url === "/ReservationsNew") && request.method === "GET") {

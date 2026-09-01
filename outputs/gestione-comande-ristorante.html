@@ -2860,6 +2860,7 @@
         categoryMonitors: { Drinks: "Bar", "White Wines": "Bar", "Red Wines": "Bar", "Rosé Wines": "Bar", "Sparkling Wines": "Bar", Spirits: "Bar" },
         categoryTurns: { Drinks: false, "White Wines": false, "Red Wines": false, "Rosé Wines": false, "Sparkling Wines": false, Spirits: false }
         ,printers: [],
+        precontoPrinter: "",
         categories: []
       },
       variations: structuredClone(defaultVariations),
@@ -6554,10 +6555,11 @@
       const categoryRoot = document.getElementById("setupCategoryList");
       categoryRoot.innerHTML = (state.settings.categories || []).map(category => `<div class="setup-row"><strong>${escapeHtml(category)}</strong><span class="small">Sincronizzata dal menu online</span></div>`).join("") || `<div class="empty">Nessuna categoria disponibile.</div>`;
       const printerRoot = document.getElementById("setupPrinterList");
-      printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
+      printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
       printerRoot.querySelectorAll(".setup-row").forEach(row => {
         const index = Number(row.dataset.printerIndex);
         row.querySelectorAll("[data-printer-field]").forEach(input => input.addEventListener("change", () => { state.settings.printers[index][input.dataset.printerField] = ["width", "port"].includes(input.dataset.printerField) ? Number(input.value) : input.value; saveState(); }));
+        row.querySelector(".preconto-printer")?.addEventListener("change", event => { state.settings.precontoPrinter = event.target.checked ? state.settings.printers[index].name : ""; saveState(); renderSetup(); });
         row.querySelector(".printer-test").addEventListener("click", () => simulatePrinterTest(state.settings.printers[index], row));
         row.querySelector(".printer-remove").addEventListener("click", () => { state.settings.printers.splice(index, 1); saveState(); renderSetup(); });
       });
@@ -6623,6 +6625,28 @@
       const width = Number(printer.width) === 58 ? 32 : 48;
       const line = "-".repeat(width);
       return `\x1b@\x1ba\x01\x1bE\x01RISTORANTE\x1bE\x00\n${line}\nSTAMPA DI PROVA\n\nStampante: ${printer.name}\nIP: ${printer.host || "non configurato"}\nPorta: ${printer.port || 9100}\nLarghezza: ${printer.width || 80} mm\n${line}\n\n\x1dV\x00`;
+    }
+
+    async function printOrderToConfiguredMonitors(order) {
+      const monitors = state.settings.monitors || [];
+      const printers = state.settings.printers || [];
+      const grouped = new Map();
+      (order.items || []).forEach(line => {
+        const monitorName = state.settings.categoryMonitors?.[line.category] || "Cucina";
+        const monitor = monitors.find(item => item.name === monitorName && item.active !== false);
+        const printer = printers.find(item => item.name === monitor?.printer && item.host);
+        if (!printer) return;
+        if (!grouped.has(printer.name)) grouped.set(printer.name, { printer, lines: [] });
+        grouped.get(printer.name).lines.push(line);
+      });
+      for (const { printer, lines } of grouped.values()) {
+        const text = lines.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`).join("\n");
+        const payload = `\x1b@\x1ba\x01ORDINE ${order.id}\n\n${text}\n\n`;
+        try {
+          const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "order", printer, payload }) });
+          if (!response.ok) console.warn("Stampa ordine non riuscita", await response.text());
+        } catch (error) { console.warn("Stampa ordine non riuscita", error); }
+      }
     }
 
     async function simulatePrinterTest(printer, row) {
@@ -7572,6 +7596,7 @@
       markLinesSentToKitchen(order);
       order.status = "Preparazione";
       if (!(await publishLocalOrderDraft(order))) return;
+      printOrderToConfiguredMonitors(order);
       notifyHubRiseStatus(order, "accepted").then(() => notifyHubRiseStatus(order, "in_preparation", confirmedTime));
       closeOrderModal();
     });
@@ -7601,20 +7626,23 @@
       updatePaymentDue();
     }));
     document.getElementById("paymentTipInput").addEventListener("input", event => { paymentTip = event.target.value; updatePaymentDue(); });
-    document.getElementById("printPaymentBtn").addEventListener("click", () => {
+    document.getElementById("printPaymentBtn").addEventListener("click", async () => {
       const order = findOrderById(paymentOrderId);
       if (!order) return;
       const due = paymentDueCents(order);
       const discountCents = Math.max(0, paymentCents(paymentDiscount));
       const discountRow = discountCents > 0 ? `<div class="row"><span>Sconto</span><strong>${money.format(discountCents / 100)}</strong></div>` : "";
       const rows = order.items.map(line => `<div>${Number(line.qty || 0)} x ${escapeHtml(line.name || "Articolo")} <strong>${money.format(Number(line.qty || 0) * (Number(line.price || 0) + lineExtraTotal(line)))}</strong></div>`).join("");
-      const printWindow = window.open("", "_blank", "width=420,height=700");
-      if (!printWindow) return;
-      printWindow.document.write(`<html><head><title>Preconto</title><style>body{font:14px Arial;padding:20px;color:#111}h1{font-size:20px;border-bottom:1px solid #999;padding-bottom:8px}.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #ddd}.total{font-weight:bold;font-size:16px;margin-top:14px}</style></head><body><h1>Preconto</h1>${rows}<div class="row"><span>Totale originale</span><strong>${money.format(orderTotal(order))}</strong></div>${discountRow}<div class="row total"><span>Totale</span><strong>${money.format(due / 100)}</strong></div></body></html>`);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
+      const printer = (state.settings.printers || []).find(item => item.name === state.settings.precontoPrinter);
+      if (!printer?.host) { window.alert("Configura una stampante per il preconto nel Setup > Stampanti."); return; }
+      const textRows = order.items.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}  ${money.format(Number(line.qty || 0) * (Number(line.price || 0) + lineExtraTotal(line)))}`).join("\n");
+      const payload = `\x1b@\x1ba\x01PRECONTO\n\n${textRows}\n\nTotale originale  ${money.format(orderTotal(order))}\n${discountCents > 0 ? `Sconto             ${money.format(discountCents / 100)}\n` : ""}Totale              ${money.format(due / 100)}\n\n`;
+      try {
+        const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "preconto", printer, payload }) });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.ok === false) throw new Error(result.error || `Errore HTTP ${response.status}`);
+        window.alert(`Preconto inviato a ${printer.name}.`);
+      } catch (error) { window.alert(`Stampa preconto non riuscita: ${error.message}`); }
     });
     document.getElementById("paymentCloseBtn").addEventListener("click", () => document.getElementById("paymentModal").close());
     document.getElementById("precontoCloseBtn").addEventListener("click", () => document.getElementById("precontoModal").close());

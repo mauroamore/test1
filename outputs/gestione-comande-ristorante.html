@@ -6555,11 +6555,12 @@
       const categoryRoot = document.getElementById("setupCategoryList");
       categoryRoot.innerHTML = (state.settings.categories || []).map(category => `<div class="setup-row"><strong>${escapeHtml(category)}</strong><span class="small">Sincronizzata dal menu online</span></div>`).join("") || `<div class="empty">Nessuna categoria disponibile.</div>`;
       const printerRoot = document.getElementById("setupPrinterList");
-      printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
+      printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><label class="checkbox-label"><input class="printer-preview" type="checkbox" ${printer.preview !== false ? "checked" : ""}> Anteprima</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
       printerRoot.querySelectorAll(".setup-row").forEach(row => {
         const index = Number(row.dataset.printerIndex);
         row.querySelectorAll("[data-printer-field]").forEach(input => input.addEventListener("change", () => { state.settings.printers[index][input.dataset.printerField] = ["width", "port"].includes(input.dataset.printerField) ? Number(input.value) : input.value; saveState(); }));
         row.querySelector(".preconto-printer")?.addEventListener("change", event => { state.settings.precontoPrinter = event.target.checked ? state.settings.printers[index].name : ""; saveState(); renderSetup(); });
+        row.querySelector(".printer-preview")?.addEventListener("change", event => { state.settings.printers[index].preview = event.target.checked; saveState(); });
         row.querySelector(".printer-test").addEventListener("click", () => simulatePrinterTest(state.settings.printers[index], row));
         row.querySelector(".printer-remove").addEventListener("click", () => { state.settings.printers.splice(index, 1); saveState(); renderSetup(); });
       });
@@ -7638,7 +7639,11 @@
       const width = Number(printer.width) === 58 ? 32 : 48;
       const line = "-".repeat(width);
       const fit = (value, size) => String(value || "").slice(0, size).padEnd(size, " ");
-      const amount = value => money.format(value).replace(/€/g, "EUR");
+      const amount = value => {
+        // ESC/POS riceve testo a 8 bit: elimina simboli/spazi Unicode prima dell'invio.
+        const cents = Math.round(Number(value || 0) * 100);
+        return `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, "0")} EUR`;
+      };
       const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "");
       const textRows = (order.items || []).map(item => {
         const itemWidth = width - 15;
@@ -7646,6 +7651,11 @@
         return `${String(Number(item.qty || 0)).padStart(3, " ")} ${fit(item.name || "Articolo", itemWidth)} ${value}`;
       }).join("\n");
       const payload = `\x1b@\x1ba\x01${line}\n${fit("PRECONTO", width)}\n${tableLabel ? fit(tableLabel, width) + "\n" : ""}${line}\nQTA ARTICOLO${" ".repeat(Math.max(1, width - 14))}IMPORTO\n${textRows}\n${line}\n${fit("Totale originale", width - 10)}${amount(orderTotal(order)).padStart(10, " ")}\n${discountCents > 0 ? `${fit("Sconto", width - 10)}${amount(discountCents / 100).padStart(10, " ")}\n` : ""}${fit("TOTALE", width - 10)}${amount(due / 100).padStart(10, " ")}\n${line}\n\n`;
+      if (printer.preview !== false) {
+        document.getElementById("printPreviewText").textContent = payload.replace(/\x1b/g, "<ESC>").replace(/\x1d/g, "<GS>");
+        document.getElementById("printPreviewStatus").textContent = `Anteprima preconto - ${printer.name}`;
+        document.getElementById("printPreviewModal").showModal();
+      }
       try {
         const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "preconto", printer, payload }) });
         const result = await response.json().catch(() => ({}));

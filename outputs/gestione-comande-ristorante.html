@@ -643,7 +643,7 @@
     .setup-grid { display: block; }
     .setup-list { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
     .setup-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 140px 100px auto; gap: 8px; align-items: center; }
-    .printer-row { grid-template-columns: minmax(110px, .8fr) minmax(120px, 1fr) 80px 70px auto auto; }
+    .printer-row { grid-template-columns: minmax(110px, .8fr) minmax(120px, 1fr) 80px 70px auto minmax(90px, 1fr) auto; }
     .monitor-config { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
     .monitor-config > .row { display: grid; grid-template-columns: minmax(160px, 1fr) auto auto minmax(170px, .8fr) auto auto auto; gap: 10px; align-items: center; }
     .monitor-local-layout { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
@@ -6554,11 +6554,11 @@
       const categoryRoot = document.getElementById("setupCategoryList");
       categoryRoot.innerHTML = (state.settings.categories || []).map(category => `<div class="setup-row"><strong>${escapeHtml(category)}</strong><span class="small">Sincronizzata dal menu online</span></div>`).join("") || `<div class="empty">Nessuna categoria disponibile.</div>`;
       const printerRoot = document.getElementById("setupPrinterList");
-      printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><button class="ghost printer-test" type="button">Prova</button><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
+      printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
       printerRoot.querySelectorAll(".setup-row").forEach(row => {
         const index = Number(row.dataset.printerIndex);
         row.querySelectorAll("[data-printer-field]").forEach(input => input.addEventListener("change", () => { state.settings.printers[index][input.dataset.printerField] = ["width", "port"].includes(input.dataset.printerField) ? Number(input.value) : input.value; saveState(); }));
-        row.querySelector(".printer-test").addEventListener("click", () => simulatePrinterTest(state.settings.printers[index]));
+        row.querySelector(".printer-test").addEventListener("click", () => simulatePrinterTest(state.settings.printers[index], row));
         row.querySelector(".printer-remove").addEventListener("click", () => { state.settings.printers.splice(index, 1); saveState(); renderSetup(); });
       });
     }
@@ -6625,11 +6625,25 @@
       return `\x1b@\x1ba\x01\x1bE\x01RISTORANTE\x1bE\x00\n${line}\nSTAMPA DI PROVA\n\nStampante: ${printer.name}\nIP: ${printer.host || "non configurato"}\nPorta: ${printer.port || 9100}\nLarghezza: ${printer.width || 80} mm\n${line}\n\n\x1dV\x00`;
     }
 
-    async function simulatePrinterTest(printer) {
+    async function simulatePrinterTest(printer, row) {
+      const button = row?.querySelector(".printer-test");
+      const status = row?.querySelector(".printer-test-status");
+      if (!printer.host) { if (status) status.textContent = "Inserisci l'IP"; return; }
+      if (button) button.disabled = true;
+      if (status) { status.textContent = "Invio..."; status.style.color = ""; }
       const payload = escPosTest(printer);
       document.getElementById("printPreviewText").textContent = payload.replace(/\x1b/g, "<ESC>").replace(/\x1d/g, "<GS>");
       document.getElementById("printPreviewModal").showModal();
-      fetch("/api/print/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ printer, payload }) }).catch(() => {});
+      try {
+        const response = await fetch("/api/print/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ printer, payload }) });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.ok === false) throw new Error(result.error || `Errore HTTP ${response.status}`);
+        if (status) { status.textContent = "Inviata"; status.style.color = "#176b4a"; }
+      } catch (error) {
+        if (status) { status.textContent = `Errore: ${error.message}`; status.style.color = "#a33b32"; }
+      } finally {
+        if (button) button.disabled = false;
+      }
     }
 
     function readFiscalPrinterSetup() {

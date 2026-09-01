@@ -250,6 +250,22 @@ function connectRealtimeBridge() {
 
 const posTransactionsInProgress = new Set();
 
+// Stampa raw ESC/POS per stampanti termiche Epson (TCP/9100).
+function printEscPosRaw(host, port, text, { timeoutMs = 7000, cut = true } = {}) {
+  return new Promise((resolve, reject) => {
+    const net = require("net");
+    const socket = net.createConnection({ host, port }, () => {
+      const body = Buffer.isBuffer(text) ? text : Buffer.from(String(text || ""), "utf8");
+      const chunks = [Buffer.from([0x1b, 0x40]), body, Buffer.from("\n\n\n", "ascii")];
+      if (cut) chunks.push(Buffer.from([0x1d, 0x56, 0x00]));
+      socket.end(Buffer.concat(chunks));
+    });
+    const timer = setTimeout(() => socket.destroy(new Error("Timeout connessione stampante")), timeoutMs);
+    socket.on("error", error => { clearTimeout(timer); reject(error); });
+    socket.on("close", hadError => { clearTimeout(timer); if (!hadError) resolve({ ok: true, host, port }); });
+  });
+}
+
 async function callPosService(method, body) {
   const response = await fetch(`${POS_SERVICE_URL}/${method}`, {
     method: "POST",
@@ -1198,9 +1214,26 @@ const server = http.createServer((request, response) => {
   if (request.url === "/api/print/test" && request.method === "POST") {
     let body = "";
     request.on("data", chunk => body += chunk);
-    request.on("end", () => {
-      fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} ${body}\n`);
-      sendJson(response, 200, { ok: true, simulated: true });
+    request.on("end", async () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
+        const host = String(input.host || input.printerHost || printer.host || "").trim();
+        const port = Number(input.port || printer.port || 9100);
+        if (!host || !/^[A-Za-z0-9.-]+$/.test(host)) return sendJson(response, 400, { ok: false, error: "Stampante non valida" });
+        if (!Number.isInteger(port) || port < 1 || port > 65535) return sendJson(response, 400, { ok: false, error: "Porta non valida" });
+        // Il frontend genera già il payload ESC/POS completo (inclusi i byte ESC/GS).
+        // Manteniamo il fallback per chiamate manuali o vecchie versioni del client.
+        const payload = input.payload || input.text || "TEST STAMPANTE\nEpson TM-T88VI\n" + host;
+        const data = Buffer.isBuffer(payload)
+          ? payload
+          : Buffer.from(String(payload), "utf8");
+        const result = await printEscPosRaw(host, port, data);
+        fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} raw ${host}:${port} ${JSON.stringify(payload)}\n`);
+        sendJson(response, 200, result);
+      } catch (error) {
+        sendJson(response, 502, { ok: false, error: error.message });
+      }
     });
     return;
   }

@@ -3524,7 +3524,7 @@
       if (!body || !editButton) return;
       const order = desktopSelectedOrderId == null ? null : findOrderById(desktopSelectedOrderId);
       editButton.disabled = !order;
-      precontoButton.disabled = !order || (!order.occupied && !order.items.length);
+      precontoButton.disabled = !order || (!order.occupied && !order.items.length) || orderHasUnsentChangesForSend(order);
       paymentButton.disabled = !order || order.status === "Pagato" || (!order.source && !order.occupied && !order.items.length);
       sendButton.hidden = !order || !order.source;
       sendButton.disabled = !order || !order.items.length || !orderHasUnsentChangesForSend(order);
@@ -6132,6 +6132,7 @@
         renderSplitControls(order);
       }
       document.getElementById("precontoBtn").hidden = isDeliveryOrder;
+      document.getElementById("precontoBtn").disabled = !order || orderHasUnsentChangesForSend(order);
       document.getElementById("total").textContent = money.format(visibleOrderTotal(order));
 
       // "Invia" ha senso solo se c'e' qualcosa di nuovo da mandare in cucina rispetto

@@ -6,6 +6,7 @@ const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseSh
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
 let buildGraphicPreconto;
+let buildPcPosPrecontoLines;
 
 function loadLocalEnv(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -1413,10 +1414,15 @@ const server = http.createServer((request, response) => {
         const input = JSON.parse(body || "{}");
         const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
         if (!printer.host) return sendJson(response, 400, { ok: false, error: "Stampante non configurata" });
-        if (!printGraphicPreconto || !buildGraphicPreconto) ({ printGraphicPreconto, buildGraphicPreconto } = require("./src/graphic-preconto.js"));
+        if (!printGraphicPreconto || !buildGraphicPreconto || !buildPcPosPrecontoLines) ({ printGraphicPreconto, buildGraphicPreconto, buildPcPosPrecontoLines } = require("./src/graphic-preconto.js"));
         if (input.previewOnly) {
           const canvas = buildGraphicPreconto(input.order || {}, input.settings || {});
           return sendJson(response, 200, { ok: true, previewOnly: true, pngBase64: canvas.toBuffer("image/png").toString("base64"), width: canvas.width, height: canvas.height });
+        }
+        if (String(printer.protocol || "").toLowerCase() === "epson-pcpos") {
+          const lines = buildPcPosPrecontoLines(input.order || {}, input.settings || {});
+          const result = await epsonFiscal.printNonFiscalReceipt(printer.host, { lines, operator: printer.operator || "1" }, { port: Number(printer.port || 9100) });
+          return sendJson(response, 200, { ok: true, ...result });
         }
         const result = await printGraphicPreconto(input.order || {}, printer, input.settings || {});
         return sendJson(response, 200, { ok: true, ...result });

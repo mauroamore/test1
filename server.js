@@ -1293,7 +1293,6 @@ const server = http.createServer((request, response) => {
             status: result.status,
             addInfo: result.addInfo,
             raw: result.raw,
-            fiscalRequest: receipt,
             error: result.success ? "" : `La stampante ha risposto con codice ${result.code || "sconosciuto"}`
           });
         } finally {

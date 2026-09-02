@@ -1,4 +1,11 @@
-const { createCanvas } = require("@napi-rs/canvas");
+const { createCanvas, GlobalFonts } = require("@napi-rs/canvas");
+
+const MONO_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
+try {
+  GlobalFonts.registerFromPath(MONO_FONT, "ReceiptMono");
+} catch (_) {
+  // The desktop fallback keeps local preview and development working.
+}
 
 const WIDTH_58 = 384;
 const MARGIN = 24;
@@ -20,7 +27,7 @@ function buildGraphicPreconto(order, settings = {}) {
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, width, canvas.height);
   ctx.fillStyle = "#000";
-  ctx.font = `bold ${font}px Courier New`;
+  ctx.font = `bold ${font}px ReceiptMono`;
   ctx.textBaseline = "top";
   let y = MARGIN;
   const sep = () => { ctx.fillRect(MARGIN, y + 12, width - MARGIN * 2, 2); y += LINE; };
@@ -31,7 +38,7 @@ function buildGraphicPreconto(order, settings = {}) {
     ctx.fillText(value, width / 2, y); y += LINE;
   };
   const row = (left, right, bold = false) => {
-    ctx.font = `${bold ? "bold " : ""}${font}px Courier New`;
+    ctx.font = `${bold ? "bold " : ""}${font}px ReceiptMono`;
     const rightText = String(right || "");
     const maxLeft = Math.max(40, width - MARGIN * 2 - ctx.measureText(rightText).width - 12);
     let leftText = String(left || "");

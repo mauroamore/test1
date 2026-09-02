@@ -1033,6 +1033,48 @@
       min-height: 44px;
       font-size: max(15px, var(--kitchen-font-size));
     }
+    body.bar-mobile-monitor .kitchen-screen-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px 8px;
+      padding: 8px;
+      align-items: center;
+    }
+    body.bar-mobile-monitor .kitchen-screen-head > .row:first-child {
+      min-width: 0;
+      gap: 6px;
+      overflow: hidden;
+    }
+    body.bar-mobile-monitor .kitchen-screen-head h1 {
+      min-width: 0;
+      margin: 0;
+      font-size: 18px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    body.bar-mobile-monitor .kitchen-screen-head .date { display: none; }
+    body.bar-mobile-monitor .monitor-tabs {
+      grid-column: 1 / -1;
+      order: 3;
+      min-width: 0;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
+    }
+    body.bar-mobile-monitor .monitor-tabs button { flex: 0 0 auto; min-height: 38px; }
+    body.bar-mobile-monitor .kitchen-screen-head > .row:last-child {
+      gap: 5px;
+      min-width: 0;
+    }
+    body.bar-mobile-monitor .kitchen-screen-head > .row:last-child .badge {
+      max-width: 9.5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    body.bar-mobile-monitor #closeKitchenBtn { display: none; }
     body.palmare-mode .palmare-table-filters {
       display: flex;
       gap: 6px;

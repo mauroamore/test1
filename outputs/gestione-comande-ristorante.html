@@ -8370,7 +8370,7 @@
       renderKitchen();
     });
     document.getElementById("mobileMonitorOpenBtn").addEventListener("click", () => {
-      const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase() === "bar");
+      const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase().includes("bar"));
       if (!barMonitor) {
         alert("Monitor Bar non configurato.");
         return;
@@ -8384,7 +8384,7 @@
       renderKitchen();
     });
     document.getElementById("mobileMonitorBackBtn").addEventListener("click", () => {
-      document.body.classList.remove("kitchen-mode", "bar-mobile-monitor");
+      document.body.classList.remove("kitchen-mode", "device-kitchen", "monitor-only", "bar-mobile-monitor");
       document.getElementById("kitchenScreen").hidden = true;
       document.querySelector("main").hidden = false;
       history.replaceState(null, "", window.location.pathname + window.location.search);

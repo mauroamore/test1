@@ -2226,6 +2226,15 @@
         float: right;
         margin: 0 0 4px 8px;
       }
+      .mobile-nav-icon {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
     }
     .mobile-monitor-toggle { display: none; }
     @media (max-width: 760px) {
@@ -2354,7 +2363,7 @@
   <header>
       <div class="topbar">
       <div>
-        <button class="ghost mobile-monitor-toggle" id="mobileMonitorOpenBtn" type="button" title="Apri monitor Bar" aria-label="Apri monitor Bar">&#9749;</button>
+        <button class="ghost mobile-monitor-toggle" id="mobileMonitorOpenBtn" type="button" title="Apri monitor Bar" aria-label="Apri monitor Bar"><svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h11v4a5 5 0 0 1-5 5H9a4 4 0 0 1-4-4V8Z"></path><path d="M16 10h2a3 3 0 0 1 0 6h-3"></path><path d="M3 20h16"></path></svg></button>
         <h1>Gestione Comande</h1>
         <div class="small" id="app-version" aria-label="Versione applicazione">Versione: verifica...</div>
         <div id="realtime-status" aria-live="polite">Realtime: connessione in corso...</div>
@@ -2548,7 +2557,7 @@
       </div>
       <div class="monitor-tabs" id="monitorTabs"></div>
       <div class="row">
-        <button class="ghost mobile-monitor-toggle" id="mobileMonitorBackBtn" type="button" title="Torna ai tavoli" aria-label="Torna ai tavoli">&#128203;</button>
+        <button class="ghost mobile-monitor-toggle" id="mobileMonitorBackBtn" type="button" title="Torna ai tavoli" aria-label="Torna ai tavoli"><svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7z"></path><path d="M9 4.5h6"></path><path d="M10 9h4M10 13h4M10 17h3"></path></svg></button>
         <button class="icon-btn kitchen-setup-btn" id="kitchenSetupBtn" type="button" title="Impostazioni dispositivo" aria-label="Impostazioni dispositivo">⚙</button>
         <button class="ghost" id="closeKitchenBtn" title="Torna alla sala">Torna alla sala</button>
       </div>
@@ -6650,9 +6659,12 @@
       } catch {}
       const categories = state.settings.categories || [];
       const monitors = state.settings.monitors || [];
+      monitors.forEach(monitor => {
+        if (typeof monitor.mobile !== "boolean") monitor.mobile = monitor.name.toLowerCase().includes("bar");
+      });
       root.innerHTML = monitors.map((monitor, index) => { const layout = kitchenLayoutFor(monitor.name); return `
         <div class="monitor-config" data-monitor-index="${index}">
-          <div class="row"><strong>${escapeHtml(monitor.name)}</strong><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div>
+          <div class="row"><strong>${escapeHtml(monitor.name)}</strong><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Dispositivo mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div>
           <div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label></div>
         </div>
       `; }).join("");
@@ -6674,6 +6686,7 @@
         config.querySelector(".monitor-remove").addEventListener("click", () => removeMonitor(index));
         config.querySelector(".monitor-categories-btn").addEventListener("click", () => openMonitorCategories(index));
         config.querySelector(".monitor-active").addEventListener("change", () => saveMonitorConfig(index, config));
+        config.querySelector(".monitor-mobile").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-turns").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-printer").addEventListener("change", () => saveMonitorConfig(index, config));
       });
@@ -6884,6 +6897,7 @@
       const monitor = state.settings.monitors[index];
       if (!monitor) return;
       monitor.turns = config.querySelector(".monitor-turns").checked;
+      monitor.mobile = config.querySelector(".monitor-mobile").checked;
       monitor.printer = config.querySelector(".monitor-printer").value;
       monitor.active = config.querySelector(".monitor-active").checked;
       Object.keys(state.settings.categoryMonitors).forEach(category => {
@@ -6909,14 +6923,14 @@
       root.innerHTML = "";
       const monitors = (state.settings.monitors || [])
         .filter(monitor => monitor.active !== false)
-        .filter(monitor => !PALMARE_MODE || monitor.name.toLowerCase().includes("bar"));
+        .filter(monitor => !PALMARE_MODE || monitor.mobile === true);
       root.hidden = PALMARE_MODE && monitors.length <= 1;
       monitors.forEach(({ name: monitor }) => {
         const button = document.createElement("button");
         button.className = `ghost ${selectedKitchenMonitor === monitor ? "active" : ""}`;
         button.textContent = monitor;
         button.addEventListener("click", () => {
-          if (PALMARE_MODE && !monitor.toLowerCase().includes("bar")) return;
+          if (PALMARE_MODE && !(state.settings.monitors || []).find(item => item.name === monitor)?.mobile) return;
           selectedKitchenMonitor = monitor;
           window.location.hash = `monitor-${monitor.toLowerCase()}`;
           renderMonitorTabs();
@@ -8349,7 +8363,7 @@
       const name = document.getElementById("monitorNameInput").value.trim();
       state.settings.monitors ||= [];
       if (!name || state.settings.monitors.some(monitor => monitor.name.toLowerCase() === name.toLowerCase())) return;
-      state.settings.monitors.push({ name, turns: document.getElementById("monitorTurnsInput").checked, printer: document.getElementById("monitorPrinterInput").value, active: document.getElementById("monitorActiveInput").checked });
+      state.settings.monitors.push({ name, turns: document.getElementById("monitorTurnsInput").checked, printer: document.getElementById("monitorPrinterInput").value, active: document.getElementById("monitorActiveInput").checked, mobile: false });
       saveState();
       document.getElementById("monitorModal").close();
       render();
@@ -8392,9 +8406,9 @@
       renderKitchen();
     });
     document.getElementById("mobileMonitorOpenBtn").addEventListener("click", () => {
-      const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase().includes("bar"));
+      const barMonitor = (state.settings.monitors || []).find(monitor => monitor.mobile === true && monitor.active !== false);
       if (!barMonitor) {
-        alert("Monitor Bar non configurato.");
+        alert("Nessun monitor mobile configurato.");
         return;
       }
       selectedKitchenMonitor = barMonitor.name;

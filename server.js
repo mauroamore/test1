@@ -908,6 +908,18 @@ const server = http.createServer((request, response) => {
     return response.end();
   }
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
+  if (request.url === "/api/table-locks" && request.method === "GET") {
+    const now = Date.now();
+    const locks = {};
+    for (const [tableId, current] of tableLocks.entries()) {
+      if (current.expiresAt <= now) {
+        current.status = "scaduto";
+        continue;
+      }
+      locks[String(tableId)] = { status: "attivo", expiresAt: current.expiresAt };
+    }
+    return sendJson(response, 200, { locks });
+  }
   if (request.url.startsWith("/api/table-lock") && request.method === "GET") {
     const query = new URL(request.url, "http://localhost").searchParams;
     const tableId = query.get("tableId");

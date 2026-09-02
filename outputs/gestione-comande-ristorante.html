@@ -3106,15 +3106,18 @@
 
     async function refreshVisibleTableLocks() {
       if (REMOTE_MODE || !Array.isArray(state.tables)) return;
-      const results = await Promise.all(state.tables.map(async table => {
-        try {
-          const response = await fetch(`/api/table-lock?tableId=${encodeURIComponent(table.id)}`);
-          const status = await response.json();
-          return { id: String(table.id), locked: Boolean(status.locked) && String(lockedTableId) !== String(table.id) };
-        } catch { return { id: String(table.id), locked: false }; }
-      }));
-      visibleLockedTables.clear();
-      results.filter(result => result.locked).forEach(result => visibleLockedTables.add(result.id));
+      try {
+        const response = await fetch("/api/table-locks", { cache: "no-store" });
+        if (!response.ok) throw new Error("Lock list unavailable");
+        const payload = await response.json();
+        visibleLockedTables.clear();
+        Object.entries(payload.locks || {})
+          .filter(([id, lock]) => lock && lock.status === "attivo" && String(lockedTableId) !== String(id))
+          .forEach(([id]) => visibleLockedTables.add(String(id)));
+      } catch {
+        // In caso di indisponibilita' temporanea non manteniamo lock obsoleti.
+        visibleLockedTables.clear();
+      }
       renderTables();
     }
 

@@ -61,9 +61,11 @@ function buildGraphicPreconto(order, settings = {}) {
   sep();
   const original = items.reduce((sum, item) => sum + Number(item.qty || item.quantity || 0) * (Number(item.price || item.unit_price || 0) + Number(item.extraTotal || 0)), covers * coverPrice);
   const discount = Math.max(0, Number(order.discount || 0));
-  row("Totale originale", euro(original));
-  if (discount > 0) row("Sconto", `-${euro(discount)}`);
-  row("TOTALE", euro(Math.max(0, original - discount)), true);
+  row("Totale", euro(original));
+  if (discount > 0) {
+    row("Sconto", `-${euro(discount)}`);
+    row("Nuovo Totale", euro(Math.max(0, original - discount)), true);
+  }
   sep();
   centered("Documento non fiscale");
   centered("Il presente preconto");

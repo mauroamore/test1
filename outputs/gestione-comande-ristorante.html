@@ -633,6 +633,7 @@
 
     .kitchen-screen-head h1 { font-size: 24px; }
     .monitor-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .monitor-tabs[hidden] { display: none !important; }
     .monitor-tabs button.active { background: var(--brand); color: white; border-color: var(--brand); }
     .setup-screen { padding: 24px 28px 40px; }
     .setup-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
@@ -1074,7 +1075,12 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    body.bar-mobile-monitor #closeKitchenBtn { display: none; }
+    body.bar-mobile-monitor #closeKitchenBtn,
+    body.bar-mobile-monitor #historyBtn { display: none; }
+    .kitchen-title-block { min-width: 0; }
+    .kitchen-title-block .badge { display: block; width: fit-content; margin-top: 2px; }
+    body.bar-mobile-monitor .kitchen-title-block h1 { line-height: 1.05; }
+    body.bar-mobile-monitor .kitchen-title-block .badge { font-size: 11px; padding: 2px 6px; }
     body.palmare-mode .palmare-table-filters {
       display: flex;
       gap: 6px;
@@ -2530,14 +2536,13 @@
   <section class="kitchen-screen" id="kitchenScreen" hidden>
     <div class="kitchen-screen-head">
       <div class="row">
-        <button class="ghost mobile-monitor-toggle" id="mobileMonitorBackBtn" type="button" title="Torna a Gestione Comande">Gestione</button>
-        <h1 id="kitchenTitle">Monitor</h1>
+        <button class="ghost mobile-monitor-toggle" id="mobileMonitorBackBtn" type="button" title="Torna ai tavoli">Tavoli</button>
+        <div class="kitchen-title-block"><h1 id="kitchenTitle">Monitor</h1><span class="badge" id="kitchenCount">0 comande attive</span></div>
         <button class="ghost" id="historyBtn" title="Visualizza storico ordini">Storico</button>
         <div class="date" id="kitchenToday"></div>
       </div>
       <div class="monitor-tabs" id="monitorTabs"></div>
       <div class="row">
-        <span class="badge" id="kitchenCount">0 comande attive</span>
         <button class="icon-btn kitchen-setup-btn" id="kitchenSetupBtn" type="button" title="Impostazioni dispositivo" aria-label="Impostazioni dispositivo">⚙</button>
         <button class="ghost" id="closeKitchenBtn" title="Torna alla sala">Torna alla sala</button>
       </div>
@@ -6899,6 +6904,7 @@
       const monitors = (state.settings.monitors || [])
         .filter(monitor => monitor.active !== false)
         .filter(monitor => !PALMARE_MODE || monitor.name.toLowerCase().includes("bar"));
+      root.hidden = PALMARE_MODE && monitors.length <= 1;
       monitors.forEach(({ name: monitor }) => {
         const button = document.createElement("button");
         button.className = `ghost ${selectedKitchenMonitor === monitor ? "active" : ""}`;

@@ -15,6 +15,7 @@
 const DEFAULT_PORT = 80;
 const DEFAULT_DEVID = "local_printer";
 const DEFAULT_TIMEOUT_MS = 10000;
+const DEFAULT_PC_POS_PORT = 9100;
 
 function buildUrl(host, { port = DEFAULT_PORT, devid = DEFAULT_DEVID, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   return `http://${host}:${port}/cgi-bin/fpmate.cgi?devid=${encodeURIComponent(devid)}&timeout=${timeoutMs}`;
@@ -218,6 +219,85 @@ async function printFiscalReceipt(host, { items, payment, operator = "1" }, opti
   return parseResponse(text);
 }
 
+// Protocollo Epson FP legacy PC-POS: stampa di un documento non fiscale.
+// Le righe del comando 064 sono esattamente 40 byte; il dispositivo aggiunge
+// autonomamente le diciture NON FISCALE in testa e in coda.
+function buildPcPosFrame(applicationPdu, counter = "00") {
+  const cnt = String(counter).padStart(2, "0").slice(-2);
+  const payload = Buffer.from(`${cnt}E${applicationPdu}`, "latin1");
+  const checksum = String([...payload].reduce((sum, byte) => sum + byte, 0) % 100).padStart(2, "0");
+  return Buffer.concat([Buffer.from([0x02]), payload, Buffer.from(checksum, "ascii"), Buffer.from([0x03])]);
+}
+
+function readPcPosResponse(buffer) {
+  const start = buffer.indexOf(0x02);
+  const end = buffer.indexOf(0x03, start + 1);
+  if (start < 0 || end < 0) return null;
+  const frame = buffer.subarray(start, end + 1);
+  return {
+    raw: frame,
+    counter: frame.subarray(1, 3).toString("ascii"),
+    identifier: frame.subarray(3, 4).toString("latin1"),
+    applicationPdu: frame.subarray(4, -3).toString("latin1"),
+    checksum: frame.subarray(-3, -1).toString("ascii")
+  };
+}
+
+function sendPcPosFrame(socket, frame, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  return new Promise((resolve, reject) => {
+    let received = Buffer.alloc(0);
+    let acknowledged = false;
+    const timer = setTimeout(() => {
+      socket.destroy();
+      reject(new Error(`Timeout PC-POS Epson${acknowledged ? " dopo ACK" : " in attesa di ACK"}`));
+    }, timeoutMs);
+    const finish = (error, result) => {
+      clearTimeout(timer);
+      socket.off("data", onData);
+      error ? reject(error) : resolve(result);
+    };
+    const onData = chunk => {
+      received = Buffer.concat([received, chunk]);
+      if (received.includes(0x06)) acknowledged = true;
+      const response = readPcPosResponse(received);
+      if (response) finish(null, { acknowledged, response });
+    };
+    socket.on("data", onData);
+    socket.once("error", error => finish(error));
+    socket.write(frame);
+  });
+}
+
+function printNonFiscalReceipt(host, { lines, operator = "1" } = {}, { port = DEFAULT_PC_POS_PORT, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  if (!host) throw new Error("printNonFiscalReceipt richiede host");
+  if (!Array.isArray(lines)) throw new Error("printNonFiscalReceipt richiede lines");
+  const op = String(operator).padStart(2, "0").slice(-2);
+  const normalizedLines = lines.map(line => Buffer.from(String(line ?? ""), "latin1").subarray(0, 40).toString("latin1"));
+  return new Promise((resolve, reject) => {
+    const net = require("net");
+    const socket = net.createConnection({ host, port });
+    let counter = 0;
+    const send = async () => {
+      try {
+        const responses = [];
+        const begin = await sendPcPosFrame(socket, buildPcPosFrame(`1063${op}`, counter++), { timeoutMs });
+        responses.push(begin);
+        for (const line of normalizedLines) {
+          responses.push(await sendPcPosFrame(socket, buildPcPosFrame(`1064${op}1${line.padEnd(40, " ")}`, counter++), { timeoutMs }));
+        }
+        responses.push(await sendPcPosFrame(socket, buildPcPosFrame(`1065${op}`, counter++), { timeoutMs }));
+        socket.end();
+        resolve({ success: true, protocol: "Epson PC-POS", host, port, lines: normalizedLines, responses });
+      } catch (error) {
+        socket.destroy();
+        reject(error);
+      }
+    };
+    socket.once("connect", send);
+    socket.once("error", reject);
+  });
+}
+
 module.exports = {
   sendCommand,
   parseResponse,
@@ -229,6 +309,8 @@ module.exports = {
   queryContentByDate,
   queryContentByNumbers,
   printFiscalReceipt
+  ,buildPcPosFrame,
+  printNonFiscalReceipt
 };
 
 // Test manuale da riga di comando:

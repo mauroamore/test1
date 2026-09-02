@@ -70,10 +70,19 @@ async function printGraphicPreconto(order, printer, settings = {}) {
   const device = new Network(printer.host, Number(printer.port || 9100));
   await new Promise((resolve, reject) => device.open(error => error ? reject(error) : resolve()));
   const image = await Image.load(png, "image/png");
-  // @node-escpos/core expects raster data as bytes, while toRaster() returns
-  // a numeric array. Passing the array directly makes the printer receive text.
-  const raster = image.toRaster();
-  image.toRaster = () => ({ ...raster, data: Buffer.from(raster.data) });
+  // Decode directly from the canvas. The generic PNG decoder used by
+  // escpos can lose antialiased glyphs and leave only solid separator rows.
+  const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+  const bytesPerRow = Math.ceil(canvas.width / 8);
+  const rasterData = Buffer.alloc(bytesPerRow * canvas.height);
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const offset = (y * canvas.width + x) * 4;
+      const darkness = 255 - ((pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3);
+      if (darkness > 96) rasterData[y * bytesPerRow + Math.floor(x / 8)] |= 128 >> (x % 8);
+    }
+  }
+  image.toRaster = () => ({ data: rasterData, width: bytesPerRow, height: canvas.height });
   const output = new Printer(device, {});
   await output.raster(image).feed(3).cut().close();
   return { pngBase64: png.toString("base64"), width: canvas.width, height: canvas.height };

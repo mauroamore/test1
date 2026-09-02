@@ -10,7 +10,7 @@ function euro(value) {
 
 function buildGraphicPreconto(order, settings = {}) {
   const width = Number(settings.width) === 80 ? 576 : WIDTH_58;
-  const font = width === WIDTH_58 ? 25 : 27;
+  const font = width === WIDTH_58 ? 20 : 23;
   const items = Array.isArray(order.items) ? order.items : [];
   const covers = Number(order.covers || 0);
   const coverPrice = Number(settings.coverCharge || 0);
@@ -24,11 +24,21 @@ function buildGraphicPreconto(order, settings = {}) {
   ctx.textBaseline = "top";
   let y = MARGIN;
   const sep = () => { ctx.fillRect(MARGIN, y + 12, width - MARGIN * 2, 2); y += LINE; };
-  const centered = text => { ctx.textAlign = "center"; ctx.fillText(text, width / 2, y); y += LINE; };
+  const centered = text => {
+    ctx.textAlign = "center";
+    let value = String(text);
+    while (ctx.measureText(value).width > width - MARGIN * 2 && value.length > 4) value = `${value.slice(0, -4)}...`;
+    ctx.fillText(value, width / 2, y); y += LINE;
+  };
   const row = (left, right, bold = false) => {
     ctx.font = `${bold ? "bold " : ""}${font}px Courier New`;
-    ctx.textAlign = "left"; ctx.fillText(String(left), MARGIN, y);
-    ctx.textAlign = "right"; ctx.fillText(String(right), width - MARGIN, y); y += LINE;
+    const rightText = String(right || "");
+    const maxLeft = Math.max(40, width - MARGIN * 2 - ctx.measureText(rightText).width - 12);
+    let leftText = String(left || "");
+    while (ctx.measureText(leftText).width > maxLeft && leftText.length > 4) leftText = `${leftText.slice(0, -4)}...`;
+    ctx.textAlign = "left"; ctx.fillText(leftText, MARGIN, y);
+    if (rightText) { ctx.textAlign = "right"; ctx.fillText(rightText, width - MARGIN, y); }
+    y += LINE;
   };
   centered("Thai Princess");
   centered("PRECONTO NON FISCALE");
@@ -38,7 +48,7 @@ function buildGraphicPreconto(order, settings = {}) {
   for (const item of items) {
     const qty = Number(item.qty || item.quantity || 0);
     const price = qty * (Number(item.price || item.unit_price || 0) + Number(item.extraTotal || 0));
-    row(`${qty} x ${String(item.name || item.product_name || "Articolo").slice(0, 24)}`, euro(price));
+    row(`${qty} x ${String(item.name || item.product_name || "Articolo")}`, euro(price));
   }
   sep();
   const original = items.reduce((sum, item) => sum + Number(item.qty || item.quantity || 0) * (Number(item.price || item.unit_price || 0) + Number(item.extraTotal || 0)), covers * coverPrice);

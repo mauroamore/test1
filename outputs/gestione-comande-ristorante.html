@@ -7661,11 +7661,6 @@
         return `${qty}${fit(item.name || "Articolo", nameWidth)} ${price}`;
       }).join("\n");
       const payload = `\x1b@\x1ba\x01${line}\n${fit("PRECONTO", width)}\n${tableLabel ? fit(tableLabel, width) + "\n" : ""}${line}\n\x1ba\x00\x1b\x21\x01${coverLine}${coverLine && textRows ? "\n" : ""}${textRows}\n${line}\nTotale originale\n${amount(orderTotal(order))}\n${discountCents > 0 ? `Sconto\n${amount(discountCents / 100)}\n` : ""}TOTALE\n${amount(due / 100)}\n\x1b\x21\x00${line}\n\n`;
-      if (printer.preview !== false) {
-        document.getElementById("printPreviewText").textContent = payload.replace(/\x1b/g, "<ESC>").replace(/\x1d/g, "<GS>");
-        document.getElementById("printPreviewStatus").textContent = `Anteprima preconto - ${printer.name}`;
-        document.getElementById("printPreviewModal").showModal();
-      }
       try {
         const graphicOrder = { ...order, discount: discountCents / 100 };
         const response = await fetch("/api/print/preconto-graphic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "preconto", printer, order: graphicOrder, settings: { width: printer.width, coverCharge: state.settings.coverCharge || 0 } }) });
@@ -7679,6 +7674,10 @@
           image.style.cssText = "display:block; max-width:100%; height:auto; margin:0 auto; background:#fff;";
           image.src = `data:image/png;base64,${result.pngBase64}`;
           preview.appendChild(image);
+          if (printer.preview !== false) {
+            document.getElementById("printPreviewStatus").textContent = `Anteprima preconto - ${printer.name}`;
+            document.getElementById("printPreviewModal").showModal();
+          }
         }
         window.alert(`Preconto inviato a ${printer.name}.`);
       } catch (error) { window.alert(`Stampa preconto non riuscita: ${error.message}`); }

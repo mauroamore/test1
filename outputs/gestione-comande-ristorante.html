@@ -2206,6 +2206,16 @@
         padding: 5px 7px;
         font-size: 12px;
       }
+      body.palmare-mode .mobile-monitor-toggle {
+        display: inline-flex;
+        min-height: 36px;
+        padding: 5px 8px;
+        font-size: 12px;
+      }
+    }
+    .mobile-monitor-toggle { display: none; }
+    @media (max-width: 760px) {
+      body.palmare-mode .mobile-monitor-toggle { display: inline-flex; }
     }
     .delivery-panel {
       min-width: 0;
@@ -2328,8 +2338,9 @@
 <body>
   <div id="remoteStatusStrip" hidden></div>
   <header>
-    <div class="topbar">
+      <div class="topbar">
       <div>
+        <button class="ghost mobile-monitor-toggle" id="mobileMonitorOpenBtn" type="button" title="Apri monitor Bar">Monitor Bar</button>
         <h1>Gestione Comande</h1>
         <div class="small" id="app-version" aria-label="Versione applicazione">Versione: verifica...</div>
         <div id="realtime-status" aria-live="polite">Realtime: connessione in corso...</div>
@@ -2517,6 +2528,7 @@
   <section class="kitchen-screen" id="kitchenScreen" hidden>
     <div class="kitchen-screen-head">
       <div class="row">
+        <button class="ghost mobile-monitor-toggle" id="mobileMonitorBackBtn" type="button" title="Torna a Gestione Comande">Gestione</button>
         <h1 id="kitchenTitle">Monitor</h1>
         <button class="ghost" id="historyBtn" title="Visualizza storico ordini">Storico</button>
         <div class="date" id="kitchenToday"></div>
@@ -8356,6 +8368,27 @@
       document.getElementById("kitchenScreen").hidden = false;
       document.getElementById("kitchenToday").textContent = document.getElementById("today").textContent;
       renderKitchen();
+    });
+    document.getElementById("mobileMonitorOpenBtn").addEventListener("click", () => {
+      const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase() === "bar");
+      if (!barMonitor) {
+        alert("Monitor Bar non configurato.");
+        return;
+      }
+      selectedKitchenMonitor = barMonitor.name;
+      window.location.hash = "monitor-" + encodeURIComponent(barMonitor.name.toLowerCase());
+      document.querySelector("main").hidden = true;
+      document.body.classList.add("kitchen-mode");
+      document.getElementById("kitchenScreen").hidden = false;
+      document.getElementById("kitchenTitle").textContent = barMonitor.name;
+      renderKitchen();
+    });
+    document.getElementById("mobileMonitorBackBtn").addEventListener("click", () => {
+      document.body.classList.remove("kitchen-mode", "bar-mobile-monitor");
+      document.getElementById("kitchenScreen").hidden = true;
+      document.querySelector("main").hidden = false;
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      render();
     });
 
     document.getElementById("historyBtn").addEventListener("click", () => {

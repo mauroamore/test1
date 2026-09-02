@@ -8,6 +8,7 @@ try {
 }
 
 const WIDTH_58 = 384;
+const WIDTH_80 = 512;
 const MARGIN = 24;
 const LINE = 34;
 
@@ -16,8 +17,8 @@ function euro(value) {
 }
 
 function buildGraphicPreconto(order, settings = {}) {
-  const width = Number(settings.width) === 80 ? 576 : WIDTH_58;
-  const font = width === WIDTH_58 ? 20 : 23;
+  const width = Number(settings.width) === 80 ? WIDTH_80 : WIDTH_58;
+  const font = width === WIDTH_58 ? 20 : 22;
   const items = Array.isArray(order.items) ? order.items : [];
   const covers = Number(order.covers || 0);
   const coverPrice = Number(settings.coverCharge || 0);

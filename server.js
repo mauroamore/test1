@@ -5,6 +5,7 @@ const childProcess = require("child_process");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
+let buildGraphicPreconto;
 
 function loadLocalEnv(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -1401,7 +1402,11 @@ const server = http.createServer((request, response) => {
         const input = JSON.parse(body || "{}");
         const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
         if (!printer.host) return sendJson(response, 400, { ok: false, error: "Stampante non configurata" });
-        if (!printGraphicPreconto) ({ printGraphicPreconto } = require("./src/graphic-preconto.js"));
+        if (!printGraphicPreconto || !buildGraphicPreconto) ({ printGraphicPreconto, buildGraphicPreconto } = require("./src/graphic-preconto.js"));
+        if (input.previewOnly) {
+          const canvas = buildGraphicPreconto(input.order || {}, input.settings || {});
+          return sendJson(response, 200, { ok: true, previewOnly: true, pngBase64: canvas.toBuffer("image/png").toString("base64"), width: canvas.width, height: canvas.height });
+        }
         const result = await printGraphicPreconto(input.order || {}, printer, input.settings || {});
         return sendJson(response, 200, { ok: true, ...result });
       } catch (error) {

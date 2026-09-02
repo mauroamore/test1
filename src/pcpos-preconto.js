@@ -19,7 +19,8 @@ function buildPcPosPrecontoLines(order, settings = {}) {
     return String(left || "").slice(0, maxLeft).padEnd(maxLeft) + " " + price;
   };
   rows.push(center("Thai Princess"), center("PRECONTO NON FISCALE"));
-  rows.push(`Tavolo ${order.tableName || order.table || order.id || ""}`.slice(0, width));
+  const table = String(order.tableName || order.table || order.id || "");
+  rows.push(/^tavolo\b/i.test(table) ? table.slice(0, width) : `Tavolo ${table}`.slice(0, width));
   rows.push("-".repeat(width));
   if (covers) rows.push(itemRow(`${covers} x Coperto`, euro(covers * coverPrice)));
   for (const item of items) {

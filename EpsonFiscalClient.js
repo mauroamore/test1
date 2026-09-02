@@ -251,9 +251,11 @@ function sendPcPosFrame(socket, frame, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) 
       socket.destroy();
       reject(new Error(`Timeout PC-POS Epson${acknowledged ? " dopo ACK" : " in attesa di ACK"}`));
     }, timeoutMs);
+    const onError = error => finish(error);
     const finish = (error, result) => {
       clearTimeout(timer);
       socket.off("data", onData);
+      socket.off("error", onError);
       error ? reject(error) : resolve(result);
     };
     const onData = chunk => {
@@ -263,7 +265,7 @@ function sendPcPosFrame(socket, frame, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) 
       if (response) finish(null, { acknowledged, response });
     };
     socket.on("data", onData);
-    socket.once("error", error => finish(error));
+    socket.once("error", onError);
     socket.write(frame);
   });
 }

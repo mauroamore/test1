@@ -7,5 +7,10 @@
     "check:syntax": "node scripts/check-syntax.js",
     "test": "node --test",
     "check": "npm run check:syntax && npm test"
+  },
+  "dependencies": {
+    "@node-escpos/core": "^0.6.0",
+    "@node-escpos/network-adapter": "^0.0.1",
+    "canvas": "^3.2.3"
   }
 }

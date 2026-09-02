@@ -4,6 +4,7 @@ const path = require("path");
 const childProcess = require("child_process");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const epsonFiscal = require("./EpsonFiscalClient.js");
+const { printGraphicPreconto } = require("./src/graphic-preconto.js");
 
 function loadLocalEnv(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -1387,6 +1388,22 @@ const server = http.createServer((request, response) => {
         return sendJson(response, 200, result);
       } catch (error) {
         fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} ERROR ${error.stack || error}\n`);
+        return sendJson(response, 502, { ok: false, error: String(error.message || error) });
+      }
+    });
+    return;
+  }
+  if (request.url === "/api/print/preconto-graphic" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => body += chunk);
+    request.on("end", async () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
+        if (!printer.host) return sendJson(response, 400, { ok: false, error: "Stampante non configurata" });
+        const result = await printGraphicPreconto(input.order || {}, printer, input.settings || {});
+        return sendJson(response, 200, { ok: true, ...result });
+      } catch (error) {
         return sendJson(response, 502, { ok: false, error: String(error.message || error) });
       }
     });

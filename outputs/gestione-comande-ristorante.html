@@ -7667,9 +7667,19 @@
         document.getElementById("printPreviewModal").showModal();
       }
       try {
-        const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "preconto", printer, payload }) });
+        const graphicOrder = { ...order, discount: discountCents / 100 };
+        const response = await fetch("/api/print/preconto-graphic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "preconto", printer, order: graphicOrder, settings: { width: printer.width, coverCharge: state.settings.coverCharge || 0 } }) });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || result.ok === false) throw new Error(result.error || `Errore HTTP ${response.status}`);
+        if (result.pngBase64) {
+          const preview = document.getElementById("printPreviewText");
+          preview.textContent = "";
+          const image = document.createElement("img");
+          image.alt = "Anteprima preconto";
+          image.style.cssText = "display:block; max-width:100%; height:auto; margin:0 auto; background:#fff;";
+          image.src = `data:image/png;base64,${result.pngBase64}`;
+          preview.appendChild(image);
+        }
         window.alert(`Preconto inviato a ${printer.name}.`);
       } catch (error) { window.alert(`Stampa preconto non riuscita: ${error.message}`); }
     });

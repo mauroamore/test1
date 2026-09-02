@@ -653,8 +653,18 @@
     .setup-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 140px 100px auto; gap: 8px; align-items: center; }
     .printer-row { grid-template-columns: minmax(110px, .8fr) minmax(120px, 1fr) 80px 70px auto minmax(90px, 1fr) auto; }
     .monitor-config { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
-    .monitor-config > .row { display: grid; grid-template-columns: minmax(160px, 1fr) auto auto minmax(170px, .8fr) auto auto auto; gap: 10px; align-items: center; }
-    .monitor-local-layout { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .monitor-config { display: grid; gap: 14px; padding: 16px; background: var(--panel); }
+    .monitor-config-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+    .monitor-config-title { display: grid; gap: 3px; }
+    .monitor-config-title strong { font-size: 17px; color: var(--text); }
+    .monitor-config-subtitle { color: var(--muted); font-size: 12px; }
+    .monitor-config-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .monitor-config-section { display: grid; gap: 9px; }
+    .monitor-config-section h3 { margin: 0; font-size: 13px; color: var(--text); }
+    .monitor-config-options { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+    .monitor-config-routing { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 10px; align-items: end; }
+    .monitor-config-routing label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; font-weight: 700; }
+    .monitor-local-layout { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
     .monitor-local-layout label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
     .monitor-local-layout input { width: 100%; }
     .monitor-categories { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
@@ -664,8 +674,7 @@
     @media (max-width: 1100px) {
       .setup-screen { padding-left: 18px; padding-right: 18px; }
       .setup-grid { grid-template-columns: 1fr; }
-      .monitor-config > .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .monitor-config > .row > :first-child { grid-column: 1 / -1; }
+      .monitor-config-routing { grid-template-columns: 1fr; }
       .monitor-local-layout { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
       .printer-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .printer-row > :last-child { grid-column: 1 / -1; }
@@ -673,12 +682,12 @@
     }
     @media (max-width: 700px) {
       .setup-tab-panel > .panel-header .small { width: 100%; margin-left: 0; }
-      .monitor-config > .row,
       .monitor-local-layout,
       .printer-row,
       .setup-row { grid-template-columns: 1fr; }
-      .monitor-config > .row > :first-child,
       .printer-row > :last-child { grid-column: auto; }
+      .monitor-config-head { align-items: flex-start; flex-direction: column; }
+      .monitor-config-actions { width: 100%; justify-content: flex-start; }
       .setup-device-view { padding: 12px 0; border-top: 0; }
     }
 
@@ -6696,8 +6705,10 @@
       });
       root.innerHTML = monitors.map((monitor, index) => { const layout = kitchenLayoutFor(monitor.name); return `
         <div class="monitor-config" data-monitor-index="${index}">
-          <div class="row"><strong>${escapeHtml(monitor.name)}</strong><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Dispositivo mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div>
-          <div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label></div>
+          <div class="monitor-config-head"><div class="monitor-config-title"><strong>${escapeHtml(monitor.name)}</strong><span class="monitor-config-subtitle">Configurazione del monitor e del dispositivo associato</span></div><div class="monitor-config-actions"><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div></div>
+          <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label></div></div>
+          <div class="monitor-config-section"><h3>Assegnazione</h3><div class="monitor-config-routing"><label>Stampante collegata<select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select></label><span class="setup-section-note">Le categorie si gestiscono con il pulsante Categorie.</span></div></div>
+          <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label></div></div>
         </div>
       `; }).join("");
       root.querySelectorAll(".kitchen-setting").forEach(input => input.addEventListener("change", event => {

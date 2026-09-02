@@ -66,7 +66,8 @@ function buildGraphicPreconto(order, settings = {}) {
   row("TOTALE", euro(Math.max(0, original - discount)), true);
   sep();
   centered("Documento non fiscale");
-  centered("Il presente preconto non ha valore fiscale");
+  centered("Il presente preconto");
+  centered("non ha valore fiscale");
   return canvas;
 }
 

@@ -2166,6 +2166,47 @@
         min-height: 560px;
       }
     }
+    /* Testata compatta della sala su telefono: mantiene titolo, stato e azioni senza
+       consumare l'altezza necessaria alla lista dei tavoli. */
+    @media (max-width: 760px) {
+      body.palmare-mode > header .topbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 4px 8px;
+        padding: 7px 8px;
+      }
+      body.palmare-mode > header .topbar > div:first-child {
+        min-width: 0;
+        line-height: 1.1;
+      }
+      body.palmare-mode > header h1 {
+        font-size: 18px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      body.palmare-mode > header #app-version,
+      body.palmare-mode > header #today {
+        display: none;
+      }
+      body.palmare-mode > header #realtime-status {
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      body.palmare-mode > header .topbar > .row {
+        gap: 4px;
+        flex-wrap: nowrap;
+      }
+      body.palmare-mode > header .topbar > .row button {
+        min-height: 36px;
+        min-width: 36px;
+        padding: 5px 7px;
+        font-size: 12px;
+      }
+    }
     .delivery-panel {
       min-width: 0;
     }

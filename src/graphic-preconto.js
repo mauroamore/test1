@@ -1,4 +1,4 @@
-const { createCanvas } = require("canvas");
+const { createCanvas } = require("@napi-rs/canvas");
 
 const WIDTH_58 = 384;
 const MARGIN = 24;

@@ -9,8 +9,8 @@
     "check": "npm run check:syntax && npm test"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
     "@node-escpos/core": "^0.6.0",
-    "@node-escpos/network-adapter": "^0.0.1",
-    "canvas": "^3.2.3"
+    "@node-escpos/network-adapter": "^0.0.1"
   }
 }

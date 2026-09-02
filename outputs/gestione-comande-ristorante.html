@@ -635,14 +635,21 @@
     .monitor-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
     .monitor-tabs[hidden] { display: none !important; }
     .monitor-tabs button.active { background: var(--brand); color: white; border-color: var(--brand); }
-    .setup-screen { padding: 24px 28px 40px; }
-    .setup-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .setup-screen { min-height: 100vh; padding: 24px 28px 40px; background: #f6f2ea; }
+    .setup-head { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin: 0 auto 18px; max-width: 1440px; }
+    .setup-head h1 { margin: 0; }
     .setup-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .setup-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+    .setup-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--line); margin: 0 auto 16px; max-width: 1440px; overflow-x: auto; padding-bottom: 1px; scrollbar-width: thin; }
+    .setup-tabs button { flex: 0 0 auto; white-space: nowrap; }
     .setup-tabs button.active { background: var(--brand); color: white; border-color: var(--brand); }
+    .setup-tab-panel { max-width: 1440px; margin: 0 auto; }
     .setup-tab-panel[hidden] { display: none; }
     .setup-grid { display: block; }
     .setup-list { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
+    .setup-device-view { display: grid; gap: 12px; padding: 14px; border-top: 1px solid var(--line); }
+    .setup-device-view h3 { margin: 0; }
+    .setup-section-note { color: var(--muted); font-size: .88rem; }
+    @media (max-width: 700px) { .setup-screen { padding: 16px 12px 28px; } .setup-head { align-items: flex-start; flex-direction: column; } .setup-head > button { align-self: stretch; } .setup-tabs { margin-bottom: 12px; } }
     .setup-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 140px 100px auto; gap: 8px; align-items: center; }
     .printer-row { grid-template-columns: minmax(110px, .8fr) minmax(120px, 1fr) 80px 70px auto minmax(90px, 1fr) auto; }
     .monitor-config { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
@@ -651,6 +658,29 @@
     .monitor-local-layout label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
     .monitor-local-layout input { width: 100%; }
     .monitor-categories { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+    .setup-tab-panel > .panel-header { gap: 12px; flex-wrap: wrap; }
+    .setup-tab-panel > .panel-header h2 { margin: 0; }
+    .setup-tab-panel > .panel-header .small { margin-left: auto; }
+    @media (max-width: 1100px) {
+      .setup-screen { padding-left: 18px; padding-right: 18px; }
+      .setup-grid { grid-template-columns: 1fr; }
+      .monitor-config > .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .monitor-config > .row > :first-child { grid-column: 1 / -1; }
+      .monitor-local-layout { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+      .printer-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .printer-row > :last-child { grid-column: 1 / -1; }
+      .setup-row { grid-template-columns: minmax(0, 1fr) 120px auto; }
+    }
+    @media (max-width: 700px) {
+      .setup-tab-panel > .panel-header .small { width: 100%; margin-left: 0; }
+      .monitor-config > .row,
+      .monitor-local-layout,
+      .printer-row,
+      .setup-row { grid-template-columns: 1fr; }
+      .monitor-config > .row > :first-child,
+      .printer-row > :last-child { grid-column: auto; }
+      .setup-device-view { padding: 12px 0; border-top: 0; }
+    }
 
     .kitchen-screen-body {
       display: grid;
@@ -2432,9 +2462,10 @@
   </main>
 
   <section class="setup-screen" id="setupScreen" hidden>
-    <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div><div class="device-profile"><label for="deviceModeInput">Operatività dispositivo</label><select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
-    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Categorie</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Stampante fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
-    <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Categorie</h2><span class="small">Sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="small">Solo su questo dispositivo</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="small">Nasconde Delivery/Pick-up e apre la comanda come pannello laterale quando selezioni un tavolo.</div></div></div></section>
+    <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
+    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
+    <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">Nasconde Delivery/Pick-up e apre la comanda come pannello laterale quando selezioni un tavolo.</div></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="monitors" hidden><div class="panel-header"><h2>Monitor</h2><button class="primary" id="addMonitorSetupBtn" type="button">Aggiungi monitor</button></div><div class="panel-body stack"><div class="monitor-setup" id="setupMonitorSetup"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="printers" hidden><div class="panel-header"><h2>Stampanti</h2><button class="primary" id="addPrinterBtn" type="button">Aggiungi stampante</button></div><div class="panel-body setup-list" id="setupPrinterList"></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="pos" hidden>
@@ -8293,7 +8324,7 @@
       const tab = button.dataset.setupTab;
       document.querySelectorAll("[data-setup-tab]").forEach(item => item.classList.toggle("active", item === button));
       document.querySelectorAll("[data-setup-panel]").forEach(panel => panel.hidden = panel.dataset.setupPanel !== tab);
-      if (tab === "monitors" || tab === "printers" || tab === "fiscal" || tab === "pos") renderSetup();
+      if (tab === "device" || tab === "monitors" || tab === "printers" || tab === "fiscal" || tab === "pos") renderSetup();
       if (tab === "update") loadUpdateVersion();
     }));
 

@@ -6401,6 +6401,10 @@
         if (localKitchen) Object.assign(state.settings, localKitchen);
       } catch {}
       const kitchenScreen = document.getElementById("kitchenScreen");
+      if (PALMARE_MODE) {
+        const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase().includes("bar"));
+        if (barMonitor) selectedKitchenMonitor = barMonitor.name;
+      }
       const kitchenLayout = kitchenLayoutFor(selectedKitchenMonitor);
       const isBarMonitor = String(selectedKitchenMonitor || "").toLowerCase().includes("bar");
       document.body.classList.toggle("bar-mobile-monitor", isBarMonitor && kitchenLayout.barMobile === true);
@@ -6890,11 +6894,15 @@
     function renderMonitorTabs() {
       const root = document.getElementById("monitorTabs");
       root.innerHTML = "";
-      (state.settings.monitors || []).filter(monitor => monitor.active !== false).forEach(({ name: monitor }) => {
+      const monitors = (state.settings.monitors || [])
+        .filter(monitor => monitor.active !== false)
+        .filter(monitor => !PALMARE_MODE || monitor.name.toLowerCase().includes("bar"));
+      monitors.forEach(({ name: monitor }) => {
         const button = document.createElement("button");
         button.className = `ghost ${selectedKitchenMonitor === monitor ? "active" : ""}`;
         button.textContent = monitor;
         button.addEventListener("click", () => {
+          if (PALMARE_MODE && !monitor.toLowerCase().includes("bar")) return;
           selectedKitchenMonitor = monitor;
           window.location.hash = `monitor-${monitor.toLowerCase()}`;
           renderMonitorTabs();

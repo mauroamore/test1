@@ -73,18 +73,25 @@ async function printGraphicPreconto(order, printer, settings = {}) {
   // Decode directly from the canvas. The generic PNG decoder used by
   // escpos can lose antialiased glyphs and leave only solid separator rows.
   const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
-  const bytesPerRow = Math.ceil(canvas.width / 8);
-  const rasterData = Buffer.alloc(bytesPerRow * canvas.height);
-  for (let y = 0; y < canvas.height; y++) {
+  const black = (x, y) => {
+    const offset = (y * canvas.width + x) * 4;
+    return 255 - ((pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3) > 96;
+  };
+  const chunks = [Buffer.from([0x1b, 0x40])];
+  for (let top = 0; top < canvas.height; top += 24) {
+    const band = Buffer.alloc(canvas.width * 3);
     for (let x = 0; x < canvas.width; x++) {
-      const offset = (y * canvas.width + x) * 4;
-      const darkness = 255 - ((pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3);
-      if (darkness > 96) rasterData[y * bytesPerRow + Math.floor(x / 8)] |= 128 >> (x % 8);
+      for (let bit = 0; bit < 24; bit++) {
+        if (top + bit < canvas.height && black(x, top + bit)) {
+          band[x * 3 + Math.floor(bit / 8)] |= 1 << (7 - (bit % 8));
+        }
+      }
     }
+    chunks.push(Buffer.from([0x1b, 0x2a, 33, canvas.width & 255, canvas.width >> 8]), band, Buffer.from([0x0a]));
   }
-  image.toRaster = () => ({ data: rasterData, width: bytesPerRow, height: canvas.height });
-  const output = new Printer(device, {});
-  await output.raster(image).feed(3).cut().close();
+  chunks.push(Buffer.from([0x1b, 0x64, 3, 0x1d, 0x56, 0x00]));
+  await new Promise((resolve, reject) => device.write(Buffer.concat(chunks), error => error ? reject(error) : resolve()));
+  device.close();
   return { pngBase64: png.toString("base64"), width: canvas.width, height: canvas.height };
 }
 

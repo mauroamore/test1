@@ -1006,6 +1006,33 @@
     body.palmare-mode #tables table.table-list {
       touch-action: pan-y;
     }
+
+    /* Layout verticale pensato per il monitor Bar usato da telefono/tablet. */
+    body.bar-mobile-monitor .kitchen-screen-body {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 8px;
+    }
+    body.bar-mobile-monitor .kitchen-summary { display: none; }
+    body.bar-mobile-monitor .kitchen-tickets {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+      padding: 0;
+      overflow-y: auto;
+      align-content: start;
+    }
+    body.bar-mobile-monitor .kitchen-tickets .ticket {
+      min-height: 0;
+      height: auto;
+      max-height: none;
+    }
+    body.bar-mobile-monitor .kitchen-tickets .ticket .ticket-scroll {
+      max-height: none;
+      overflow: visible;
+    }
+    body.bar-mobile-monitor .kitchen-tickets .ticket .row button {
+      min-height: 44px;
+      font-size: max(15px, var(--kitchen-font-size));
+    }
     body.palmare-mode .palmare-table-filters {
       display: flex;
       gap: 6px;
@@ -2336,6 +2363,7 @@
         <label class="layout-range">Larghezza totali<input id="layoutTotalsWidthRange" type="range" min="160" max="600" step="10"><output id="layoutTotalsWidthValue"></output></label>
         <label class="layout-range">Carattere totali<input id="layoutTotalsFontRange" type="range" min="10" max="36" step="1"><output id="layoutTotalsFontValue"></output></label>
         <label class="layout-range">Altezza comanda<input id="layoutTicketHeightRange" type="range" min="180" max="1000" step="10"><output id="layoutTicketHeightValue"></output></label>
+        <label class="checkbox-label"><input id="layoutBarMobileInput" type="checkbox"> Vista mobile Bar (una comanda per riga)</label>
         <strong>Anteprima</strong>
         <div class="kitchen-layout-preview" id="kitchenLayoutPreview"></div>
       </div>
@@ -2931,7 +2959,7 @@
     let historyReturnTimer = null;
     let selectedKitchenMonitor = "Cucina";
     const KITCHEN_LAYOUT_KEY = "vorrei-kitchen-layout-v2";
-    const DEFAULT_KITCHEN_LAYOUT = { columns: 6, itemFontSize: 18, totalsWidth: 260, totalsFontSize: 18, ticketHeight: 420 };
+    const DEFAULT_KITCHEN_LAYOUT = { columns: 6, itemFontSize: 18, totalsWidth: 260, totalsFontSize: 18, ticketHeight: 420, barMobile: false };
     let kitchenLayouts = loadKitchenLayouts();
     let kitchenLayoutModalMonitor = "Cucina";
 
@@ -2949,7 +2977,8 @@
         itemFontSize: clamp(Number(saved.itemFontSize || saved.kitchenFontSize || DEFAULT_KITCHEN_LAYOUT.itemFontSize), 10, 36),
         totalsWidth: clamp(Number(saved.totalsWidth || saved.kitchenSummaryWidth || DEFAULT_KITCHEN_LAYOUT.totalsWidth), 160, 600),
         totalsFontSize: clamp(Number(saved.totalsFontSize || DEFAULT_KITCHEN_LAYOUT.totalsFontSize), 10, 36),
-        ticketHeight: clamp(Number(saved.ticketHeight || DEFAULT_KITCHEN_LAYOUT.ticketHeight), 180, 1000)
+        ticketHeight: clamp(Number(saved.ticketHeight || DEFAULT_KITCHEN_LAYOUT.ticketHeight), 180, 1000),
+        barMobile: saved.barMobile === true
       };
     }
 
@@ -2971,6 +3000,7 @@
       modal.querySelector("#layoutTotalsWidthRange").value = layout.totalsWidth;
       modal.querySelector("#layoutTotalsFontRange").value = layout.totalsFontSize;
       modal.querySelector("#layoutTicketHeightRange").value = layout.ticketHeight;
+      modal.querySelector("#layoutBarMobileInput").checked = layout.barMobile;
       const preview = modal.querySelector("#kitchenLayoutPreview");
       preview.style.setProperty("--preview-font", layout.itemFontSize + "px");
       preview.style.setProperty("--preview-total-font", layout.totalsFontSize + "px");
@@ -6274,6 +6304,8 @@
       } catch {}
       const kitchenScreen = document.getElementById("kitchenScreen");
       const kitchenLayout = kitchenLayoutFor(selectedKitchenMonitor);
+      const isBarMonitor = String(selectedKitchenMonitor || "").toLowerCase().includes("bar");
+      document.body.classList.toggle("bar-mobile-monitor", isBarMonitor && kitchenLayout.barMobile === true);
       kitchenScreen.style.setProperty("--kitchen-columns", kitchenLayout.columns);
       kitchenScreen.style.setProperty("--kitchen-summary-width", kitchenLayout.totalsWidth + "px");
       kitchenScreen.style.setProperty("--kitchen-font-size", kitchenLayout.itemFontSize + "px");
@@ -8067,10 +8099,16 @@
       renderKitchenLayoutPreview();
       if (selectedKitchenMonitor === kitchenLayoutModalMonitor) renderKitchen();
     }));
+    document.getElementById("layoutBarMobileInput").addEventListener("change", event => {
+      const layout = kitchenLayoutFor(kitchenLayoutModalMonitor);
+      layout.barMobile = event.target.checked;
+      saveKitchenLayout(kitchenLayoutModalMonitor, layout);
+      if (selectedKitchenMonitor === kitchenLayoutModalMonitor) renderKitchen();
+    });
 
     document.getElementById("setupBtn").addEventListener("click", () => {
       if (REMOTE_MODE) return;
-      document.body.classList.remove("kitchen-mode", "device-kitchen");
+      document.body.classList.remove("kitchen-mode", "device-kitchen", "bar-mobile-monitor");
       document.getElementById("kitchenScreen").hidden = true;
       document.querySelector("main").hidden = true;
       document.getElementById("setupScreen").hidden = false;
@@ -8297,7 +8335,7 @@
       document.getElementById("historyBtn").textContent = "Storico";
       document.getElementById("historyBtn").title = "Visualizza storico ordini";
       if (deviceMode === "kitchen") return;
-      document.body.classList.remove("kitchen-mode");
+      document.body.classList.remove("kitchen-mode", "bar-mobile-monitor");
       document.getElementById("kitchenScreen").hidden = true;
       if (window.location.hash.toLowerCase().startsWith("#monitor")) history.replaceState(null, "", window.location.pathname + window.location.search);
     });

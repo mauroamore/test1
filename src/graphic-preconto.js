@@ -70,6 +70,10 @@ async function printGraphicPreconto(order, printer, settings = {}) {
   const device = new Network(printer.host, Number(printer.port || 9100));
   await new Promise((resolve, reject) => device.open(error => error ? reject(error) : resolve()));
   const image = await Image.load(png, "image/png");
+  // @node-escpos/core expects raster data as bytes, while toRaster() returns
+  // a numeric array. Passing the array directly makes the printer receive text.
+  const raster = image.toRaster();
+  image.toRaster = () => ({ ...raster, data: Buffer.from(raster.data) });
   const output = new Printer(device, {});
   await output.raster(image).feed(3).cut().close();
   return { pngBase64: png.toString("base64"), width: canvas.width, height: canvas.height };

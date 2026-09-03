@@ -7973,6 +7973,17 @@
       }).join("\n");
       const payload = `\x1b@\x1ba\x01${line}\n${fit("PRECONTO", width)}\n${tableLabel ? fit(tableLabel, width) + "\n" : ""}${line}\n\x1ba\x00\x1b\x21\x01${coverLine}${coverLine && textRows ? "\n" : ""}${textRows}\n${line}\nTotale originale\n${amount(orderTotal(order))}\n${discountCents > 0 ? `Sconto\n${amount(discountCents / 100)}\n` : ""}TOTALE\n${amount(due / 100)}\n\x1b\x21\x00${line}\n\n`;
       try {
+        if (printer.protocol !== "epson-pcpos") {
+          const response = await fetch("/api/print/raw", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ job: "preconto", printer, payload })
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result.ok === false) throw new Error(result.error || `Errore HTTP ${response.status}`);
+          window.alert(`Preconto inviato a ${printer.name}.`);
+          return;
+        }
         const graphicOrder = { ...order, discount: discountCents / 100 };
         const requestBody = { job: "preconto", printer, order: graphicOrder, settings: { width: printer.width, coverCharge: state.settings.coverCharge || 0 }, previewOnly: printer.preview !== false };
         pendingGraphicPreconto = requestBody;

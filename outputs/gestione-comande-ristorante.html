@@ -3068,6 +3068,7 @@
         kitchenColumns: 6,
         kitchenSummaryWidth: 260,
         kitchenFontSize: 18,
+        kitchenBellEnabled: true,
         monitors: [
           { name: "Bar", turns: false, printer: "", active: true },
           { name: "Cucina", turns: true, printer: "", active: true },
@@ -3694,6 +3695,7 @@
             key: REMOTE_KEY,
             onState: status => setRealtimeStatus(`Realtime: ${status}`, status === "connected"),
             onEvent: message => {
+              if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
               if (["state.updated", "order.created", "order.updated", "order.deleted", "table.updated", "kitchen.status_changed"].includes(message.event)) {
                 syncFromServer().then(() => refreshReservations());
               }
@@ -3718,6 +3720,7 @@
         events.onmessage = event => {
           const message = JSON.parse(event.data);
           if (message.type !== "state-updated") return;
+          if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
           if (message.event === "reservation.updated") syncFromServer().then(() => refreshReservations());
           else syncFromServer();
         };
@@ -6010,6 +6013,29 @@
       });
     }
 
+    function playKitchenBell() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!playKitchenBell.audioCtx) playKitchenBell.audioCtx = new AudioCtx();
+        const ctx = playKitchenBell.audioCtx;
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+        [880, 1175].forEach((frequency, index) => {
+          const oscillator = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const start = ctx.currentTime + index * 0.12;
+          oscillator.type = "sine";
+          oscillator.frequency.value = frequency;
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.16, start + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+          oscillator.connect(gain).connect(ctx.destination);
+          oscillator.start(start);
+          oscillator.stop(start + 0.23);
+        });
+      } catch (error) {}
+    }
+
     function chooseSplitAccount(order) {
       if (!order?.splitMode || order.selectedSplit !== "T") return Promise.resolve(null);
       const modal = document.getElementById("splitAccountChoiceModal");
@@ -6747,7 +6773,7 @@
       root.innerHTML = monitors.map((monitor, index) => { const layout = kitchenLayoutFor(monitor.name); return `
         <div class="monitor-config" data-monitor-index="${index}">
           <div class="monitor-config-head"><div class="monitor-config-title"><strong>${escapeHtml(monitor.name)}</strong><span class="monitor-config-subtitle">Configurazione del monitor e del dispositivo associato</span></div><div class="monitor-config-actions"><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div></div>
-          <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label></div></div>
+          <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><label class="checkbox-label"><input class="kitchen-bell" type="checkbox" ${state.settings.kitchenBellEnabled !== false ? "checked" : ""}> Campanella nuove comande e sequenze</label></div></div>
           <div class="monitor-config-section"><h3>Assegnazione</h3><div class="monitor-config-routing"><label>Stampante collegata<select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select></label><span class="setup-section-note">Le categorie si gestiscono con il pulsante Categorie.</span></div></div>
           <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label></div></div>
         </div>
@@ -6772,6 +6798,10 @@
         config.querySelector(".monitor-active").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-mobile").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-turns").addEventListener("change", () => saveMonitorConfig(index, config));
+        config.querySelector(".kitchen-bell").addEventListener("change", event => {
+          state.settings.kitchenBellEnabled = event.target.checked;
+          saveState();
+        });
         config.querySelector(".monitor-printer").addEventListener("change", () => saveMonitorConfig(index, config));
       });
     }

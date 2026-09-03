@@ -7155,7 +7155,7 @@
       if (!(state.history || []).some(item => String(item.id) === String(orderId) && item.kitchenClosed)) {
         state.history.unshift({ ...structuredClone(order), kitchenClosed: true, closedAt: new Date().toISOString() });
       }
-      if (isDeliveryCompleted(order)) order.deliveryDismissed = true;
+      if (order.source && isDeliveryCompleted(order)) order.deliveryDismissed = true;
       else order.kitchenClosed = true;
       saveState();
       renderKitchen();

@@ -123,11 +123,15 @@
 
     main {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px minmax(300px, 360px);
+      grid-template-columns: minmax(0, var(--room-column-width, 1fr)) var(--delivery-column-width, 320px) var(--order-column-width, minmax(300px, 360px));
       align-items: start;
       gap: 18px;
       padding: 20px;
     }
+    body.main-layout-customized main { grid-template-rows: var(--main-panel-height); }
+    body.main-layout-customized main > .panel { height: var(--main-panel-height); min-height: 0; }
+    body.main-layout-customized { font-size: var(--main-font-size); }
+    body.delivery-panel-hidden main { grid-template-columns: minmax(0, var(--room-column-width, 1fr)) var(--order-column-width, minmax(300px, 360px)); }
     .room-panel { align-self: start; }
     body.palmare-mode main {
       grid-template-columns: 1fr;
@@ -656,6 +660,9 @@
     .setup-device-view { display: grid; gap: 12px; padding: 14px; border-top: 1px solid var(--line); }
     .setup-device-view h3 { margin: 0; }
     .setup-section-note { color: var(--muted); font-size: .88rem; }
+    .layout-slider { display: grid; grid-template-columns: 180px 1fr 64px; gap: 10px; align-items: center; }
+    .layout-slider output { text-align: right; font-variant-numeric: tabular-nums; }
+    label:has(#mainPanelHeightInput), label:has(#roomColumnWidthInput), label:has(#deliveryColumnWidthInput), label:has(#orderColumnWidthInput), label:has(#mainFontSizeInput) { display: none; }
     @media (max-width: 700px) { .setup-screen { padding: 16px 12px 28px; } .setup-head { align-items: flex-start; flex-direction: column; } .setup-head > button { align-self: stretch; } .setup-tabs { margin-bottom: 12px; } }
     .setup-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 140px 100px auto; gap: 8px; align-items: center; }
     .printer-row { grid-template-columns: minmax(110px, .8fr) minmax(120px, 1fr) 80px 70px auto minmax(90px, 1fr) auto; }
@@ -2482,7 +2489,7 @@
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
     <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
     <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
-    <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Dimensioni prima pagina</h3><span class="setup-section-note">Le tre colonne mantengono la stessa altezza.</span><label>Altezza colonne (px) <input id="mainPanelHeightInput" type="number" min="360" max="1600" step="20"></label><label>Larghezza area tavoli (px) <input id="roomColumnWidthInput" type="number" min="640" max="2200" step="20"></label><label>Larghezza Delivery/Pick-up (px) <input id="deliveryColumnWidthInput" type="number" min="220" max="600" step="10"></label><label>Larghezza comanda (px) <input id="orderColumnWidthInput" type="number" min="260" max="700" step="10"></label><label>Dimensione carattere generale (px) <input id="mainFontSizeInput" type="number" min="12" max="22" step="1"></label></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="monitors" hidden><div class="panel-header"><h2>Monitor</h2><button class="primary" id="addMonitorSetupBtn" type="button">Aggiungi monitor</button></div><div class="panel-body stack"><div class="monitor-setup" id="setupMonitorSetup"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="printers" hidden><div class="panel-header"><h2>Stampanti</h2><button class="primary" id="addPrinterBtn" type="button">Aggiungi stampante</button></div><div class="panel-body setup-list" id="setupPrinterList"></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="pos" hidden>
@@ -2870,11 +2877,29 @@
     const COMPACT_ORDER_TIMEOUT_KEY = "vorrei-compact-order-timeout-v1";
     const DELIVERY_PANEL_VISIBLE_KEY = "vorrei-delivery-panel-visible-v1";
     const ORDER_PANEL_COLLAPSIBLE_KEY = "vorrei-order-panel-collapsible-v1";
+    const MAIN_LAYOUT_KEY = "vorrei-main-layout-v1";
     let compactOrderCloseTimer = null;
     const compactRoomMode = () => localStorage.getItem(COMPACT_ROOM_MODE_KEY) === "1";
     const compactOrderTimeout = () => Math.max(0, Number(localStorage.getItem(COMPACT_ORDER_TIMEOUT_KEY) || 30));
     const deliveryPanelVisible = () => localStorage.getItem(DELIVERY_PANEL_VISIBLE_KEY) !== "0";
     const orderPanelCollapsible = () => localStorage.getItem(ORDER_PANEL_COLLAPSIBLE_KEY) === "1";
+    const mainLayoutDefaults = { panelHeight: 720, roomWidth: 0, deliveryWidth: 320, orderWidth: 360, fontSize: 16 };
+    function mainLayoutSettings() {
+      try { return { ...mainLayoutDefaults, ...JSON.parse(localStorage.getItem(MAIN_LAYOUT_KEY) || "{}")} } catch { return { ...mainLayoutDefaults }; }
+    }
+    function applyMainLayoutSettings() {
+      const layout = mainLayoutSettings();
+      if (!localStorage.getItem(MAIN_LAYOUT_KEY)) {
+        document.body.classList.remove("main-layout-customized");
+        return;
+      }
+      document.body.classList.add("main-layout-customized");
+      document.documentElement.style.setProperty("--main-panel-height", `${layout.panelHeight}px`);
+      document.documentElement.style.setProperty("--room-column-width", layout.roomWidth > 0 ? `${layout.roomWidth}px` : "1fr");
+      document.documentElement.style.setProperty("--delivery-column-width", `${layout.deliveryWidth}px`);
+      document.documentElement.style.setProperty("--order-column-width", `${layout.orderWidth}px`);
+      document.documentElement.style.setProperty("--main-font-size", `${layout.fontSize}px`);
+    }
     function scheduleCompactOrderClose() {
       if (compactOrderCloseTimer) clearTimeout(compactOrderCloseTimer);
       if ((!compactRoomMode() && !orderPanelCollapsible()) || compactOrderTimeout() === 0) return;
@@ -7299,6 +7324,7 @@
       const body = document.getElementById("deliveryPanelBody");
       const count = document.getElementById("deliveryPanelCount");
       document.getElementById("deliveryPanel").hidden = !deliveryPanelVisible();
+      document.body.classList.toggle("delivery-panel-hidden", !deliveryPanelVisible());
       if (!deliveryPanelVisible()) return;
       const orders = (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).filter(order => !order.deliveryDismissed);
       const feedStatus = state.hubriseFeedStatus;
@@ -8306,6 +8332,37 @@
       document.getElementById("setupScreen").hidden = false;
       render();
     });
+    function openMainLayoutModal() {
+      const layout = mainLayoutSettings();
+      let modal = document.getElementById("mainLayoutModal");
+      if (!modal) {
+        modal = document.createElement("dialog");
+        modal.id = "mainLayoutModal";
+        modal.className = "modal";
+        modal.innerHTML = `<form method="dialog" class="modal-card"><div class="modal-head"><h2>Layout prima pagina</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><p class="setup-section-note">Modifica e osserva subito la sala dietro al modal.</p><div class="layout-slider"><label>Altezza colonne</label><input data-layout-slider="panelHeight" type="range" min="360" max="1600" step="20"><output data-layout-output="panelHeight"></output></div><div class="layout-slider"><label>Larghezza area tavoli</label><input data-layout-slider="roomWidth" type="range" min="0" max="2200" step="20"><output data-layout-output="roomWidth"></output></div><div class="layout-slider"><label>Larghezza Delivery/Pick-up</label><input data-layout-slider="deliveryWidth" type="range" min="220" max="600" step="10"><output data-layout-output="deliveryWidth"></output></div><div class="layout-slider"><label>Larghezza comanda</label><input data-layout-slider="orderWidth" type="range" min="260" max="700" step="10"><output data-layout-output="orderWidth"></output></div><div class="layout-slider"><label>Carattere generale</label><input data-layout-slider="fontSize" type="range" min="12" max="22" step="1"><output data-layout-output="fontSize"></output></div><div class="row"><button class="ghost" value="cancel" type="submit">Chiudi</button><button class="primary" id="mainLayoutModalApplyBtn" value="default" type="submit">Applica</button></div></form>`;
+        document.body.appendChild(modal);
+        modal.querySelectorAll("[data-layout-slider]").forEach(input => input.addEventListener("input", event => {
+          const current = mainLayoutSettings();
+          current[event.target.dataset.layoutSlider] = Number(event.target.value);
+          localStorage.setItem(MAIN_LAYOUT_KEY, JSON.stringify(current));
+          applyMainLayoutSettings();
+          render();
+          modal.querySelector(`[data-layout-output="${event.target.dataset.layoutSlider}"]`).textContent = event.target.value + " px";
+        }));
+      }
+      modal.querySelectorAll("[data-layout-slider]").forEach(input => {
+        input.value = layout[input.dataset.layoutSlider];
+        modal.querySelector(`[data-layout-output="${input.dataset.layoutSlider}"]`).textContent = input.value + " px";
+      });
+      document.getElementById("closeSetupBtn").click();
+      modal.showModal();
+    }
+    const mainLayoutButton = document.createElement("button");
+    mainLayoutButton.className = "ghost";
+    mainLayoutButton.type = "button";
+    mainLayoutButton.textContent = "Configura layout prima pagina";
+    mainLayoutButton.addEventListener("click", openMainLayoutModal);
+    document.querySelector('[data-setup-panel="device"] .setup-device-view:nth-child(2)')?.prepend(mainLayoutButton);
     document.getElementById("compactSetupBtn").addEventListener("click", () => {
       document.getElementById("setupBtn").click();
     });
@@ -8314,6 +8371,24 @@
     document.getElementById("deliveryPanelVisibleInput").checked = deliveryPanelVisible();
     document.getElementById("orderPanelCollapsibleInput").checked = orderPanelCollapsible();
     document.getElementById("compactOrderTimeoutInput").value = compactOrderTimeout();
+    const mainLayout = mainLayoutSettings();
+    document.getElementById("mainPanelHeightInput").value = mainLayout.panelHeight;
+    document.getElementById("roomColumnWidthInput").value = mainLayout.roomWidth || "";
+    document.getElementById("deliveryColumnWidthInput").value = mainLayout.deliveryWidth;
+    document.getElementById("orderColumnWidthInput").value = mainLayout.orderWidth;
+    document.getElementById("mainFontSizeInput").value = mainLayout.fontSize;
+    ["mainPanelHeight", "roomColumnWidth", "deliveryColumnWidth", "orderColumnWidth", "mainFontSize"].forEach(key => {
+      document.getElementById(`${key}Input`).addEventListener("change", event => {
+        const current = mainLayoutSettings();
+        const value = Number(event.target.value);
+        if (!Number.isFinite(value) || value <= 0) return;
+        const map = { mainPanelHeight: "panelHeight", roomColumnWidth: "roomWidth", deliveryColumnWidth: "deliveryWidth", orderColumnWidth: "orderWidth", mainFontSize: "fontSize" };
+        current[map[key]] = value;
+        localStorage.setItem(MAIN_LAYOUT_KEY, JSON.stringify(current));
+        applyMainLayoutSettings();
+        render();
+      });
+    });
     document.getElementById("compactRoomModeInput").addEventListener("change", event => {
       localStorage.setItem(COMPACT_ROOM_MODE_KEY, event.target.checked ? "1" : "0");
       document.body.classList.toggle("compact-room-mode", event.target.checked);
@@ -8747,6 +8822,7 @@
     const initialRouteView = /-(menu|comanda|variation)$/i.exec(initialRouteHash)?.[1]?.toLowerCase() || (initialRouteHash ? "other" : "base");
     history.replaceState({ posRoute: initialRouteView }, "", window.location.href);
 
+    applyMainLayoutSettings();
     if (compactRoomMode()) document.body.classList.add("compact-room-mode");
     if (orderPanelCollapsible()) document.body.classList.add("order-panel-collapsible");
 

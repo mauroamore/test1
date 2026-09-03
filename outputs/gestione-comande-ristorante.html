@@ -6634,7 +6634,8 @@
         const groupUsesTurns = group.items.some(line => lineUsesTurns(line));
         const fullOrder = findOrderById(order.id) || order;
         const readyDeliveryStatus = ["ready_for_pickup", "awaiting_collection", "pronta", "ready", "completed", "completato", "consegnato", "collected", "ritirato"].includes(String(fullOrder.status || "").toLowerCase());
-        const allOrderLinesComplete = group.items.length > 0 && (order.items.every(line => line.kitchenStatus === "Completo") || (fullOrder.source && readyDeliveryStatus));
+        const finalOrderStatus = ["completato", "completed", "pagato", "paid", "consegnato", "collected", "ritirato"].includes(String(fullOrder.status || "").toLowerCase());
+        const allOrderLinesComplete = group.items.length > 0 && (order.items.every(line => line.kitchenStatus === "Completo") || readyDeliveryStatus || finalOrderStatus);
         // "Consegnato"/"Chiudi comanda" resta sempre solo LAN da remoto (anche sui Pick-up
         // manuali: l'unica azione concessa li' e' "Invia"); lo scorrimento di stato dei singoli
         // piatti invece resta consentito sui Pick-up manuali.

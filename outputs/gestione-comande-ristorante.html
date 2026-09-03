@@ -3833,10 +3833,11 @@
     }
 
     function tableOwnerFor(tableId) {
+      const normalizedTableId = String(tableId);
       const draftOwner = !REMOTE_MODE && localOrderDraft && Array.isArray(localOrderDraft.linkedTables) && localOrderDraft.linkedTables.includes(tableId)
         ? localOrderDraft
-        : null;
-      return draftOwner || state.tables.find(table => Array.isArray(table.linkedTables) && table.linkedTables.includes(tableId)) || null;
+        : (!REMOTE_MODE && localOrderDraft && Array.isArray(localOrderDraft.linkedTables) && localOrderDraft.linkedTables.some(id => String(id) === normalizedTableId) ? localOrderDraft : null);
+      return draftOwner || state.tables.find(table => Array.isArray(table.linkedTables) && table.linkedTables.some(id => String(id) === normalizedTableId)) || null;
     }
 
     // Cerca un ordine (tavolo o delivery HubRise) per id: la cucina tratta i due allo stesso modo.
@@ -5648,7 +5649,7 @@
       const root = document.getElementById("tables");
       root.innerHTML = "";
       const rows = state.tables.map(table => {
-        const owner = state.tables.find(candidate => Array.isArray(candidate.linkedTables) && candidate.linkedTables.includes(table.id));
+        const owner = state.tables.find(candidate => Array.isArray(candidate.linkedTables) && candidate.linkedTables.some(id => String(id) === String(table.id)));
         const displayOrder = owner && (owner.occupied || owner.items.length) ? owner : table;
         return { table, owner, displayOrder };
       });

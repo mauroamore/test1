@@ -6633,8 +6633,8 @@
         const courseIsActive = !kitchenHistoryMode && (Boolean(order.source) || courseNumber(group.course) === monitorActiveCourse(order));
         const groupUsesTurns = group.items.some(line => lineUsesTurns(line));
         const fullOrder = findOrderById(order.id) || order;
-        const readyDeliveryStatus = ["ready_for_pickup", "awaiting_collection", "pronta", "ready"].includes(String(fullOrder.status || "").toLowerCase());
-        const allOrderLinesComplete = fullOrder.items.length > 0 && (fullOrder.items.every(line => line.kitchenStatus === "Completo") || (fullOrder.source && readyDeliveryStatus));
+        const readyDeliveryStatus = ["ready_for_pickup", "awaiting_collection", "pronta", "ready", "completed", "completato", "consegnato", "collected", "ritirato"].includes(String(fullOrder.status || "").toLowerCase());
+        const allOrderLinesComplete = group.items.length > 0 && (order.items.every(line => line.kitchenStatus === "Completo") || (fullOrder.source && readyDeliveryStatus));
         // "Consegnato"/"Chiudi comanda" resta sempre solo LAN da remoto (anche sui Pick-up
         // manuali: l'unica azione concessa li' e' "Invia"); lo scorrimento di stato dei singoli
         // piatti invece resta consentito sui Pick-up manuali.
@@ -6657,9 +6657,9 @@
           const deleteButton = document.createElement("button");
           deleteButton.className = "ghost kitchen-delete-order";
           deleteButton.type = "button";
-          deleteButton.textContent = "×";
-          deleteButton.setAttribute("aria-label", "Elimina la comanda completata dal monitor");
-          deleteButton.title = "Elimina la comanda completata dal monitor";
+          deleteButton.textContent = "Libera ordine";
+          deleteButton.setAttribute("aria-label", "Libera la comanda completata dal monitor");
+          deleteButton.title = "Libera la comanda completata dal monitor";
           ticket.querySelector(".ticket-head")?.appendChild(deleteButton);
           deleteButton.addEventListener("click", () => deleteCompletedKitchenOrder(order.id));
         }

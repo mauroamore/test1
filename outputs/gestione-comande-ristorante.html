@@ -3760,7 +3760,7 @@
       sendButton.hidden = !order || !order.source;
       sendButton.disabled = !order || !order.items.length || !orderHasUnsentChangesForSend(order);
       precontoButton.hidden = false;
-      paymentButton.textContent = order && order.source ? "Consegnato" : "Pagamento";
+      paymentButton.textContent = "Pagamento";
       editButton.onclick = order ? () => openOrderModal(order.id).catch(error => alert(`Errore apertura comanda: ${error.message || error}`)) : null;
       precontoButton.onclick = order ? () => openPrecontoModal(order) : null;
       paymentButton.onclick = order ? () => {

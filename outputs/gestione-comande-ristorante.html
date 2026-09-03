@@ -224,6 +224,12 @@
       body.compact-room-mode .room-panel .panel-body { height: calc(100% - 58px); overflow: auto; }
       body.compact-room-mode .selected-order-panel { top: 8px; right: 8px; bottom: 8px; width: min(390px, calc(100vw - 16px)); }
     }
+    body.order-panel-collapsible .selected-order-panel { position: fixed; z-index: 40; top: 20px; right: 20px; bottom: 20px; width: min(390px, calc(100vw - 40px)); max-height: none; margin: 0; box-shadow: 0 14px 40px rgba(25, 35, 45, .24); transform: translateX(calc(100% + 40px)); transition: transform .18s ease; }
+    body.order-panel-collapsible .selected-order-panel.compact-visible { transform: translateX(0); }
+    body.order-panel-collapsible .selected-order-panel .panel-body { max-height: none; }
+    body.order-panel-collapsible .selected-order-panel { pointer-events: none; }
+    body.order-panel-collapsible .selected-order-panel.compact-visible { pointer-events: auto; }
+    @media (max-width: 760px) { body.order-panel-collapsible .selected-order-panel { top: 8px; right: 8px; bottom: 8px; width: min(390px, calc(100vw - 16px)); } }
     @media (prefers-reduced-motion: reduce) {
       body.compact-room-mode .selected-order-panel { transition: none; }
     }
@@ -2280,6 +2286,7 @@
     @media (max-width: 760px) {
       body.palmare-mode .mobile-monitor-toggle { display: inline-flex; }
     }
+    body.remote-mode.palmare-mode .mobile-monitor-toggle { display: none !important; }
     .delivery-panel {
       min-width: 0;
     }
@@ -2474,7 +2481,7 @@
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
     <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
     <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
-    <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">Nasconde Delivery/Pick-up e apre la comanda come pannello laterale quando selezioni un tavolo.</div></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="monitors" hidden><div class="panel-header"><h2>Monitor</h2><button class="primary" id="addMonitorSetupBtn" type="button">Aggiungi monitor</button></div><div class="panel-body stack"><div class="monitor-setup" id="setupMonitorSetup"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="printers" hidden><div class="panel-header"><h2>Stampanti</h2><button class="primary" id="addPrinterBtn" type="button">Aggiungi stampante</button></div><div class="panel-body setup-list" id="setupPrinterList"></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="pos" hidden>
@@ -2860,19 +2867,23 @@
     const DEVICE_PROFILE_KEY = "vorrei-device-profile-v1";
     const COMPACT_ROOM_MODE_KEY = "vorrei-compact-room-mode-v1";
     const COMPACT_ORDER_TIMEOUT_KEY = "vorrei-compact-order-timeout-v1";
+    const DELIVERY_PANEL_VISIBLE_KEY = "vorrei-delivery-panel-visible-v1";
+    const ORDER_PANEL_COLLAPSIBLE_KEY = "vorrei-order-panel-collapsible-v1";
     let compactOrderCloseTimer = null;
     const compactRoomMode = () => localStorage.getItem(COMPACT_ROOM_MODE_KEY) === "1";
     const compactOrderTimeout = () => Math.max(0, Number(localStorage.getItem(COMPACT_ORDER_TIMEOUT_KEY) || 30));
+    const deliveryPanelVisible = () => localStorage.getItem(DELIVERY_PANEL_VISIBLE_KEY) !== "0";
+    const orderPanelCollapsible = () => localStorage.getItem(ORDER_PANEL_COLLAPSIBLE_KEY) === "1";
     function scheduleCompactOrderClose() {
       if (compactOrderCloseTimer) clearTimeout(compactOrderCloseTimer);
-      if (!compactRoomMode() || compactOrderTimeout() === 0) return;
+      if ((!compactRoomMode() && !orderPanelCollapsible()) || compactOrderTimeout() === 0) return;
       compactOrderCloseTimer = setTimeout(() => {
         desktopSelectedOrderId = null;
         renderSelectedOrder();
       }, compactOrderTimeout() * 1000);
     }
     function showCompactOrder(orderId) {
-      if (!compactRoomMode() || !orderId) return;
+      if ((!compactRoomMode() && !orderPanelCollapsible()) || !orderId) return;
       document.getElementById("selectedOrderPanel")?.classList.add("compact-visible");
       scheduleCompactOrderClose();
     }
@@ -3732,7 +3743,7 @@
         body.innerHTML = `<div class="selected-order-empty">Seleziona un tavolo o un ordine delivery.</div>`;
         return;
       }
-      if (compactRoomMode()) showCompactOrder(order.id);
+      if (compactRoomMode() || orderPanelCollapsible()) showCompactOrder(order.id);
       const lines = Array.isArray(order.items) ? order.items : [];
       const grouped = order.source ? [{ course: 1, items: lines }] : linesByCourse(lines);
       const groupedMarkup = grouped.filter(group => group.items.length).map(group => {
@@ -3804,8 +3815,9 @@
 
     // Cerca un ordine (tavolo o delivery HubRise) per id: la cucina tratta i due allo stesso modo.
     function findOrderById(id) {
-      return state.tables.find(table => table.id === id) ||
-        (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).find(order => order.id === id || orderHashId(order) === id);
+      const normalizedId = String(id);
+      return state.tables.find(table => String(table.id) === normalizedId) ||
+        (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).find(order => String(order.id) === normalizedId || orderHashId(order) === normalizedId);
     }
 
     function orderTicketLabel(order) {
@@ -5507,7 +5519,7 @@
       // senza ereditare la categoria lasciata aperta nell'ultima modifica.
       const firstCategory = Array.isArray(state.settings.categories) && state.settings.categories.length
         ? state.settings.categories[0]
-        : (state.menu[0] && state.menu[0].category) || "Tutti";
+        : (Array.isArray(state.menu) && state.menu[0] && state.menu[0].category) || "Tutti";
       state.category = firstCategory;
       saveState();
       // Ogni apertura riparte dai piatti: la comanda resta da richiamare col suo tasto.
@@ -7286,6 +7298,8 @@
     function renderDeliveryOrders() {
       const body = document.getElementById("deliveryPanelBody");
       const count = document.getElementById("deliveryPanelCount");
+      document.getElementById("deliveryPanel").hidden = !deliveryPanelVisible();
+      if (!deliveryPanelVisible()) return;
       const orders = (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).filter(order => !order.deliveryDismissed);
       const feedStatus = state.hubriseFeedStatus;
       const offline = feedStatus && feedStatus.ok === false;
@@ -8296,12 +8310,25 @@
     });
     document.getElementById("compactSetupBtn").hidden = !compactRoomMode();
     document.getElementById("compactRoomModeInput").checked = compactRoomMode();
+    document.getElementById("deliveryPanelVisibleInput").checked = deliveryPanelVisible();
+    document.getElementById("orderPanelCollapsibleInput").checked = orderPanelCollapsible();
     document.getElementById("compactOrderTimeoutInput").value = compactOrderTimeout();
     document.getElementById("compactRoomModeInput").addEventListener("change", event => {
       localStorage.setItem(COMPACT_ROOM_MODE_KEY, event.target.checked ? "1" : "0");
       document.body.classList.toggle("compact-room-mode", event.target.checked);
       document.getElementById("compactSetupBtn").hidden = !event.target.checked;
       document.getElementById("setupBtn").hidden = event.target.checked;
+      if (!event.target.checked) hideCompactOrder();
+      else if (desktopSelectedOrderId) showCompactOrder(desktopSelectedOrderId);
+      render();
+    });
+    document.getElementById("deliveryPanelVisibleInput").addEventListener("change", event => {
+      localStorage.setItem(DELIVERY_PANEL_VISIBLE_KEY, event.target.checked ? "1" : "0");
+      render();
+    });
+    document.getElementById("orderPanelCollapsibleInput").addEventListener("change", event => {
+      localStorage.setItem(ORDER_PANEL_COLLAPSIBLE_KEY, event.target.checked ? "1" : "0");
+      document.body.classList.toggle("order-panel-collapsible", event.target.checked);
       if (!event.target.checked) hideCompactOrder();
       else if (desktopSelectedOrderId) showCompactOrder(desktopSelectedOrderId);
       render();
@@ -8313,7 +8340,7 @@
       scheduleCompactOrderClose();
     });
     document.addEventListener("pointerdown", event => {
-      if (!compactRoomMode() || !desktopSelectedOrderId) return;
+      if ((!compactRoomMode() && !orderPanelCollapsible()) || !desktopSelectedOrderId) return;
       const panel = document.getElementById("selectedOrderPanel");
       if (panel && !panel.contains(event.target) && !event.target.closest(".table-button, .delivery-order")) {
         desktopSelectedOrderId = null;
@@ -8652,6 +8679,7 @@
       // Il monitor resta disponibile come schermata dedicata per i dispositivi cucina,
       // ma il relativo pulsante non deve comparire nella UI palmare operativa.
       document.getElementById("kitchenBtn").hidden = true;
+      document.getElementById("mobileMonitorOpenBtn").hidden = REMOTE_MODE;
       document.getElementById("setupBtn").hidden = !DEVICE_SETUP_MODE;
       document.getElementById("deliveryPanel").hidden = true;
       document.getElementById("exportBtn").hidden = true;
@@ -8719,6 +8747,7 @@
     history.replaceState({ posRoute: initialRouteView }, "", window.location.href);
 
     if (compactRoomMode()) document.body.classList.add("compact-room-mode");
+    if (orderPanelCollapsible()) document.body.classList.add("order-panel-collapsible");
 
     fetch("/api/version", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(info => {
       const version = document.getElementById("app-version");

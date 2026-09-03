@@ -7180,7 +7180,26 @@
       const order = findOrderById(orderId)
         || (state.deliveryOrders || []).find(item => String(item.id) === String(orderId));
       if (!order) return;
-      if (!confirm(`Eliminare dal monitor la comanda completata di ${order.customerName || order.id}?`)) return;
+      const modal = document.getElementById("confirmCloseModal");
+      pendingCloseTableId = orderId;
+      pendingCloseCourse = null;
+      modal.dataset.closeOrderId = String(orderId);
+      modal.dataset.closeCourse = "archive";
+      document.getElementById("confirmCloseTitle").textContent = "Libera ordine";
+      document.getElementById("confirmCloseText").textContent = `La comanda di ${order.customerName || `Tavolo ${order.id}`} è completata. Vuoi storicizzarla e liberare il monitor?`;
+      const confirmButton = document.getElementById("confirmCloseYesBtn");
+      confirmButton.textContent = "Libera ordine";
+      confirmButton.onclick = event => {
+        event.preventDefault();
+        archiveCompletedKitchenOrder(orderId);
+      };
+      modal.showModal();
+    }
+
+    function archiveCompletedKitchenOrder(orderId) {
+      const order = findOrderById(orderId)
+        || (state.deliveryOrders || []).find(item => String(item.id) === String(orderId));
+      if (!order) return;
       // Conserva sempre una fotografia nello storico e usa un tombstone per
       // non far ricomparire la comanda al successivo aggiornamento.
       if (!(state.history || []).some(item => String(item.id) === String(orderId) && item.kitchenClosed)) {
@@ -7189,6 +7208,9 @@
       if (order.source && isDeliveryCompleted(order)) order.deliveryDismissed = true;
       else order.kitchenClosed = true;
       saveState();
+      document.getElementById("confirmCloseModal").close();
+      pendingCloseTableId = null;
+      pendingCloseCourse = null;
       renderKitchen();
     }
 

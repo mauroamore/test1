@@ -7146,14 +7146,17 @@
     }
 
     function deleteCompletedKitchenOrder(orderId) {
-      const order = (state.deliveryOrders || []).find(item => String(item.id) === String(orderId));
-      if (!order || !order.source) return;
+      const order = findOrderById(orderId)
+        || (state.deliveryOrders || []).find(item => String(item.id) === String(orderId));
+      if (!order) return;
       if (!confirm(`Eliminare dal monitor la comanda completata di ${order.customerName || order.id}?`)) return;
-      // Non rimuovere fisicamente l'ordine: il polling HubRise/Sigonella lo
-      // reimporterebbe. kitchenClosed e' il tombstone locale del monitor.
+      // Conserva sempre una fotografia nello storico e usa un tombstone per
+      // non far ricomparire la comanda al successivo aggiornamento.
+      if (!(state.history || []).some(item => String(item.id) === String(orderId) && item.kitchenClosed)) {
+        state.history.unshift({ ...structuredClone(order), kitchenClosed: true, closedAt: new Date().toISOString() });
+      }
       if (isDeliveryCompleted(order)) order.deliveryDismissed = true;
       else order.kitchenClosed = true;
-      state.history = (state.history || []).filter(item => String(item.id) !== String(orderId));
       saveState();
       renderKitchen();
     }

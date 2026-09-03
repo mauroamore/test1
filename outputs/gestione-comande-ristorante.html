@@ -6849,7 +6849,7 @@
       const monitors = state.settings.monitors || [];
       const printers = state.settings.printers || [];
       const grouped = new Map();
-      (order.items || []).forEach(line => {
+      (order.items || []).map(line => ({ ...line, qty: Math.max(0, Number(line.qty || 0) - Number(line.sentQty || 0)) })).filter(line => line.qty > 0).forEach(line => {
         const monitorName = state.settings.categoryMonitors?.[line.category] || "Cucina";
         const monitor = monitors.find(item => item.name === monitorName && item.active !== false);
         const printer = printers.find(item => item.name === monitor?.printer && item.host);
@@ -6859,8 +6859,7 @@
       });
       for (const { printer, lines } of grouped.values()) {
         const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine");
-        const coverText = Number(order.covers || 0) > 0 ? `${Number(order.covers)} x Coperto (cover charge)` : "";
-        const text = [coverText, ...lines.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`)].filter(Boolean).join("\n");
+        const text = lines.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`).join("\n");
         const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n${text}\n\n`;
         try {
           const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "order", printer, payload }) });
@@ -7821,10 +7820,11 @@
       }
       if (!(await ensureTableLockForSend())) return;
       const confirmedTime = askConfirmedTimeIso(order);
+      const orderToPrint = structuredClone(order);
       markLinesSentToKitchen(order);
       order.status = "Preparazione";
       if (!(await publishLocalOrderDraft(order))) return;
-      printOrderToConfiguredMonitors(order);
+      printOrderToConfiguredMonitors(orderToPrint);
       notifyHubRiseStatus(order, "accepted").then(() => notifyHubRiseStatus(order, "in_preparation", confirmedTime));
       closeOrderModal();
     });

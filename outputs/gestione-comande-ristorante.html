@@ -3996,16 +3996,7 @@
       const posReady = state.settings.posSimulation === true;
       const fiscalReady = state.settings.fiscalPrinter?.enabled === true && Boolean(state.settings.fiscalPrinter?.host);
       let manualPos = false;
-      if (usesCard && !posReady) {
-        row.pos = { status: "failed", failedAt: new Date().toISOString(), note: "Il POS non ha completato la transazione" };
-        manualPos = window.confirm("Il pagamento con carta non è riuscito sul POS.\n\nVuoi continuare comunque e registrarlo come effettuato manualmente sul POS?");
-        if (!manualPos) {
-          showPaymentError("Pagamento annullato.", "Puoi scegliere un altro metodo di pagamento");
-          renderPaymentRows();
-          return;
-        }
-      }
-      if (!usesCash && !gestionaleOnly && !fiscalReady && !posReady && !manualPos) {
+      if (!usesCard && !usesCash && !gestionaleOnly && !fiscalReady && !posReady && !manualPos) {
         showPaymentError("Stampante fiscale non collegata: il pagamento non è stato eseguito.", "Configura e abilita la stampante fiscale nel Setup");
         return;
       }
@@ -8616,6 +8607,31 @@
       if (!barMonitor) {
         alert("Nessun monitor mobile configurato.");
         return;
+      }
+
+      if (usesCard && !posReady) {
+        row.processing = true;
+        renderPaymentRows();
+        try {
+          const response = await fetch("/api/pos/payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: order.id, amountCents: paymentCents(row.amount), text: `Thai Princess ${orderTicketLabel(order)}` })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Scambio importo POS non riuscito");
+          row.pos = { status: result.simulated ? "simulated" : "approved", transactionId: result.result?.transactionId || result.transactionId || "", result, paidAt: new Date().toISOString() };
+          row.processing = false;
+        } catch (error) {
+          row.processing = false;
+          row.pos = { status: "failed", failedAt: new Date().toISOString(), note: error.message || "Il POS non ha completato la transazione" };
+          manualPos = window.confirm("Il pagamento con carta non è riuscito sul POS.\n\nVuoi continuare comunque e registrarlo come effettuato manualmente sul POS?");
+          if (!manualPos) {
+            showPaymentError("Pagamento annullato.", error.message || "Puoi scegliere un altro metodo di pagamento");
+            renderPaymentRows();
+            return;
+          }
+        }
       }
       selectedKitchenMonitor = barMonitor.name;
       window.location.hash = "monitor-" + encodeURIComponent(barMonitor.name.toLowerCase());

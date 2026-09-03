@@ -7,6 +7,27 @@ const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
 let buildGraphicPreconto;
 const { buildPcPosPrecontoLines } = require("./src/pcpos-preconto.js");
+let nexiEcrModulePromise;
+let nexiEcrClient;
+
+async function getNexiEcrClient() {
+  if (!nexiEcrClient) {
+    nexiEcrModulePromise ||= import("./nexi-ecr-lan/src/index.js");
+    const { NexiEcrClient } = await nexiEcrModulePromise;
+    const config = {
+      host: process.env.POS_HOST || "192.168.1.240",
+      port: Number(process.env.POS_PORT || 8081),
+      terminalId: process.env.POS_TERMINAL_ID || "37105051",
+      cashRegisterId: process.env.POS_CASH_REGISTER_ID || "00000001",
+      lrcMode: process.env.POS_LRC_MODE || "stxetx",
+      connectTimeoutMs: Number(process.env.POS_CONNECT_TIMEOUT_MS || 5000),
+      responseTimeoutMs: Number(process.env.POS_RESPONSE_TIMEOUT_MS || 120000),
+      transactionLogPath: path.join(ROOT, "transactions-log.json")
+    };
+    nexiEcrClient = new NexiEcrClient(config);
+  }
+  return nexiEcrClient;
+}
 
 function loadLocalEnv(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -1224,6 +1245,39 @@ const server = http.createServer((request, response) => {
         });
       } catch (error) {
         sendJson(response, 400, { error: "Stato non valido" });
+      }
+    });
+    return;
+  }
+  if (request.url === "/api/pos/payment" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => body += chunk);
+    request.on("end", async () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const orderId = String(input.orderId || "");
+        const amountCents = Math.round(Number(input.amountCents));
+        if (!orderId || !Number.isInteger(amountCents) || amountCents < 1) {
+          return sendJson(response, 400, { ok: false, error: "orderId e amountCents validi sono obbligatori" });
+        }
+        if (sharedState?.settings?.posSimulation === true) {
+          return sendJson(response, 200, {
+            ok: true,
+            simulated: true,
+            orderId,
+            amountCents,
+            transactionId: `sim-${Date.now()}`
+          });
+        }
+        const pos = await getNexiEcrClient();
+        const result = await pos.paySafe({
+          orderId,
+          amountCents,
+          text: String(input.text || `Thai Princess ${orderId}`)
+        });
+        return sendJson(response, 200, { ok: result.ok === true, simulated: false, orderId, result });
+      } catch (error) {
+        return sendJson(response, 502, { ok: false, simulated: false, error: error.message || String(error) });
       }
     });
     return;

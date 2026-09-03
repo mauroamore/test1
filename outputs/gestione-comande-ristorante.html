@@ -6653,7 +6653,7 @@
             ${order.notes ? `<div class="small"><strong>Note:</strong> ${order.notes}</div>` : ""}
           </div>
         `;
-        if (!kitchenHistoryMode && allOrderLinesComplete && (order.source || isBarMonitor)) {
+        if (!kitchenHistoryMode && allOrderLinesComplete) {
           const deleteButton = document.createElement("button");
           deleteButton.className = "ghost kitchen-delete-order";
           deleteButton.type = "button";

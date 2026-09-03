@@ -6509,7 +6509,9 @@
       }
       const kitchenLayout = kitchenLayoutFor(selectedKitchenMonitor);
       const isBarMonitor = String(selectedKitchenMonitor || "").toLowerCase().includes("bar");
-      document.body.classList.toggle("bar-mobile-monitor", isBarMonitor && kitchenLayout.barMobile === true);
+      // Il palmare e' sempre il Monitor Bar mobile, indipendentemente dal
+      // flag salvato nel layout del monitor.
+      document.body.classList.toggle("bar-mobile-monitor", isBarMonitor && (kitchenLayout.barMobile === true || PALMARE_MODE));
       kitchenScreen.style.setProperty("--kitchen-columns", kitchenLayout.columns);
       kitchenScreen.style.setProperty("--kitchen-summary-width", kitchenLayout.totalsWidth + "px");
       kitchenScreen.style.setProperty("--kitchen-font-size", kitchenLayout.itemFontSize + "px");
@@ -8553,7 +8555,8 @@
       renderKitchen();
     });
     document.getElementById("mobileMonitorOpenBtn").addEventListener("click", () => {
-      const barMonitor = (state.settings.monitors || []).find(monitor => monitor.mobile === true && monitor.active !== false);
+      const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase().includes("bar") && monitor.active !== false)
+        || (state.settings.monitors || []).find(monitor => monitor.mobile === true && monitor.active !== false);
       if (!barMonitor) {
         alert("Nessun monitor mobile configurato.");
         return;

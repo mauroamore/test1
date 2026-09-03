@@ -6604,7 +6604,7 @@
       });
       tickets.forEach(({ order, group }) => {
         const ticket = document.createElement("div");
-        const courseIsActive = !kitchenHistoryMode && courseNumber(group.course) === monitorActiveCourse(order);
+        const courseIsActive = !kitchenHistoryMode && (Boolean(order.source) || courseNumber(group.course) === monitorActiveCourse(order));
         const groupUsesTurns = group.items.some(line => lineUsesTurns(line));
         const fullOrder = findOrderById(order.id) || order;
         const readyDeliveryStatus = ["ready_for_pickup", "awaiting_collection", "pronta", "ready"].includes(String(fullOrder.status || "").toLowerCase());

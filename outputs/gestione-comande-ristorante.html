@@ -847,7 +847,11 @@
     .device-profile { display:flex; align-items:center; gap:8px; margin-top:8px; }
     .device-profile select { min-width:220px; }
     .kitchen-layout-preview { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; padding:10px; background:#f6f2ea; border:1px solid var(--line); border-radius:8px; min-height:180px; }
-    .kitchen-layout-preview .preview-ticket { background:#fff; border:1px solid var(--line); border-radius:6px; overflow:hidden; min-height:var(--preview-height, 180px); }
+    .kitchen-layout-preview { background: var(--preview-area-background, #f6f2ea); color: var(--preview-text-color, var(--ink)); }
+    .kitchen-layout-preview .preview-ticket { background:var(--preview-ticket-background, #fff); color:var(--preview-text-color, var(--ink)); border:1px solid var(--line); border-radius:6px; overflow:hidden; min-height:var(--preview-height, 180px); }
+    .monitor-color-options { display:grid; grid-template-columns:repeat(3, minmax(120px, 1fr)); gap:10px; }
+    .monitor-color-options label { display:grid; gap:4px; font-size:12px; color:var(--muted); }
+    .monitor-color-options input { width:100%; height:34px; padding:2px; }
     .kitchen-layout-preview .preview-head { padding:8px; background:#dbf6e8; font-weight:800; font-size:var(--preview-font, 16px); }
     .kitchen-layout-preview .preview-line { margin:6px; padding:7px; border-left:4px solid #98a2b3; background:#fafafa; font-size:var(--preview-font, 16px); }
     .kitchen-layout-preview .preview-total { margin:8px; padding:7px; border-top:2px solid var(--line); font-size:var(--preview-total-font, 16px); font-weight:800; }
@@ -2550,6 +2554,7 @@
         <label class="layout-range">Larghezza totali<input id="layoutTotalsWidthRange" type="range" min="160" max="600" step="10"><output id="layoutTotalsWidthValue"></output></label>
         <label class="layout-range">Carattere totali<input id="layoutTotalsFontRange" type="range" min="10" max="36" step="1"><output id="layoutTotalsFontValue"></output></label>
         <label class="layout-range">Altezza comanda<input id="layoutTicketHeightRange" type="range" min="180" max="1000" step="10"><output id="layoutTicketHeightValue"></output></label>
+        <div class="monitor-color-options"><label>Sfondo area<input id="layoutAreaBackgroundInput" type="color"></label><label>Sfondo comande<input id="layoutTicketBackgroundInput" type="color"></label><label>Testo comande<input id="layoutTextColorInput" type="color"></label></div>
         <label class="checkbox-label"><input id="layoutBarMobileInput" type="checkbox"> Vista mobile Bar (una comanda per riga)</label>
         <strong>Anteprima</strong>
         <div class="kitchen-layout-preview" id="kitchenLayoutPreview"></div>
@@ -3215,10 +3220,16 @@
       modal.querySelector("#layoutTotalsFontRange").value = layout.totalsFontSize;
       modal.querySelector("#layoutTicketHeightRange").value = layout.ticketHeight;
       modal.querySelector("#layoutBarMobileInput").checked = layout.barMobile;
+      modal.querySelector("#layoutAreaBackgroundInput").value = layout.areaBackground;
+      modal.querySelector("#layoutTicketBackgroundInput").value = layout.ticketBackground;
+      modal.querySelector("#layoutTextColorInput").value = layout.textColor;
       const preview = modal.querySelector("#kitchenLayoutPreview");
       preview.style.setProperty("--preview-font", layout.itemFontSize + "px");
       preview.style.setProperty("--preview-total-font", layout.totalsFontSize + "px");
       preview.style.setProperty("--preview-height", Math.max(120, Math.min(260, layout.ticketHeight / 3)) + "px");
+      preview.style.setProperty("--preview-area-background", layout.areaBackground);
+      preview.style.setProperty("--preview-ticket-background", layout.ticketBackground);
+      preview.style.setProperty("--preview-text-color", layout.textColor);
       preview.innerHTML = Array.from({ length: Math.min(3, layout.columns) }, (_, index) => `<div class="preview-ticket"><div class="preview-head">Tavolo ${index + 1}</div><div class="preview-line">2 x Pad Thai</div><div class="preview-line">1 x Acqua</div><div class="preview-total">Totale 24,00 €</div></div>`).join("");
     }
 
@@ -8435,6 +8446,13 @@
       saveKitchenLayout(kitchenLayoutModalMonitor, layout);
       if (selectedKitchenMonitor === kitchenLayoutModalMonitor) renderKitchen();
     });
+    [["layoutAreaBackgroundInput", "areaBackground"], ["layoutTicketBackgroundInput", "ticketBackground"], ["layoutTextColorInput", "textColor"]].forEach(([id, key]) => document.getElementById(id).addEventListener("input", event => {
+      const layout = kitchenLayoutFor(kitchenLayoutModalMonitor);
+      layout[key] = event.target.value;
+      saveKitchenLayout(kitchenLayoutModalMonitor, layout);
+      renderKitchenLayoutPreview();
+      if (selectedKitchenMonitor === kitchenLayoutModalMonitor) renderKitchen();
+    }));
 
     document.getElementById("setupBtn").addEventListener("click", () => {
       if (REMOTE_MODE) return;

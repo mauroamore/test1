@@ -625,7 +625,7 @@
       z-index: 10;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
-      background: #f6f2ea;
+      background: var(--kitchen-area-background, #f6f2ea);
       overflow: hidden;
       font-size: 13px;
       --kitchen-font-size: 18px;
@@ -917,6 +917,8 @@
       user-select: none;
       touch-action: none;
       overflow: hidden;
+      background: var(--kitchen-ticket-background, #fff);
+      color: var(--kitchen-text-color, var(--ink));
       box-sizing: border-box;
       min-width: 0;
       padding: 7px 6px 6px;
@@ -3168,7 +3170,7 @@
     let historyReturnTimer = null;
     let selectedKitchenMonitor = "Cucina";
     const KITCHEN_LAYOUT_KEY = "vorrei-kitchen-layout-v2";
-    const DEFAULT_KITCHEN_LAYOUT = { columns: 6, itemFontSize: 18, totalsWidth: 260, totalsFontSize: 18, ticketHeight: 420, barMobile: false };
+    const DEFAULT_KITCHEN_LAYOUT = { columns: 6, itemFontSize: 18, totalsWidth: 260, totalsFontSize: 18, ticketHeight: 420, areaBackground: "#f6f2ea", ticketBackground: "#ffffff", textColor: "#1f2933", barMobile: false };
     let kitchenLayouts = loadKitchenLayouts();
     let kitchenLayoutModalMonitor = "Cucina";
 
@@ -3187,6 +3189,9 @@
         totalsWidth: clamp(Number(saved.totalsWidth || saved.kitchenSummaryWidth || DEFAULT_KITCHEN_LAYOUT.totalsWidth), 160, 600),
         totalsFontSize: clamp(Number(saved.totalsFontSize || DEFAULT_KITCHEN_LAYOUT.totalsFontSize), 10, 36),
         ticketHeight: clamp(Number(saved.ticketHeight || DEFAULT_KITCHEN_LAYOUT.ticketHeight), 180, 1000),
+        areaBackground: /^#[0-9a-f]{6}$/i.test(saved.areaBackground || "") ? saved.areaBackground : DEFAULT_KITCHEN_LAYOUT.areaBackground,
+        ticketBackground: /^#[0-9a-f]{6}$/i.test(saved.ticketBackground || "") ? saved.ticketBackground : DEFAULT_KITCHEN_LAYOUT.ticketBackground,
+        textColor: /^#[0-9a-f]{6}$/i.test(saved.textColor || "") ? saved.textColor : DEFAULT_KITCHEN_LAYOUT.textColor,
         barMobile: saved.barMobile === true
       };
     }
@@ -6572,6 +6577,9 @@
       kitchenScreen.style.setProperty("--kitchen-font-size", kitchenLayout.itemFontSize + "px");
       kitchenScreen.style.setProperty("--kitchen-summary-font-size", kitchenLayout.totalsFontSize + "px");
       kitchenScreen.style.setProperty("--kitchen-ticket-height", kitchenLayout.ticketHeight + "px");
+      kitchenScreen.style.setProperty("--kitchen-area-background", kitchenLayout.areaBackground);
+      kitchenScreen.style.setProperty("--kitchen-ticket-background", kitchenLayout.ticketBackground);
+      kitchenScreen.style.setProperty("--kitchen-text-color", kitchenLayout.textColor);
       const monitorActiveCourse = order => {
         const activationOrder = Array.isArray(state.courseActivationOrder) ? state.courseActivationOrder : [];
         // L'ultima attivazione è la fonte più affidabile anche quando il monitor
@@ -6805,7 +6813,7 @@
           <div class="monitor-config-head"><div class="monitor-config-title"><strong>${escapeHtml(monitor.name)}</strong><span class="monitor-config-subtitle">Configurazione del monitor e del dispositivo associato</span></div><div class="monitor-config-actions"><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div></div>
           <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><label class="checkbox-label"><input class="kitchen-bell" type="checkbox" ${state.settings.kitchenBellEnabled !== false ? "checked" : ""}> Campanella nuove comande e sequenze</label></div></div>
           <div class="monitor-config-section"><h3>Assegnazione</h3><div class="monitor-config-routing"><label>Stampante collegata<select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select></label><span class="setup-section-note">Le categorie si gestiscono con il pulsante Categorie.</span></div></div>
-          <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label></div></div>
+          <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label><label>Sfondo area <input type="color" class="kitchen-color-setting" data-layout-key="areaBackground" value="${layout.areaBackground}"></label><label>Sfondo comande <input type="color" class="kitchen-color-setting" data-layout-key="ticketBackground" value="${layout.ticketBackground}"></label><label>Testo comande <input type="color" class="kitchen-color-setting" data-layout-key="textColor" value="${layout.textColor}"></label></div></div>
         </div>
       `; }).join("");
       root.querySelectorAll(".kitchen-setting").forEach(input => input.addEventListener("change", event => {
@@ -6818,6 +6826,14 @@
         saveKitchenLayout(monitor.name, layout);
         renderKitchen();
         renderMonitorSetup();
+      }));
+      root.querySelectorAll(".kitchen-color-setting").forEach(input => input.addEventListener("input", event => {
+        const config = event.target.closest(".monitor-config");
+        const monitor = state.settings.monitors[Number(config.dataset.monitorIndex)];
+        const layout = kitchenLayoutFor(monitor.name);
+        layout[event.target.dataset.layoutKey] = event.target.value;
+        saveKitchenLayout(monitor.name, layout);
+        renderKitchen();
       }));
       root.querySelectorAll(".monitor-config").forEach(config => {
         const index = Number(config.dataset.monitorIndex);

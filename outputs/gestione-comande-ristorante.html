@@ -2496,6 +2496,18 @@
       <div class="panel-header"><h2>POS e cassa</h2></div>
       <div class="panel-body stack">
         <label class="checkbox-label"><input id="posSimulationInput" type="checkbox"> Simula risposta del POS</label>
+        <div class="setup-device-view">
+          <h3>Connessioni POS</h3>
+          <label>LAN primaria <input id="posLanHostInput" type="text" placeholder="192.168.1.240"></label>
+          <label>Wi-Fi backup <input id="posWifiHostInput" type="text" placeholder="192.168.1.160"></label>
+          <label>Porta ECR <input id="posPortInput" type="number" min="1" max="65535" value="8081"></label>
+          <label>Terminal ID <input id="posTerminalIdInput" type="text" placeholder="37105051"></label>
+          <label>Cassa <input id="posCashRegisterIdInput" type="text" placeholder="00000001"></label>
+          <label>Protocollo LRC <select id="posLrcModeInput"><option value="stxetx">STX + ETX</option><option value="etx">ETX</option></select></label>
+          <div class="row"><button class="secondary" id="posDiscoverBtn" type="button">Cerca POS</button><button class="secondary" id="posStatusBtn" type="button">Verifica connessione</button></div>
+          <div class="small" id="posStatus" role="status" aria-live="polite">Configurazione salvata localmente.</div>
+          <div class="small" id="posDiscoveryResults"></div>
+        </div>
         <label>Layout tastiera ricerca menu <select id="menuSearchKeyboardInput"><option value="numeric">Numerica</option><option value="text">Testo</option></select></label>
         <div class="small">La tastiera numerica è utile quando cerchi soprattutto per codice o numero articolo.</div>
         <div class="small">Quando attiva, il pulsante Paga completa il pagamento nel gestionale senza collegarsi a un terminale reale.</div>
@@ -3063,6 +3075,7 @@
         settings: {
           coverCharge: 2,
           posSimulation: false,
+          posNetwork: { lanHost: "192.168.1.240", wifiHost: "192.168.1.160", port: 8081, terminalId: "37105051", cashRegisterId: "00000001", lrcMode: "stxetx" },
           fiscalPrinter: { enabled: false, testModeOneCent: false, host: "", port: 80, devid: "local_printer", operator: "1", defaultDepartment: "2" },
         menuSearchKeyboard: "numeric",
         kitchenColumns: 6,
@@ -4012,7 +4025,7 @@
           const response = await fetch("/api/pos/payment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: order.id, amountCents: paymentCents(row.amount), text: `Thai Princess ${orderTicketLabel(order)}` })
+            body: JSON.stringify({ orderId: order.id, amountCents: paymentCents(row.amount), text: `Thai Princess ${orderTicketLabel(order)}`, ...(state.settings.posNetwork || {}) })
           });
           const result = await response.json();
           if (!response.ok || !result.ok) throw new Error(result.error || "Scambio importo POS non riuscito");
@@ -6837,6 +6850,14 @@
       state.settings.fiscalPrinter ||= { enabled: false, testModeOneCent: false, host: "", port: 80, devid: "local_printer", operator: "1", defaultDepartment: "2" };
       const fiscalPrinter = state.settings.fiscalPrinter;
       document.getElementById("posSimulationInput").checked = state.settings.posSimulation === true;
+      state.settings.posNetwork ||= { lanHost: "192.168.1.240", wifiHost: "192.168.1.160", port: 8081, terminalId: "37105051", cashRegisterId: "00000001", lrcMode: "stxetx" };
+      const posNetwork = state.settings.posNetwork;
+      document.getElementById("posLanHostInput").value = posNetwork.lanHost || "";
+      document.getElementById("posWifiHostInput").value = posNetwork.wifiHost || "";
+      document.getElementById("posPortInput").value = Number(posNetwork.port || 8081);
+      document.getElementById("posTerminalIdInput").value = posNetwork.terminalId || "";
+      document.getElementById("posCashRegisterIdInput").value = posNetwork.cashRegisterId || "";
+      document.getElementById("posLrcModeInput").value = posNetwork.lrcMode || "stxetx";
       document.getElementById("menuSearchKeyboardInput").value = state.settings.menuSearchKeyboard || "numeric";
       document.getElementById("fiscalPrinterEnabledInput").checked = fiscalPrinter.enabled === true;
       document.getElementById("fiscalPrinterOneCentTestInput").checked = fiscalPrinter.testModeOneCent === true;
@@ -8546,6 +8567,22 @@
     document.getElementById("posSimulationInput").addEventListener("change", event => {
       state.settings.posSimulation = event.target.checked;
       saveState();
+    });
+    ["posLanHostInput", "posWifiHostInput", "posPortInput", "posTerminalIdInput", "posCashRegisterIdInput", "posLrcModeInput"].forEach(id => {
+      document.getElementById(id).addEventListener("change", () => {
+        state.settings.posNetwork = { lanHost: document.getElementById("posLanHostInput").value.trim(), wifiHost: document.getElementById("posWifiHostInput").value.trim(), port: Number(document.getElementById("posPortInput").value || 8081), terminalId: document.getElementById("posTerminalIdInput").value.trim(), cashRegisterId: document.getElementById("posCashRegisterIdInput").value.trim(), lrcMode: document.getElementById("posLrcModeInput").value };
+        saveState();
+      });
+    });
+    document.getElementById("posDiscoverBtn").addEventListener("click", async () => {
+      const status = document.getElementById("posStatus"); const results = document.getElementById("posDiscoveryResults");
+      status.textContent = "Ricerca dispositivi ECR in corso...";
+      try { const response = await fetch("/api/pos/discover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ port: Number(document.getElementById("posPortInput").value || 8081) }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Discovery non riuscito"); results.textContent = data.hosts.length ? `Host ECR trovati: ${data.hosts.join(", ")}` : "Nessun host ECR trovato."; status.textContent = "Ricerca completata."; } catch (error) { status.textContent = error.message; }
+    });
+    document.getElementById("posStatusBtn").addEventListener("click", async () => {
+      const status = document.getElementById("posStatus"); status.textContent = "Verifica POS in corso...";
+      const n = state.settings.posNetwork || {}; const hosts = [n.lanHost, n.wifiHost].filter(Boolean);
+      try { const checks = await Promise.all(hosts.map(async host => { const response = await fetch("/api/pos/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ host, port: Number(n.port || 8081), terminalId: n.terminalId, cashRegisterId: n.cashRegisterId, lrcMode: n.lrcMode }) }); const data = await response.json(); return `${host}: ${data.ok ? "OK" : data.error}`; })); status.textContent = checks.join(" | ") || "Inserisci almeno un indirizzo POS."; } catch (error) { status.textContent = error.message; }
     });
     document.getElementById("menuSearchKeyboardInput").addEventListener("change", event => {
       state.settings.menuSearchKeyboard = event.target.value === "text" ? "text" : "numeric";

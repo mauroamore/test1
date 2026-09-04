@@ -1,5 +1,6 @@
 ﻿const http = require("http");
 const fs = require("fs");
+const net = require("net");
 const path = require("path");
 const childProcess = require("child_process");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
@@ -10,21 +11,23 @@ const { buildPcPosPrecontoLines } = require("./src/pcpos-preconto.js");
 let nexiEcrModulePromise;
 let nexiEcrClient;
 
-async function getNexiEcrClient() {
-  if (!nexiEcrClient) {
+async function getNexiEcrClient(overrides = {}) {
+  const configKey = JSON.stringify(overrides);
+  if (!nexiEcrClient || nexiEcrClient._configKey !== configKey) {
     nexiEcrModulePromise ||= import("./nexi-ecr-lan/src/index.js");
     const { NexiEcrClient } = await nexiEcrModulePromise;
     const config = {
-      host: process.env.POS_HOST || "192.168.1.240",
-      port: Number(process.env.POS_PORT || 8081),
-      terminalId: process.env.POS_TERMINAL_ID || "37105051",
-      cashRegisterId: process.env.POS_CASH_REGISTER_ID || "00000001",
-      lrcMode: process.env.POS_LRC_MODE || "stxetx",
+      host: overrides.host || process.env.POS_HOST || "192.168.1.240",
+      port: Number(overrides.port || process.env.POS_PORT || 8081),
+      terminalId: overrides.terminalId || process.env.POS_TERMINAL_ID || "37105051",
+      cashRegisterId: overrides.cashRegisterId || process.env.POS_CASH_REGISTER_ID || "00000001",
+      lrcMode: overrides.lrcMode || process.env.POS_LRC_MODE || "stxetx",
       connectTimeoutMs: Number(process.env.POS_CONNECT_TIMEOUT_MS || 5000),
       responseTimeoutMs: Number(process.env.POS_RESPONSE_TIMEOUT_MS || 120000),
       transactionLogPath: path.join(ROOT, "transactions-log.json")
     };
     nexiEcrClient = new NexiEcrClient(config);
+    nexiEcrClient._configKey = configKey;
   }
   return nexiEcrClient;
 }
@@ -1269,7 +1272,23 @@ const server = http.createServer((request, response) => {
             transactionId: `sim-${Date.now()}`
           });
         }
-        const pos = await getNexiEcrClient();
+        const candidates = [
+          { host: String(input.lanHost || process.env.POS_HOST || "192.168.1.240").trim(), port: Number(input.port || process.env.POS_PORT || 8081) },
+          { host: String(input.wifiHost || "").trim(), port: Number(input.port || process.env.POS_PORT || 8081) }
+        ].filter((candidate, index, all) => candidate.host && all.findIndex(item => item.host === candidate.host) === index);
+        let pos;
+        let preflightError;
+        for (const candidate of candidates) {
+          try {
+            pos = await getNexiEcrClient({ ...candidate, terminalId: input.terminalId, cashRegisterId: input.cashRegisterId, lrcMode: input.lrcMode || "stxetx" });
+            await pos.status();
+            preflightError = undefined;
+            break;
+          } catch (error) {
+            preflightError = error;
+          }
+        }
+        if (!pos || preflightError) throw new Error(`POS non raggiungibile: ${preflightError?.message || "nessun indirizzo configurato"}`);
         const result = await pos.paySafe({
           orderId,
           amountCents,
@@ -1279,6 +1298,36 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 502, { ok: false, simulated: false, error: error.message || String(error) });
       }
+    });
+    return;
+  }
+  if (request.url === "/api/pos/status" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => body += chunk);
+    request.on("end", async () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const pos = await getNexiEcrClient({ host: String(input.host || "").trim(), port: Number(input.port || 8081), terminalId: String(input.terminalId || "").trim(), cashRegisterId: String(input.cashRegisterId || "").trim(), lrcMode: String(input.lrcMode || "stxetx") });
+        return sendJson(response, 200, { ok: true, status: await pos.status() });
+      } catch (error) { return sendJson(response, 502, { ok: false, error: error.message || String(error) }); }
+    });
+    return;
+  }
+  if (request.url === "/api/pos/discover" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => body += chunk);
+    request.on("end", async () => {
+      let input; try { input = JSON.parse(body || "{}"); } catch { input = {}; }
+      const subnet = String(input.subnet || "192.168.1").replace(/[^0-9.]/g, "");
+      const port = Number(input.port || 8081);
+      const hosts = [];
+      await Promise.all(Array.from({ length: 254 }, (_, index) => new Promise(resolve => {
+        const socket = net.createConnection({ host: `${subnet}.${index + 1}`, port, timeout: 250 });
+        socket.once("connect", () => { hosts.push(`${subnet}.${index + 1}`); socket.destroy(); resolve(); });
+        socket.once("error", () => { socket.destroy(); resolve(); });
+        socket.once("timeout", () => { socket.destroy(); resolve(); });
+      })));
+      return sendJson(response, 200, { ok: true, port, hosts: hosts.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) });
     });
     return;
   }

@@ -8421,6 +8421,16 @@
           fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source) }),
           fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(voidReceipt) })
         ]);
+        const refreshQuery = new URLSearchParams();
+        const refreshYear = document.getElementById("fiscalHistoryYear")?.value;
+        const refreshFrom = document.getElementById("fiscalHistoryFrom")?.value;
+        const refreshTo = document.getElementById("fiscalHistoryTo")?.value;
+        if (refreshYear) refreshQuery.set("year", refreshYear);
+        if (refreshFrom) refreshQuery.set("from", refreshFrom);
+        if (refreshTo) refreshQuery.set("to", refreshTo);
+        const refreshResponse = await fetch(`/api/fiscal-receipts?${refreshQuery}`, { cache: "no-store" });
+        const refreshPayload = await refreshResponse.json();
+        if (refreshResponse.ok && Array.isArray(refreshPayload.receipts)) state.fiscalReceipts = refreshPayload.receipts;
         saveState();
         document.getElementById("fiscalVoidModal").close();
         renderFiscalReceipts();

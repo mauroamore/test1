@@ -171,17 +171,17 @@ function fiscalReceiptRemotePayload(receipt) {
     source: receipt.source || "local",
     fiscal: {
       ...(receipt.fiscal && typeof receipt.fiscal === "object" ? receipt.fiscal : {}),
-      documentNumber: receipt.documentNumber || "",
-      receiptNumber: receipt.receiptNumber || "",
-      zReportNumber: receipt.zReportNumber || "",
-      fiscalReceiptDate: receipt.fiscalReceiptDate || "",
-      fiscalReceiptTime: receipt.fiscalReceiptTime || "",
-      rtSerialNumber: receipt.rtSerialNumber || ""
+      documentNumber: receipt.documentNumber || null,
+      receiptNumber: receipt.receiptNumber || null,
+      zReportNumber: receipt.zReportNumber || null,
+      fiscalReceiptDate: receipt.fiscalReceiptDate || null,
+      fiscalReceiptTime: receipt.fiscalReceiptTime || null,
+      rtSerialNumber: receipt.rtSerialNumber || null
     },
     payment: {
       ...payment,
-      method: payment.method || receipt.paymentMethod || "",
-      amount: payment.amount || receipt.amount || ""
+      method: payment.method || receipt.paymentMethod || null,
+      amount: payment.amount || receipt.amount || null
     },
     status: receipt.status || "issued",
     emittedAt: receipt.emittedAt || new Date().toISOString()

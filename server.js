@@ -78,7 +78,6 @@ const HUBRISE_POLL_INTERVAL_MS = Number(process.env.HUBRISE_POLL_INTERVAL_MS || 
 const SIGONELLA_ORDERS_URL = process.env.SIGONELLA_ORDERS_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/GetOrders`;
 const SIGONELLA_ORDERS_INTERVAL_MS = Number(process.env.SIGONELLA_ORDERS_INTERVAL_MS || 10000);
 const SIGONELLA_ORDERS_LOG = path.join(ROOT, "sigonella-orders.log");
-const PAYMENT_FLOW_LOG = path.join(ROOT, "payment-flow.log");
 const SIGONELLA_MENU_URL = process.env.SIGONELLA_MENU_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/GetMenu`;
 const SIGONELLA_UPDATE_ORDER_URL = process.env.SIGONELLA_UPDATE_ORDER_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/UpdateConfirmedOrder`;
 const POS_SERVICE_URL = process.env.POS_SERVICE_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx`;
@@ -283,16 +282,9 @@ async function syncPendingFiscalReceipts() {
 }
 
 function queueFiscalElectronicCopy({ receiptId, printer, lastDocument }) {
-  if (!receiptId || !printer) return;
+  if (!receiptId || !printer || !lastDocument) return;
   setImmediate(async () => {
     try {
-      if (!lastDocument) {
-        lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
-          operator: printer.operator || "1",
-          port: printer.port || 80,
-          devid: printer.devid || "local_printer"
-        });
-      }
       let index = -1;
       for (let attempt = 0; attempt < 20 && index < 0; attempt += 1) {
         index = fiscalReceipts.findIndex(item => String(item.id) === String(receiptId));
@@ -1136,20 +1128,6 @@ const server = http.createServer((request, response) => {
     return response.end();
   }
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
-  if (request.url === "/api/payment-flow-log" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => {
-      body += chunk;
-      if (body.length > 16 * 1024) request.destroy();
-    });
-    request.on("end", () => {
-      try {
-        appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify(JSON.parse(body || "{}"))}\n`);
-        sendJson(response, 204, {});
-      } catch (error) { sendJson(response, 400, { ok: false, error: error.message }); }
-    });
-    return;
-  }
   if (request.url === "/api/table-locks" && request.method === "GET") {
     const now = Date.now();
     const locks = {};
@@ -1452,38 +1430,7 @@ const server = http.createServer((request, response) => {
         }
         const currentRevision = Number(sharedState && sharedState.stateRevision || 0);
         const incomingRevision = Number(incomingState.stateRevision || 0);
-        const paymentCommit = parsedBody.paymentCommit === true;
-        const paymentOrderId = parsedBody.paymentOrderId == null ? "" : String(parsedBody.paymentOrderId);
         if (currentRevision > 0 && incomingRevision < currentRevision) {
-          if (paymentCommit && paymentOrderId) {
-            const incomingCollections = [incomingState.tables || [], incomingState.deliveryOrders || []];
-            const paidOrder = incomingCollections.flat().find(order => String(order.id) === paymentOrderId);
-            const currentCollections = [sharedState.tables || [], sharedState.deliveryOrders || []];
-            const currentOrder = currentCollections.flat().find(order => String(order.id) === paymentOrderId);
-            if (!paidOrder || !currentOrder) {
-              sendJson(response, 409, { ok: false, stale: true, state: sharedState, error: "Ordine del pagamento non trovato" });
-              return;
-            }
-            for (const collection of currentCollections) {
-              const index = collection.findIndex(order => String(order.id) === paymentOrderId);
-              if (index >= 0) collection[index] = paidOrder;
-            }
-            const incomingHistory = Array.isArray(incomingState.history) ? incomingState.history : [];
-            const paidHistory = incomingHistory.find(entry => String(entry.id) === paymentOrderId);
-            if (paidHistory) {
-              if (!Array.isArray(sharedState.history)) sharedState.history = [];
-              const historyIndex = sharedState.history.findIndex(entry => String(entry.id) === paymentOrderId);
-              if (historyIndex >= 0) sharedState.history[historyIndex] = paidHistory;
-              else sharedState.history.unshift(paidHistory);
-            }
-            sharedState.stateRevision = currentRevision + 1;
-            persistStateFiles();
-            pushStateSnapshot().finally(() => {
-              broadcast();
-              sendJson(response, 200, { ok: true, mergedPayment: true, stateRevision: sharedState.stateRevision });
-            });
-            return;
-          }
           sendJson(response, 409, { ok: false, stale: true, state: sharedState });
           return;
         }
@@ -1691,8 +1638,6 @@ const server = http.createServer((request, response) => {
     request.on("end", async () => {
       try {
         const input = JSON.parse(body || "{}");
-        const paymentStartedAt = Date.now();
-        appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_receipt_start", receiptId: input.receiptId || null })}\n`);
         const printer = sharedState && sharedState.settings && sharedState.settings.fiscalPrinter;
         const simulatedReceipt = printer && (printer.simulation === true || printer.simulateReceipts === true);
         const testModeOneCent = printer && printer.testModeOneCent === true;
@@ -1750,22 +1695,23 @@ const server = http.createServer((request, response) => {
             devid: printer.devid || "local_printer",
             signal: controller.signal
           });
-          appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_emission_mode_done", receiptId: input.receiptId || null, elapsedMs: Date.now() - paymentStartedAt, ok: emissionMode.success })}\n`);
           if (!emissionMode.success) throw new Error(`Impostazione carta + digitale rifiutata: ${emissionMode.code || "errore stampante"}`);
           const result = await epsonFiscal.printFiscalReceipt(printer.host, receipt, {
             port,
             devid: printer.devid || "local_printer",
             signal: controller.signal
           });
-          appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_print_done", receiptId: input.receiptId || null, elapsedMs: Date.now() - paymentStartedAt, ok: result.success, code: result.code || null })}\n`);
           let electronicCopy = null;
           if (result.success) {
             try {
-              electronicCopy = { status: "pending" };
-              queueFiscalElectronicCopy({
-                receiptId: input.receiptId,
-                printer: { host: printer.host, operator, port, devid: printer.devid || "local_printer" }
+              const lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
+                operator,
+                port,
+                devid: printer.devid || "local_printer",
+                signal: controller.signal
               });
+              electronicCopy = { status: "pending" };
+              queueFiscalElectronicCopy({ receiptId: input.receiptId, printer: { host: printer.host }, lastDocument });
             } catch (copyError) {
               electronicCopy = { status: "error", error: copyError.message };
             }
@@ -1846,11 +1792,14 @@ const server = http.createServer((request, response) => {
           let electronicCopy = null;
           if (result.success && !simulatedReceipt) {
             try {
-              electronicCopy = { status: "pending" };
-              queueFiscalElectronicCopy({
-                receiptId: input.voidReceiptId,
-                printer: { host: printer.host, operator: refs.operator, port: Number(printer.port || 80), devid: printer.devid || "local_printer" }
+              const lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
+                operator: refs.operator,
+                port: Number(printer.port || 80),
+                devid: printer.devid || "local_printer",
+                signal: controller.signal
               });
+              electronicCopy = { status: "pending" };
+              queueFiscalElectronicCopy({ receiptId: input.voidReceiptId, printer: { host: printer.host }, lastDocument });
             } catch (copyError) {
               electronicCopy = { status: "error", error: copyError.message };
             }

@@ -20,7 +20,7 @@ export class NexiEcrClient {
 
   async status() {
     const session = new EcrSession(this.options);
-    const packets = await session.exchange(buildStatusRequest(this.options.terminalId), { timeoutMs: 10_000 });
+    const packets = await session.exchange(buildStatusRequest(this.options.terminalId), { timeoutMs: this.options.statusTimeoutMs ?? 2_500 });
     const application = packets.find((packet) => packet.kind === "application");
     if (!application) throw new Error(`Status did not return application response: ${packets.at(-1)?.kind ?? "none"}`);
     return parseStatusResponse(application.applicationMessage);

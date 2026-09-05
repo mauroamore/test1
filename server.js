@@ -23,6 +23,7 @@ async function getNexiEcrClient(overrides = {}) {
       cashRegisterId: overrides.cashRegisterId || process.env.POS_CASH_REGISTER_ID || "00000001",
       lrcMode: overrides.lrcMode || process.env.POS_LRC_MODE || "stxetx",
       connectTimeoutMs: Number(process.env.POS_CONNECT_TIMEOUT_MS || 5000),
+      statusTimeoutMs: Number(process.env.POS_STATUS_TIMEOUT_MS || 2500),
       responseTimeoutMs: Number(process.env.POS_RESPONSE_TIMEOUT_MS || 120000),
       transactionLogPath: path.join(ROOT, "transactions-log.json")
     };

@@ -4188,7 +4188,6 @@
         const balance = document.getElementById("paymentBalance");
         balance.className = "payment-balance";
         balance.innerHTML = `<span class="payment-balance-label">Emissione scontrino...</span><span class="payment-balance-value">Attendere la risposta Epson</span><span class="payment-balance-label"></span><span class="payment-balance-value"></span>`;
-        let retryFiscal = false;
         try {
           const fiscalRecordId = crypto.randomUUID ? crypto.randomUUID() : `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`;
           const fiscalRequest = fiscalReceiptForPayment(row, fiscalRecordId);
@@ -4234,10 +4233,7 @@
             outcomeUncertain: error.outcomeUncertain === true,
             failedAt: new Date().toISOString()
           };
-          if (usesCash && fiscalReady && window.confirm("Pagamento registrato.\n\nVuoi stampare lo scontrino fiscale?")) {
-            row.fiscal = null;
-            retryFiscal = true;
-          }
+          if (usesCash && fiscalReady) window.confirm("Pagamento registrato, ma lo scontrino fiscale non è stato emesso.\n\nControlla la stampante e riprova manualmente.");
           if (!usesCash) {
             renderPaymentRows();
             const message = error.outcomeUncertain
@@ -4253,14 +4249,13 @@
         } finally {
           fiscalPaymentInProgress = false;
         }
-        if (retryFiscal) return startPaymentForRow(index);
       } else if (usesCash && !fiscalReady) {
         row.fiscal = {
           status: "not_configured",
           error: "Stampante fiscale non configurata",
           failedAt: new Date().toISOString()
         };
-        window.confirm("Pagamento registrato.\n\nVuoi stampare lo scontrino fiscale? Configura prima la stampante fiscale nel Setup.");
+        window.confirm("Pagamento registrato, ma la stampante fiscale non è configurata.\n\nConfigura la stampante nel Setup prima di riprovare.");
       }
 
       row.processing = false;

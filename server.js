@@ -1830,6 +1830,26 @@ const server = http.createServer((request, response) => {
       });
     });
   }
+  if (request.url === "/api/fiscal-receipts/pdf" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => { body += chunk; if (body.length > 32 * 1024) request.destroy(); });
+    request.on("end", async () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const responseRemote = await fetch(`${RESTAURANT_OPERATIONS_URL}/GetFiscalReceiptPdf`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json", "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY },
+          body: JSON.stringify({ data: JSON.stringify({ id: input.id }) })
+        });
+        const parsed = unwrapAspNetJson(JSON.parse(await responseRemote.text()));
+        if (!responseRemote.ok || !parsed || parsed.ok !== true) return sendJson(response, 404, { ok: false, error: parsed?.error || "PDF non disponibile" });
+        const buffer = Buffer.from(parsed.contentBase64, "base64");
+        response.writeHead(200, { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${String(parsed.fileName || "scontrino.pdf").replace(/[^a-zA-Z0-9._-]/g, "_")}"`, "Content-Length": buffer.length });
+        response.end(buffer);
+      } catch (error) { sendJson(response, 502, { ok: false, error: error.message }); }
+    });
+    return;
+  }
   if (request.url === "/api/fiscal-receipts" && request.method === "POST") {
     let body = "";
     request.on("data", chunk => { body += chunk; if (body.length > 256 * 1024) request.destroy(); });

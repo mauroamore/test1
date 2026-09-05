@@ -165,6 +165,39 @@ public class RestaurantOperationsService : WebService
 
     [WebMethod]
     [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string GetFiscalReceiptPdf(string data)
+    {
+        RequireKey();
+        try
+        {
+            var payload = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }
+                .Deserialize<Dictionary<string, object>>(data ?? "{}");
+            var receiptId = payload == null || !payload.ContainsKey("id") ? "" : Convert.ToString(payload["id"]);
+            if (String.IsNullOrWhiteSpace(receiptId)) return serializer.Serialize(new { ok = false, error = "ID scontrino mancante." });
+
+            using (var connection = HubRiseIntegration.OpenDatabase())
+            using (var command = new MySqlCommand("SELECT CAST(data AS CHAR) FROM fiscal_receipts WHERE JSON_UNQUOTE(JSON_EXTRACT(data, '$.id')) = @id LIMIT 1", connection))
+            {
+                command.CommandTimeout = TimeoutSeconds;
+                command.Parameters.Add("@id", MySqlDbType.VarChar, 180).Value = receiptId;
+                var raw = Convert.ToString(command.ExecuteScalar());
+                if (String.IsNullOrWhiteSpace(raw)) return serializer.Serialize(new { ok = false, error = "Scontrino non trovato." });
+                var record = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }
+                    .Deserialize<Dictionary<string, object>>(raw);
+                var copy = record.ContainsKey("electronicCopy") ? record["electronicCopy"] as Dictionary<string, object> : null;
+                var remotePath = copy != null && copy.ContainsKey("remotePath") ? Convert.ToString(copy["remotePath"]) : "";
+                if (String.IsNullOrWhiteSpace(remotePath)) return serializer.Serialize(new { ok = false, error = "PDF non disponibile." });
+                var relativePath = remotePath.TrimStart('/', '\\');
+                var fullPath = HttpContext.Current.Server.MapPath("~/" + relativePath);
+                if (!File.Exists(fullPath)) return serializer.Serialize(new { ok = false, error = "File PDF non trovato." });
+                return serializer.Serialize(new { ok = true, fileName = Path.GetFileName(fullPath), contentBase64 = Convert.ToBase64String(File.ReadAllBytes(fullPath)) });
+            }
+        }
+        catch (Exception ex) { return serializer.Serialize(new { ok = false, error = ex.Message }); }
+    }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
     public string GetFiscalReceipts(string from = null, string to = null)
     {
         RequireKey();

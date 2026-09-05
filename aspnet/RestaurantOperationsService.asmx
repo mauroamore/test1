@@ -198,7 +198,7 @@ public class RestaurantOperationsService : WebService
                         : new string[0];
                     if (candidates.Length > 0) fullPath = candidates[candidates.Length - 1];
                 }
-                if (!File.Exists(fullPath)) return serializer.Serialize(new { ok = false, error = "File PDF non trovato." });
+                if (!File.Exists(fullPath)) return serializer.Serialize(new { ok = false, error = "File PDF non trovato. Percorso registrato: " + remotePath + "; file cercato: " + Path.GetFileName(relativePath) });
                 return serializer.Serialize(new { ok = true, fileName = Path.GetFileName(fullPath), contentBase64 = Convert.ToBase64String(File.ReadAllBytes(fullPath)) });
             }
         }

@@ -275,7 +275,9 @@ function buildEReceiptPdfUrl(host, document) {
   const yyyyMMdd = `20${year}${month}${day}`;
   if (d.pdfName) {
     const pdfName = String(d.pdfName).trim().split(/[\\/]/).pop();
-    if (pdfName) return `http://${host}/www/dati-rt/e-receipt/${yyyyMMdd}/${encodeURIComponent(pdfName)}`;
+    if (/\.pdf$/i.test(pdfName) || /E_RECEIPT/i.test(pdfName)) {
+      return `http://${host}/www/dati-rt/e-receipt/${yyyyMMdd}/${encodeURIComponent(pdfName)}`;
+    }
   }
   // Il payload 1387 può contenere un byte di riempimento finale nel campo
   // matricola. L'addInfo XML restituisce invece la matricola canonica usata

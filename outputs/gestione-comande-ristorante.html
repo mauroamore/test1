@@ -2888,6 +2888,7 @@
     <div class="modal-content">
       <div class="small" style="margin-bottom:12px">Gli estremi vengono conservati per consentire il controllo, l'annullo e la successiva riemissione.</div>
       <div class="row" style="align-items:end;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <label>Anno<input id="fiscalHistoryYear" type="number" min="2000" max="2100" step="1" required></label>
         <label>Da<input id="fiscalHistoryFrom" type="datetime-local"></label>
         <label>A<input id="fiscalHistoryTo" type="datetime-local"></label>
         <button class="secondary" id="fiscalHistoryFilterBtn" type="button">Filtra</button>
@@ -8263,9 +8264,11 @@
 
     async function openFiscalReceipts() {
       try {
+        const year = document.getElementById("fiscalHistoryYear").value;
         const from = document.getElementById("fiscalHistoryFrom").value;
         const to = document.getElementById("fiscalHistoryTo").value;
         const query = new URLSearchParams();
+        if (year) query.set("year", year);
         if (from) query.set("from", from);
         if (to) query.set("to", to);
         const response = await fetch(`/api/fiscal-receipts${query.toString() ? `?${query}` : ""}`, { cache: "no-store" });
@@ -8287,6 +8290,8 @@
       const localDateTime = value => `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
       const from = document.getElementById("fiscalHistoryFrom");
       const to = document.getElementById("fiscalHistoryTo");
+      const yearInput = document.getElementById("fiscalHistoryYear");
+      if (!yearInput.value) yearInput.value = now.getFullYear();
       if (!from.value && !to.value) {
         from.value = localDateTime(start);
         to.value = localDateTime(now);
@@ -8983,6 +8988,7 @@
     document.getElementById("fiscalHistoryClearBtn").addEventListener("click", () => {
       document.getElementById("fiscalHistoryFrom").value = "";
       document.getElementById("fiscalHistoryTo").value = "";
+      document.getElementById("fiscalHistoryYear").value = new Date().getFullYear();
       renderFiscalReceipts();
     });
     document.getElementById("fiscalVoidCloseBtn").addEventListener("click", () => document.getElementById("fiscalVoidModal").close());

@@ -4533,7 +4533,7 @@
         latestHistory.payment = structuredClone(order.payment);
       }
       await finishReservationForOrder(order);
-      saveState();
+      await saveState();
       document.getElementById("paymentModal").close();
       render();
       closeOrderModal();

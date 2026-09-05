@@ -8273,7 +8273,7 @@
       }
       receipts.forEach(receipt => {
         const paymentMethod = receipt.payment?.method || receipt.payment?.description || "n/d";
-        const canReissue = receipt.status === "voided";
+        const canReissue = receipt.operationType === "void" && receipt.status === "voided";
         const row = document.createElement("tr");
         row.innerHTML = `<td>${escapeHtml(receipt.documentNumber || "n/d")}</td>
           <td>${escapeHtml(receipt.fiscalReceiptDate || "n/d")}</td>
@@ -8383,6 +8383,7 @@
             voidCopy: structuredClone(result.electronicCopy)
           };
         }
+        const voidAddInfo = result.addInfo || {};
         const voidReceipt = {
           ...structuredClone(receipt),
           id: `${receipt.id}-void-${Date.now()}`,
@@ -8393,9 +8394,18 @@
           voidedAt: receipt.voidedAt,
           voidReason: reason,
           voidResponse: structuredClone(result),
-          electronicCopy: structuredClone(result.electronicCopy || null)
+          electronicCopy: structuredClone(result.electronicCopy || null),
+          receiptNumber: voidAddInfo.fiscalReceiptNumber || "",
+          fiscalReceiptDate: voidAddInfo.fiscalReceiptDate || "",
+          fiscalReceiptTime: voidAddInfo.fiscalReceiptTime || "",
+          zReportNumber: voidAddInfo.zRepNumber || "",
+          rtSerialNumber: voidAddInfo.serialNumber || receipt.rtSerialNumber || "",
+          documentNumber: voidAddInfo.zRepNumber && voidAddInfo.fiscalReceiptNumber
+            ? `${voidAddInfo.zRepNumber}-${String(voidAddInfo.fiscalReceiptNumber).padStart(4, "0")}`
+            : ""
         };
         delete voidReceipt.voidCopy;
+        state.fiscalReceipts = [voidReceipt, ...state.fiscalReceipts.filter(item => item.id !== voidReceipt.id)];
         await Promise.all([
           fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) }),
           fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(voidReceipt) })
@@ -8403,7 +8413,7 @@
         saveState();
         document.getElementById("fiscalVoidModal").close();
         renderFiscalReceipts();
-        openFiscalReissue(receipt);
+        openFiscalReissue(voidReceipt);
       } catch (error) {
         window.alert(`Annullo non completato: ${error.message}`);
       } finally { button.disabled = false; }

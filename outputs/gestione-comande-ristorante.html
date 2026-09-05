@@ -8361,12 +8361,13 @@
       const button = document.getElementById("fiscalVoidConfirmBtn");
       button.disabled = true;
       try {
-        const fiscal = receipt.fiscal || {};
-        const addInfo = receipt.response?.addInfo || receipt.voidResponse?.addInfo || {};
-        const zReportNumber = receipt.zReportNumber || fiscal.zReportNumber || fiscal.zRepNumber || addInfo.zReportNumber || addInfo.zRepNumber;
-        const documentNumber = receipt.receiptNumber || fiscal.receiptNumber || fiscal.fiscalReceiptNumber || addInfo.fiscalReceiptNumber || receipt.documentNumber;
-        const fiscalReceiptDate = receipt.fiscalReceiptDate || fiscal.fiscalReceiptDate || fiscal.date || addInfo.fiscalReceiptDate;
-        const rtSerialNumber = receipt.rtSerialNumber || receipt.serialNumber || fiscal.rtSerialNumber || fiscal.serialNumber || addInfo.rtSerialNumber || addInfo.serialNumber;
+        const source = receipt.data && typeof receipt.data === "object" ? receipt.data : receipt;
+        const fiscal = source.fiscal || {};
+        const addInfo = source.response?.addInfo || source.voidResponse?.addInfo || receipt.response?.addInfo || {};
+        const zReportNumber = source.zReportNumber || source.zRepNumber || source.z_report_number || fiscal.zReportNumber || fiscal.zRepNumber || fiscal.z_report_number || addInfo.zReportNumber || addInfo.zRepNumber;
+        const documentNumber = source.receiptNumber || source.fiscalReceiptNumber || source.fiscal_receipt_number || fiscal.receiptNumber || fiscal.fiscalReceiptNumber || fiscal.fiscal_receipt_number || addInfo.fiscalReceiptNumber || source.documentNumber;
+        const fiscalReceiptDate = source.fiscalReceiptDate || source.fiscal_receipt_date || fiscal.fiscalReceiptDate || fiscal.fiscal_receipt_date || fiscal.date || addInfo.fiscalReceiptDate;
+        const rtSerialNumber = source.rtSerialNumber || source.serialNumber || source.rt_serial_number || fiscal.rtSerialNumber || fiscal.serialNumber || fiscal.rt_serial_number || addInfo.rtSerialNumber || addInfo.serialNumber;
         if (!zReportNumber || !documentNumber || !fiscalReceiptDate || !rtSerialNumber) {
           throw new Error("Dati fiscali incompleti: impossibile determinare Z, documento, data e matricola RT");
         }

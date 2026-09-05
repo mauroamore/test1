@@ -189,6 +189,15 @@ public class RestaurantOperationsService : WebService
                 if (String.IsNullOrWhiteSpace(remotePath)) return serializer.Serialize(new { ok = false, error = "PDF non disponibile." });
                 var relativePath = remotePath.TrimStart('/', '\\');
                 var fullPath = HttpContext.Current.Server.MapPath("~/" + relativePath);
+                if (!File.Exists(fullPath))
+                {
+                    var pdfDirectory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts");
+                    var safeId = receiptId.Replace("/", "_").Replace("\\", "_");
+                    var candidates = Directory.Exists(pdfDirectory)
+                        ? Directory.GetFiles(pdfDirectory, safeId + "-*.pdf")
+                        : new string[0];
+                    if (candidates.Length > 0) fullPath = candidates[candidates.Length - 1];
+                }
                 if (!File.Exists(fullPath)) return serializer.Serialize(new { ok = false, error = "File PDF non trovato." });
                 return serializer.Serialize(new { ok = true, fileName = Path.GetFileName(fullPath), contentBase64 = Convert.ToBase64String(File.ReadAllBytes(fullPath)) });
             }

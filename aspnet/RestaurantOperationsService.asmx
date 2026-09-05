@@ -186,6 +186,19 @@ public class RestaurantOperationsService : WebService
                         var rawData = Convert.ToString(item["data"] ?? "{}");
                         try { item["data"] = readerSerializer.DeserializeObject(rawData); }
                         catch { }
+                        item["restaurantId"] = item["restaurant_id"];
+                        item["orderId"] = item["order_id"];
+                        item["tableId"] = item["table_id"];
+                        item["documentNumber"] = item["document_number"];
+                        item["receiptNumber"] = item["receipt_number"];
+                        item["fiscalReceiptDate"] = item["fiscal_receipt_date"];
+                        item["fiscalReceiptTime"] = item["fiscal_receipt_time"];
+                        item["rtSerialNumber"] = item["rt_serial_number"];
+                        item["paymentMethod"] = item["payment_method"];
+                        item["emittedAt"] = item["emitted_at"];
+                        item["voidedAt"] = item["voided_at"];
+                        item["voidReason"] = item["void_reason"];
+                        item["reissueOf"] = item["reissue_of"];
                         result.Add(item);
                     }
                 }

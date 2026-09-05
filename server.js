@@ -1763,6 +1763,15 @@ const server = http.createServer((request, response) => {
         const timer = setTimeout(() => controller.abort(), 15000);
         try {
           fiscalReceiptInProgress = true;
+          const emissionMode = await epsonFiscal.setPaperAndDigitalNextReceipt(printer.host, {
+            operator: refs.operator,
+            port: Number(printer.port || 80),
+            devid: printer.devid || "local_printer",
+            signal: controller.signal
+          });
+          if (!emissionMode.success) {
+            throw new Error(`Impostazione carta + digitale rifiutata: ${emissionMode.code || "errore stampante"}`);
+          }
           const result = await epsonFiscal.voidFiscalReceipt(printer.host, refs, {
             port: Number(printer.port || 80),
             devid: printer.devid || "local_printer",

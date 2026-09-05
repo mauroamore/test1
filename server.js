@@ -281,6 +281,48 @@ async function syncPendingFiscalReceipts() {
   }
 }
 
+function queueFiscalElectronicCopy({ receiptId, printer, lastDocument }) {
+  if (!receiptId || !printer || !lastDocument) return;
+  setImmediate(async () => {
+    try {
+      let index = -1;
+      for (let attempt = 0; attempt < 20 && index < 0; attempt += 1) {
+        index = fiscalReceipts.findIndex(item => String(item.id) === String(receiptId));
+        if (index < 0) await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      if (index < 0) return;
+      const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, {
+        attempts: 4,
+        delayMs: 500,
+        signal: undefined
+      });
+      if (!pdf.buffer) throw new Error("PDF E-Receipt non disponibile");
+      fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
+      const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;
+      const fileName = `fiscal-${Date.now()}-${String(documentNumber || "document").replace(/\D/g, "")}.pdf`;
+      const localFile = path.join(FISCAL_RECEIPT_PDF_DIR, fileName);
+      fs.writeFileSync(localFile, pdf.buffer);
+      fiscalReceipts[index].electronicCopy = {
+        fileName,
+        localFile,
+        sourceUrl: pdf.url,
+        size: pdf.buffer.length,
+        status: "pending"
+      };
+      persistFiscalReceipts();
+      fiscalReceiptSync[String(receiptId)] = { status: "pending" };
+      persistFiscalReceiptSync();
+      await syncFiscalReceipt(fiscalReceipts[index]);
+    } catch (error) {
+      const index = fiscalReceipts.findIndex(item => String(item.id) === String(receiptId));
+      if (index >= 0) {
+        fiscalReceipts[index].electronicCopy = { status: "error", error: error.message || String(error) };
+        persistFiscalReceipts();
+      }
+    }
+  });
+}
+
 async function loadFiscalReceiptHistory(from, to) {
   if (!RESTAURANT_OPERATIONS_KEY) throw new Error("Restaurant operations key not configured");
   const response = await fetch(`${RESTAURANT_OPERATIONS_URL}/GetFiscalReceipts`, {
@@ -1668,17 +1710,8 @@ const server = http.createServer((request, response) => {
                 devid: printer.devid || "local_printer",
                 signal: controller.signal
               });
-              // The PDF is generated after the fiscal response; keep the secondary
-              // lookup short so cash payments are not held by PDF polling.
-              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { attempts: 4, delayMs: 500, signal: controller.signal });
-              if (pdf.buffer) {
-                fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
-                const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;
-                const fileName = `fiscal-${Date.now()}-${String(documentNumber || "document").replace(/\D/g, "")}.pdf`;
-                const localFile = path.join(FISCAL_RECEIPT_PDF_DIR, fileName);
-                fs.writeFileSync(localFile, pdf.buffer);
-                electronicCopy = { fileName, localFile, sourceUrl: pdf.url, size: pdf.buffer.length, status: "pending" };
-              }
+              electronicCopy = { status: "pending" };
+              queueFiscalElectronicCopy({ receiptId: input.receiptId, printer: { host: printer.host }, lastDocument });
             } catch (copyError) {
               electronicCopy = { status: "error", error: copyError.message };
             }
@@ -1690,6 +1723,7 @@ const server = http.createServer((request, response) => {
             code: result.code,
             status: result.status,
             addInfo: result.addInfo,
+            receiptId: input.receiptId || null,
             electronicCopy,
             raw: result.raw || "",
             error: result.success ? "" : `La stampante ha risposto con codice ${result.code || "sconosciuto"}`
@@ -1764,17 +1798,8 @@ const server = http.createServer((request, response) => {
                 devid: printer.devid || "local_printer",
                 signal: controller.signal
               });
-              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { attempts: 4, delayMs: 500, signal: controller.signal });
-              if (pdf.buffer) {
-                fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
-                const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;
-                const safeReceiptId = String(input.receiptId || "receipt")
-                  .replace(/[^a-zA-Z0-9_-]/g, "_");
-                const fileName = `fiscal-${safeReceiptId}-void-${String(documentNumber || "document").replace(/\D/g, "")}.pdf`;
-                const localFile = path.join(FISCAL_RECEIPT_PDF_DIR, fileName);
-                fs.writeFileSync(localFile, pdf.buffer);
-                electronicCopy = { fileName, localFile, sourceUrl: pdf.url, size: pdf.buffer.length, status: "pending" };
-              }
+              electronicCopy = { status: "pending" };
+              queueFiscalElectronicCopy({ receiptId: input.voidReceiptId, printer: { host: printer.host }, lastDocument });
             } catch (copyError) {
               electronicCopy = { status: "error", error: copyError.message };
             }
@@ -1786,6 +1811,7 @@ const server = http.createServer((request, response) => {
             status: result.status,
             addInfo: result.addInfo,
             electronicCopy,
+            voidReceiptId: input.voidReceiptId || null,
             raw: result.raw || "",
             error: result.success ? "" : `La stampante ha risposto con codice ${result.code || "sconosciuto"}`
           });

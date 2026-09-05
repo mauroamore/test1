@@ -4080,10 +4080,11 @@
       return ({ Contanti: "0", Carta: "2", Bancomat: "6", Buono: "3", Bonifico: "5", Altro: "5" })[method] || "5";
     }
 
-    function fiscalReceiptForPayment(row) {
+    function fiscalReceiptForPayment(row, receiptId) {
       const cents = paymentCents(row.amount);
       const amount = (cents / 100).toFixed(2);
       return {
+        receiptId,
         items: [{
           description: "CONTO RISTORANTE",
           quantity: "1",
@@ -4158,7 +4159,8 @@
         balance.innerHTML = `<span class="payment-balance-label">Emissione scontrino...</span><span class="payment-balance-value">Attendere la risposta Epson</span><span class="payment-balance-label"></span><span class="payment-balance-value"></span>`;
         let retryFiscal = false;
         try {
-          const fiscalRequest = fiscalReceiptForPayment(row);
+          const fiscalRecordId = crypto.randomUUID ? crypto.randomUUID() : `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          const fiscalRequest = fiscalReceiptForPayment(row, fiscalRecordId);
           const response = await fetch("/api/fiscal-printer/receipt", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -4171,6 +4173,7 @@
             throw error;
           }
           row.fiscal = {
+            recordId: result.receiptId || fiscalRecordId,
             testModeOneCent: result.testModeOneCent === true,
             amount: result.fiscalAmount || "",
             receiptNumber: result.addInfo?.fiscalReceiptNumber || "",
@@ -4257,7 +4260,7 @@
       const existing = state.fiscalReceipts.find(receipt => receipt.referenceKey === referenceKey && referenceKey !== "|||" && receipt.orderId === order.id);
       if (existing) return;
       const storedReceipt = {
-        id: crypto.randomUUID ? crypto.randomUUID() : `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        id: fiscal.recordId || (crypto.randomUUID ? crypto.randomUUID() : `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`),
         status: "issued",
         orderId: order.id,
         tableId: order.source ? null : order.id,
@@ -8388,10 +8391,11 @@
         if (!zReportNumber || !documentNumber || !fiscalReceiptDate || !rtSerialNumber) {
           throw new Error("Dati fiscali incompleti: impossibile determinare Z, documento, data e matricola RT");
         }
+        const voidRecordId = `${source.id || receipt.id}-void-${Date.now()}`;
         const response = await fetch("/api/fiscal-printer/void", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            confirm: true, receiptId: source.id || receipt.id,
+            confirm: true, receiptId: source.id || receipt.id, voidReceiptId: voidRecordId,
             zReportNumber,
             documentNumber,
             fiscalReceiptDate,
@@ -8407,7 +8411,7 @@
         const voidAddInfo = result.addInfo || {};
         const voidReceipt = {
           ...structuredClone(source),
-          id: `${source.id || receipt.id}-void-${Date.now()}`,
+          id: voidRecordId,
           operationType: "void",
           originalReceiptId: source.id || receipt.id,
           status: "void",

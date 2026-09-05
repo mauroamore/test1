@@ -192,13 +192,18 @@ public class RestaurantOperationsService : WebService
                 if (!File.Exists(fullPath))
                 {
                     var pdfDirectory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts");
-                    var fileName = Path.GetFileName(relativePath);
-                    var candidates = Directory.Exists(pdfDirectory) && !String.IsNullOrWhiteSpace(fileName)
-                        ? Directory.GetFiles(pdfDirectory, fileName, SearchOption.AllDirectories)
-                        : new string[0];
-                    if (candidates.Length > 0) fullPath = candidates[candidates.Length - 1];
+                    var fileName = copy.ContainsKey("fileName") ? Convert.ToString(copy["fileName"]) : Path.GetFileName(relativePath);
+                    var safeId = receiptId.Replace("/", "_").Replace("\\", "_");
+                    var expectedFileName = String.IsNullOrWhiteSpace(fileName) ? "" : safeId + "-" + Path.GetFileName(fileName);
+                    if (!String.IsNullOrWhiteSpace(expectedFileName))
+                        fullPath = Path.Combine(pdfDirectory, expectedFileName);
                 }
-                if (!File.Exists(fullPath)) return serializer.Serialize(new { ok = false, error = "File PDF non trovato. Percorso registrato: " + remotePath + "; file cercato: " + Path.GetFileName(relativePath) });
+                if (!File.Exists(fullPath))
+                {
+                    var registeredName = Path.GetFileName(relativePath);
+                    var copyName = copy.ContainsKey("fileName") ? Convert.ToString(copy["fileName"]) : "";
+                    return serializer.Serialize(new { ok = false, error = "File PDF non trovato. Percorso registrato: " + remotePath + "; nome nel record: " + copyName + "; nome cercato: " + registeredName });
+                }
                 return serializer.Serialize(new { ok = true, fileName = Path.GetFileName(fullPath), contentBase64 = Convert.ToBase64String(File.ReadAllBytes(fullPath)) });
             }
         }

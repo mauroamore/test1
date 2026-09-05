@@ -4273,6 +4273,7 @@
         payment: structuredClone(row),
         request: structuredClone(fiscal.request || {}),
         response: { addInfo: structuredClone(fiscal.addInfo || {}), raw: fiscal.raw || "" },
+        electronicCopy: structuredClone(fiscal.electronicCopy || null),
         orderItems: structuredClone(fiscal.orderItems || order.items || [])
       };
       state.fiscalReceipts.unshift(storedReceipt);

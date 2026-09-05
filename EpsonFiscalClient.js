@@ -226,7 +226,24 @@ async function setPaperAndDigitalNextReceipt(host, { operator = "1", ...options 
 
 // 1387/01 returns the authoritative identity of the last emitted document.
 function decodeLastDocumentStatus(result) {
-  const data = String(result && (result.addInfo && (result.addInfo.responseData || result.addInfo.data) || result.responseData || "") || "").replace(/\s+/g, "");
+  const raw = String(result && result.raw || "");
+  const rawValue = tag => {
+    const match = raw.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
+    return match ? match[1] : "";
+  };
+  const attrValue = tag => {
+    const match = raw.match(new RegExp(`${tag}\\s*=\\s*["']([^"']*)["']`, "i"));
+    return match ? match[1] : "";
+  };
+  const data = String(
+    result && (
+      result.responseData ||
+      (result.addInfo && (result.addInfo.responseData || result.addInfo.data)) ||
+      rawValue("responseData") || rawValue("data") ||
+      attrValue("responseData") || attrValue("data") ||
+      (Array.isArray(result.lines) ? result.lines.join("") : "")
+    ) || ""
+  ).replace(/\s+/g, "");
   if (data.length < 36) return null;
   return {
     operator: data.slice(0, 2),

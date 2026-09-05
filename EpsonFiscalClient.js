@@ -273,7 +273,16 @@ function buildEReceiptPdfUrl(host, document) {
   if (date.length !== 6) return null;
   const day = date.slice(0, 2), month = date.slice(2, 4), year = date.slice(4, 6);
   const yyyyMMdd = `20${year}${month}${day}`;
-  const serial = encodeURIComponent(String(d.printerSerialNumber).trim());
+  // Il payload 1387 può contenere un byte di riempimento finale nel campo
+  // matricola. L'addInfo XML restituisce invece la matricola canonica usata
+  // nel nome del file sull'Epson.
+  const serialValue = document && document.addInfo && document.addInfo.serialNumber
+    ? document.addInfo.serialNumber
+    : d.printerSerialNumber;
+  const serialText = String(serialValue).trim();
+  const serial = encodeURIComponent(document && document.addInfo && document.addInfo.serialNumber
+    ? serialText
+    : (serialText.length > 12 && serialText.endsWith("0") ? serialText.slice(0, -1) : serialText));
   const z = String(d.zReportNumber).replace(/\D/g, "");
   const n = String(d.documentNumber).replace(/\D/g, "").padStart(4, "0");
   return `http://${host}/www/dati-rt/e-receipt/${yyyyMMdd}/${serial}-${yyyyMMdd}T${time}-Z${z}-N${n}-E_RECEIPT.pdf`;

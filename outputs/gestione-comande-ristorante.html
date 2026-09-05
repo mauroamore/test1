@@ -4192,12 +4192,15 @@
         try {
           const fiscalRecordId = crypto.randomUUID ? crypto.randomUUID() : `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`;
           const fiscalRequest = fiscalReceiptForPayment(row, fiscalRecordId);
+          const fiscalStartedAt = performance.now();
+          logPaymentFlow("fiscal_request_start", { recordId: fiscalRecordId, amount: fiscalRequest.payment?.amount || null });
           const response = await fetch("/api/fiscal-printer/receipt", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(fiscalRequest)
           });
           const result = await response.json();
+          logPaymentFlow("fiscal_response", { recordId: fiscalRecordId, httpStatus: response.status, ok: response.ok && result.ok === true, elapsedMs: Math.round(performance.now() - fiscalStartedAt), error: result.error || null });
           if (!response.ok || !result.ok) {
             const error = new Error(result.error || "Emissione fiscale non riuscita");
             error.outcomeUncertain = result.outcomeUncertain === true;

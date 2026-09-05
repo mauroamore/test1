@@ -1528,6 +1528,8 @@ const server = http.createServer((request, response) => {
     request.on("end", async () => {
       try {
         const input = JSON.parse(body || "{}");
+        const paymentStartedAt = Date.now();
+        appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_receipt_start", receiptId: input.receiptId || null })}\n`);
         const orderId = String(input.orderId || "");
         const amountCents = Math.round(Number(input.amountCents));
         if (!orderId || !Number.isInteger(amountCents) || amountCents < 1) {
@@ -1748,12 +1750,14 @@ const server = http.createServer((request, response) => {
             devid: printer.devid || "local_printer",
             signal: controller.signal
           });
+          appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_emission_mode_done", receiptId: input.receiptId || null, elapsedMs: Date.now() - paymentStartedAt, ok: emissionMode.success })}\n`);
           if (!emissionMode.success) throw new Error(`Impostazione carta + digitale rifiutata: ${emissionMode.code || "errore stampante"}`);
           const result = await epsonFiscal.printFiscalReceipt(printer.host, receipt, {
             port,
             devid: printer.devid || "local_printer",
             signal: controller.signal
           });
+          appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_print_done", receiptId: input.receiptId || null, elapsedMs: Date.now() - paymentStartedAt, ok: result.success, code: result.code || null })}\n`);
           let electronicCopy = null;
           if (result.success) {
             try {

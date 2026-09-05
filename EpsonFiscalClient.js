@@ -328,7 +328,14 @@ async function downloadEReceiptPdf(host, document, { attempts = 8, delayMs = 100
     if (indexResponse.ok) {
       const html = await indexResponse.text();
       const names = [...html.matchAll(/href=["']([^"']+\.pdf)["']/gi)].map(match => decodeURIComponent(match[1]));
-      const match = names.find(name => name.includes(serial) && name.includes(`${yyyyMMdd}T${time}`) && name.includes(`Z${z}`) && name.includes(`N${n}`));
+      // La data serve per individuare la cartella; dentro la cartella il
+      // riferimento affidabile e' il numero documento Nxxxx. Gli altri dati
+      // aiutano a disambiguare, ma non devono impedire il recupero se il
+      // firmware omette o altera matricola/ora nel payload 1387.
+      const documentMatches = names.filter(name => name.includes(`N${n}`));
+      const match = documentMatches.find(name => name.includes(`${yyyyMMdd}T${time}`) && name.includes(`Z${z}`))
+        || documentMatches.find(name => name.includes(`Z${z}`))
+        || documentMatches[0];
       if (match) {
         const fallback = await tryDownload(`${indexUrl}${encodeURIComponent(match)}`);
         if (fallback.buffer) return fallback;

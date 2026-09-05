@@ -8411,10 +8411,18 @@
         };
         delete voidReceipt.voidCopy;
         state.fiscalReceipts = [voidReceipt, ...state.fiscalReceipts.filter(item => item.id !== voidReceipt.id)];
-        await Promise.all([
+        const saveResponses = await Promise.all([
           fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source) }),
           fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(voidReceipt) })
         ]);
+        for (const saveResponse of saveResponses) {
+          if (!saveResponse.ok) throw new Error(`Salvataggio storico fallito (HTTP ${saveResponse.status})`);
+        }
+        const syncResponse = await fetch("/api/fiscal-receipts/sync-status", { cache: "no-store" });
+        const syncPayload = await syncResponse.json();
+        if (!syncResponse.ok || syncPayload.synchronized === false) {
+          throw new Error(syncPayload.error || "Sincronizzazione storico non completata");
+        }
         const refreshQuery = new URLSearchParams();
         const refreshYear = document.getElementById("fiscalHistoryYear")?.value;
         const refreshFrom = document.getElementById("fiscalHistoryFrom")?.value;

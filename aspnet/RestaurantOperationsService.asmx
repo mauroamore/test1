@@ -153,12 +153,12 @@ public class RestaurantOperationsService : WebService
             if (String.IsNullOrWhiteSpace(id) || String.IsNullOrWhiteSpace(fileName) || String.IsNullOrWhiteSpace(base64))
                 return serializer.Serialize(new { ok = false, error = "PDF payload incompleto." });
             var bytes = Convert.FromBase64String(base64);
-            var directory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts");
+            var directory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts2");
             Directory.CreateDirectory(directory);
             var storedName = id.Replace("/", "_").Replace("\\", "_") + "-" + fileName;
             var fullPath = Path.Combine(directory, storedName);
             File.WriteAllBytes(fullPath, bytes);
-            return serializer.Serialize(new { ok = true, path = "/App_Data/FiscalReceipts/" + storedName, size = bytes.Length });
+            return serializer.Serialize(new { ok = true, path = "/App_Data/FiscalReceipts2/" + storedName, size = bytes.Length });
         }
         catch (Exception ex) { return serializer.Serialize(new { ok = false, error = ex.Message }); }
     }
@@ -191,7 +191,7 @@ public class RestaurantOperationsService : WebService
                 var fullPath = HttpContext.Current.Server.MapPath("~/" + relativePath);
                 if (!File.Exists(fullPath))
                 {
-                    var pdfDirectory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts");
+                    var pdfDirectory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts2");
                     var fileName = copy.ContainsKey("fileName") ? Convert.ToString(copy["fileName"]) : Path.GetFileName(relativePath);
                     var safeId = receiptId.Replace("/", "_").Replace("\\", "_");
                     var cleanFileName = String.IsNullOrWhiteSpace(fileName) ? "" : Path.GetFileName(fileName);
@@ -200,6 +200,13 @@ public class RestaurantOperationsService : WebService
                         var plainPath = Path.Combine(pdfDirectory, cleanFileName);
                         var prefixedPath = Path.Combine(pdfDirectory, safeId + "-" + cleanFileName);
                         fullPath = File.Exists(plainPath) ? plainPath : prefixedPath;
+                        if (!File.Exists(fullPath))
+                        {
+                            var oldDirectory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts");
+                            var oldPlainPath = Path.Combine(oldDirectory, cleanFileName);
+                            var oldPrefixedPath = Path.Combine(oldDirectory, safeId + "-" + cleanFileName);
+                            fullPath = File.Exists(oldPlainPath) ? oldPlainPath : oldPrefixedPath;
+                        }
                     }
                 }
                 byte[] fileBytes;

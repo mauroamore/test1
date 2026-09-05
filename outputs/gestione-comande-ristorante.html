@@ -8380,7 +8380,23 @@
             voidCopy: structuredClone(result.electronicCopy)
           };
         }
-        fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) }).catch(() => {});
+        const voidReceipt = {
+          ...structuredClone(receipt),
+          id: `${receipt.id}-void-${Date.now()}`,
+          operationType: "void",
+          originalReceiptId: receipt.id,
+          status: "voided",
+          emittedAt: new Date().toISOString(),
+          voidedAt: receipt.voidedAt,
+          voidReason: reason,
+          voidResponse: structuredClone(result),
+          electronicCopy: structuredClone(result.electronicCopy || null)
+        };
+        delete voidReceipt.voidCopy;
+        await Promise.all([
+          fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) }),
+          fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(voidReceipt) })
+        ]);
         saveState();
         document.getElementById("fiscalVoidModal").close();
         renderFiscalReceipts();

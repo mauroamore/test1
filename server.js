@@ -1790,7 +1790,9 @@ const server = http.createServer((request, response) => {
               if (pdf.buffer) {
                 fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
                 const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;
-                const fileName = `fiscal-${Date.now()}-void-${String(documentNumber || "document").replace(/\D/g, "")}.pdf`;
+                const safeReceiptId = String(input.receiptId || "receipt")
+                  .replace(/[^a-zA-Z0-9_-]/g, "_");
+                const fileName = `fiscal-${safeReceiptId}-void-${String(documentNumber || "document").replace(/\D/g, "")}.pdf`;
                 const localFile = path.join(FISCAL_RECEIPT_PDF_DIR, fileName);
                 fs.writeFileSync(localFile, pdf.buffer);
                 electronicCopy = { fileName, localFile, sourceUrl: pdf.url, size: pdf.buffer.length, status: "pending" };

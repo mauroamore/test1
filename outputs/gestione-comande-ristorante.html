@@ -8272,12 +8272,9 @@
       const allReceipts = Array.isArray(state.fiscalReceipts) ? state.fiscalReceipts : [];
       const from = document.getElementById("fiscalHistoryFrom")?.value;
       const to = document.getElementById("fiscalHistoryTo")?.value;
-      const receipts = allReceipts.filter(receipt => {
-        const value = receipt.emittedAt || `${receipt.fiscalReceiptDate || ""}T${receipt.fiscalReceiptTime || "00:00:00"}`;
-        if (from && value < from) return false;
-        if (to && value > to) return false;
-        return true;
-      });
+      // Il backend applica gia' i filtri temporali alla query remota. Non
+      // rifiltrare qui: emittedAt e' UTC, mentre gli input del modal sono locali.
+      const receipts = allReceipts;
       root.innerHTML = `<div style="overflow:auto"><table class="fiscal-receipts-table"><thead><tr><th>Documento</th><th>Data</th><th>Ordine / tavolo</th><th>Importo</th><th>Pagamento</th><th>Stato</th><th>Azioni</th></tr></thead><tbody></tbody></table></div>`;
       const body = root.querySelector("tbody");
       if (!receipts.length) {

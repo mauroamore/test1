@@ -192,9 +192,9 @@ public class RestaurantOperationsService : WebService
                 if (!File.Exists(fullPath))
                 {
                     var pdfDirectory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts");
-                    var safeId = receiptId.Replace("/", "_").Replace("\\", "_");
-                    var candidates = Directory.Exists(pdfDirectory)
-                        ? Directory.GetFiles(pdfDirectory, safeId + "-*.pdf")
+                    var fileName = Path.GetFileName(relativePath);
+                    var candidates = Directory.Exists(pdfDirectory) && !String.IsNullOrWhiteSpace(fileName)
+                        ? Directory.GetFiles(pdfDirectory, fileName, SearchOption.AllDirectories)
                         : new string[0];
                     if (candidates.Length > 0) fullPath = candidates[candidates.Length - 1];
                 }

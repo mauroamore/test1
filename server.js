@@ -229,6 +229,26 @@ async function syncPendingFiscalReceipts() {
     if (!status || status.status !== "synced") await syncFiscalReceipt(receipt);
   }
 }
+
+async function loadFiscalReceiptHistory() {
+  if (!RESTAURANT_OPERATIONS_KEY) throw new Error("Restaurant operations key not configured");
+  const response = await fetch(`${RESTAURANT_OPERATIONS_URL}/GetFiscalReceipts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      Accept: "application/json",
+      "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY
+    },
+    body: "{}"
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const parsed = unwrapAspNetJson(JSON.parse(raw));
+  if (!parsed || parsed.ok !== true || !Array.isArray(parsed.receipts)) {
+    throw new Error(parsed && parsed.error || "Remote history load failed");
+  }
+  return parsed.receipts;
+}
 if (sharedState && persistedConfig) {
   sharedState.room = persistedConfig.room || sharedState.room;
   sharedState.settings = persistedConfig.settings || sharedState.settings;
@@ -1640,7 +1660,16 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
-  if (request.url === "/api/fiscal-receipts" && request.method === "GET") return sendJson(response, 200, { receipts: fiscalReceipts });
+  if (request.url === "/api/fiscal-receipts" && request.method === "GET") {
+    loadFiscalReceiptHistory()
+      .then(remoteReceipts => {
+        const remoteIds = new Set(remoteReceipts.map(receipt => String(receipt.id)));
+        const pendingLocal = fiscalReceipts.filter(receipt => !remoteIds.has(String(receipt.id)));
+        sendJson(response, 200, { receipts: [...pendingLocal, ...remoteReceipts], source: "database" });
+      })
+      .catch(() => sendJson(response, 200, { receipts: fiscalReceipts, source: "local-fallback" }));
+    return;
+  }
   if (request.url === "/api/fiscal-receipts" && request.method === "POST") {
     let body = "";
     request.on("data", chunk => { body += chunk; if (body.length > 256 * 1024) request.destroy(); });

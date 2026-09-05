@@ -8417,11 +8417,10 @@
         ]);
         for (const saveResponse of saveResponses) {
           if (!saveResponse.ok) throw new Error(`Salvataggio storico fallito (HTTP ${saveResponse.status})`);
-        }
-        const syncResponse = await fetch("/api/fiscal-receipts/sync-status", { cache: "no-store" });
-        const syncPayload = await syncResponse.json();
-        if (!syncResponse.ok || syncPayload.synchronized === false) {
-          throw new Error(syncPayload.error || "Sincronizzazione storico non completata");
+          const savePayload = await saveResponse.json();
+          if (savePayload.synchronized === false) {
+            throw new Error(savePayload.sync?.error || "Sincronizzazione storico non completata");
+          }
         }
         const refreshQuery = new URLSearchParams();
         const refreshYear = document.getElementById("fiscalHistoryYear")?.value;

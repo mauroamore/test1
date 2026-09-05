@@ -1846,8 +1846,13 @@ const server = http.createServer((request, response) => {
           status: "pending"
         };
         persistFiscalReceiptSync();
-        syncFiscalReceipt(receipt).catch(() => {});
-        return sendJson(response, 200, { ok: true, receipt, sync: fiscalReceiptSync[String(receipt.id)] });
+        const synchronized = await syncFiscalReceipt(receipt);
+        return sendJson(response, 200, {
+          ok: true,
+          receipt,
+          synchronized,
+          sync: fiscalReceiptSync[String(receipt.id)]
+        });
       } catch (error) { return sendJson(response, 400, { ok: false, error: error.message }); }
     });
     return;

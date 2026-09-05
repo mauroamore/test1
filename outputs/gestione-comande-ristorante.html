@@ -2888,7 +2888,7 @@
     <div class="modal-content">
       <div class="small" style="margin-bottom:12px">Gli estremi vengono conservati per consentire il controllo, l'annullo e la successiva riemissione.</div>
       <div class="row" style="align-items:end;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-        <label>Anno<input id="fiscalHistoryYear" type="number" min="2000" max="2100" step="1" required></label>
+        <label>Anno<select id="fiscalHistoryYear" required></select></label>
         <label>Da<input id="fiscalHistoryFrom" type="datetime-local"></label>
         <label>A<input id="fiscalHistoryTo" type="datetime-local"></label>
         <button class="secondary" id="fiscalHistoryFilterBtn" type="button">Filtra</button>
@@ -8284,7 +8284,17 @@
     function setDefaultFiscalHistoryFilters() {
       const now = new Date();
       const yearInput = document.getElementById("fiscalHistoryYear");
-      if (!yearInput.value) yearInput.value = now.getFullYear();
+      const currentYear = now.getFullYear();
+      const firstYear = 2026;
+      if (!yearInput.options.length) {
+        for (let year = currentYear; year >= firstYear; year -= 1) {
+          const option = document.createElement("option");
+          option.value = String(year);
+          option.textContent = String(year);
+          yearInput.appendChild(option);
+        }
+      }
+      if (!yearInput.value) yearInput.value = String(currentYear);
     }
 
     let pendingFiscalVoidReceipt = null;

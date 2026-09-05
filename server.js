@@ -1301,7 +1301,7 @@ const server = http.createServer((request, response) => {
   if (request.url === "/api/state" && request.method === "POST") {
     let body = "";
     request.on("data", chunk => body += chunk);
-    request.on("end", () => {
+    request.on("end", async () => {
       try {
         // Il browser invia sempre l'intero stato. Per deliveryOrders serve un merge, non una
         // sostituzione secca in nessuna delle due direzioni: gli ordini che il browser gia'
@@ -1312,6 +1312,8 @@ const server = http.createServer((request, response) => {
         const incomingState = parsedBody.state || parsedBody;
         const resetDeliveryOrders = parsedBody.resetDeliveryOrders === true;
         if (resetDeliveryOrders) {
+          // Ritenta subito gli scontrini falliti prima di decidere se il reset e' sicuro.
+          await syncPendingFiscalReceipts();
           const pendingFiscalReceipts = fiscalReceipts.filter(receipt => {
             const sync = fiscalReceiptSync[String(receipt.id)];
             return !sync || sync.status !== "synced";
@@ -1700,20 +1702,22 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/fiscal-receipts/sync-status" && request.method === "GET") {
-    const pending = fiscalReceipts.filter(receipt => {
-      const sync = fiscalReceiptSync[String(receipt.id)];
-      return !sync || sync.status !== "synced";
-    });
-    return sendJson(response, 200, {
-      ok: true,
-      synchronized: pending.length === 0,
-      pending: pending.map(receipt => receipt.id)
+    return syncPendingFiscalReceipts().then(() => {
+      const pending = fiscalReceipts.filter(receipt => {
+        const sync = fiscalReceiptSync[String(receipt.id)];
+        return !sync || sync.status !== "synced";
+      });
+      sendJson(response, 200, {
+        ok: true,
+        synchronized: pending.length === 0,
+        pending: pending.map(receipt => receipt.id)
+      });
     });
   }
   if (request.url === "/api/fiscal-receipts" && request.method === "POST") {
     let body = "";
     request.on("data", chunk => { body += chunk; if (body.length > 256 * 1024) request.destroy(); });
-    request.on("end", () => {
+    request.on("end", async () => {
       try {
         const receipt = JSON.parse(body || "{}");
         if (!receipt.id || !receipt.emittedAt) return sendJson(response, 400, { ok: false, error: "Scontrino non valido" });

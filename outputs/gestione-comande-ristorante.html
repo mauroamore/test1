@@ -3713,13 +3713,21 @@
       const body = { state };
       if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
       if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
+      if (paymentOrderId != null) logPaymentFlow("state_save_start", { status: findOrderById(paymentOrderId)?.status || null, stateRevision: state.stateRevision || 0 });
       return fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-        .then(response => { if (response.status === 409) syncFromServer(); return response; })
+        .then(response => {
+          if (paymentOrderId != null) logPaymentFlow("state_save_response", { httpStatus: response.status, ok: response.ok, stateRevision: state.stateRevision || 0 });
+          if (response.status === 409) syncFromServer();
+          return response;
+        })
         .catch(() => {});
     }
 
     async function syncFromServer() {
-      if (paymentSyncPaused) return;
+      if (paymentSyncPaused) {
+        logPaymentFlow("poll_skipped");
+        return;
+      }
       try {
         const response = await fetch(REMOTE_MODE
           ? `${REMOTE_SYNC_URL}?mode=state&key=${encodeURIComponent(REMOTE_KEY)}`
@@ -4029,6 +4037,13 @@
     let paymentTip = "0";
     let fiscalPaymentInProgress = false;
     let paymentSyncPaused = false;
+    function logPaymentFlow(event, details = {}) {
+      fetch("/api/payment-flow-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event, paymentOrderId, paymentSyncPaused, ...details })
+      }).catch(() => {});
+    }
     const paymentMethods = ["Contanti", "Carta", "Bancomat", "Buono", "Bonifico", "Altro"];
 
     function paymentCents(value) {
@@ -4414,6 +4429,7 @@
       if (order && order.status === "Pagato") return;
       if (!order) return;
       paymentSyncPaused = true;
+      logPaymentFlow("payment_modal_open", { orderStatus: order.status, tableId: order.tableId || order.id });
       const isNewOrder = paymentOrderId !== order.id;
       const hasSavedPartialPayment = order.paymentStatus === "partial" && order.payment;
       paymentOrderId = order.id;
@@ -4499,6 +4515,7 @@
     async function finalizePaidOrder() {
       const order = findOrderById(paymentOrderId);
       if (!order) return;
+      logPaymentFlow("payment_finalize_start", { orderStatus: order.status, tableId: order.tableId || order.id });
       state.history.unshift({ ...structuredClone(order), closedAt: new Date().toISOString(), total: paymentDueCents(order) / 100, discount: paymentDiscount, discountType: paymentDiscountType, tip: paymentTip, payments: structuredClone(paymentRows) });
       const wasExternal = Boolean(order.source);
       const externalId = order.id;
@@ -4546,7 +4563,8 @@
         latestHistory.payment = structuredClone(order.payment);
       }
       await finishReservationForOrder(order);
-      await saveState();
+      const saveResponse = await saveState();
+      logPaymentFlow("payment_finalize_saved", { orderStatus: order.status, httpStatus: saveResponse?.status || null, ok: saveResponse?.ok ?? null });
       document.getElementById("paymentModal").close();
       render();
       closeOrderModal();
@@ -8213,6 +8231,7 @@
     });
     document.getElementById("paymentCloseBtn").addEventListener("click", () => document.getElementById("paymentModal").close());
     document.getElementById("paymentModal").addEventListener("close", () => {
+      logPaymentFlow("payment_modal_close", { orderStatus: findOrderById(paymentOrderId)?.status || null });
       paymentSyncPaused = false;
       setTimeout(() => syncFromServer().then(() => refreshReservations()), 0);
     });

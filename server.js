@@ -78,6 +78,7 @@ const HUBRISE_POLL_INTERVAL_MS = Number(process.env.HUBRISE_POLL_INTERVAL_MS || 
 const SIGONELLA_ORDERS_URL = process.env.SIGONELLA_ORDERS_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/GetOrders`;
 const SIGONELLA_ORDERS_INTERVAL_MS = Number(process.env.SIGONELLA_ORDERS_INTERVAL_MS || 10000);
 const SIGONELLA_ORDERS_LOG = path.join(ROOT, "sigonella-orders.log");
+const PAYMENT_FLOW_LOG = path.join(ROOT, "payment-flow.log");
 const SIGONELLA_MENU_URL = process.env.SIGONELLA_MENU_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/GetMenu`;
 const SIGONELLA_UPDATE_ORDER_URL = process.env.SIGONELLA_UPDATE_ORDER_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/UpdateConfirmedOrder`;
 const POS_SERVICE_URL = process.env.POS_SERVICE_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx`;
@@ -1135,6 +1136,20 @@ const server = http.createServer((request, response) => {
     return response.end();
   }
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
+  if (request.url === "/api/payment-flow-log" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => {
+      body += chunk;
+      if (body.length > 16 * 1024) request.destroy();
+    });
+    request.on("end", () => {
+      try {
+        appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify(JSON.parse(body || "{}"))}\n`);
+        sendJson(response, 204, {});
+      } catch (error) { sendJson(response, 400, { ok: false, error: error.message }); }
+    });
+    return;
+  }
   if (request.url === "/api/table-locks" && request.method === "GET") {
     const now = Date.now();
     const locks = {};

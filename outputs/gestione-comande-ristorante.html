@@ -8374,6 +8374,12 @@
         receipt.voidedAt = new Date().toISOString();
         receipt.voidReason = reason;
         receipt.voidResponse = result;
+        if (result.electronicCopy) {
+          receipt.electronicCopy = {
+            ...(receipt.electronicCopy || {}),
+            voidCopy: structuredClone(result.electronicCopy)
+          };
+        }
         fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) }).catch(() => {});
         saveState();
         document.getElementById("fiscalVoidModal").close();

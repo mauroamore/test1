@@ -202,13 +202,12 @@ public class RestaurantOperationsService : WebService
                         fullPath = File.Exists(plainPath) ? plainPath : prefixedPath;
                     }
                 }
-                if (!File.Exists(fullPath))
-                {
-                    var registeredName = Path.GetFileName(relativePath);
-                    var copyName = copy.ContainsKey("fileName") ? Convert.ToString(copy["fileName"]) : "";
-                    return serializer.Serialize(new { ok = false, error = "File PDF non trovato. Percorso registrato: " + remotePath + "; nome nel record: " + copyName + "; nome cercato: " + registeredName });
-                }
-                return serializer.Serialize(new { ok = true, fileName = Path.GetFileName(fullPath), contentBase64 = Convert.ToBase64String(File.ReadAllBytes(fullPath)) });
+                byte[] fileBytes;
+                try { fileBytes = File.ReadAllBytes(fullPath); }
+                catch (UnauthorizedAccessException) { return serializer.Serialize(new { ok = false, error = "Accesso negato al PDF: " + fullPath }); }
+                catch (FileNotFoundException) { return serializer.Serialize(new { ok = false, error = "File PDF non trovato: " + fullPath }); }
+                catch (DirectoryNotFoundException) { return serializer.Serialize(new { ok = false, error = "Cartella PDF non trovata: " + fullPath }); }
+                return serializer.Serialize(new { ok = true, fileName = Path.GetFileName(fullPath), contentBase64 = Convert.ToBase64String(fileBytes) });
             }
         }
         catch (Exception ex) { return serializer.Serialize(new { ok = false, error = ex.Message }); }

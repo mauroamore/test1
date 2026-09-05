@@ -165,6 +165,10 @@ function persistFiscalReceiptSync() {
 
 function fiscalReceiptRemotePayload(receipt) {
   const payment = receipt.payment && typeof receipt.payment === "object" ? receipt.payment : {};
+  const fiscalDate = receipt.fiscalReceiptDate || (receipt.fiscal && receipt.fiscal.fiscalReceiptDate) || null;
+  const normalizedFiscalDate = fiscalDate && /^\d{4}-\d{2}-\d{2}$/.test(String(fiscalDate))
+    ? `${String(fiscalDate).slice(8, 10)}/${String(fiscalDate).slice(5, 7)}/${String(fiscalDate).slice(0, 4)}`
+    : fiscalDate;
   return {
     ...receipt,
     restaurantId: receipt.restaurantId || "thai-princess",
@@ -174,7 +178,7 @@ function fiscalReceiptRemotePayload(receipt) {
       documentNumber: receipt.documentNumber || null,
       receiptNumber: receipt.receiptNumber || null,
       zReportNumber: receipt.zReportNumber || null,
-      fiscalReceiptDate: receipt.fiscalReceiptDate || null,
+      fiscalReceiptDate: normalizedFiscalDate,
       fiscalReceiptTime: receipt.fiscalReceiptTime || null,
       rtSerialNumber: receipt.rtSerialNumber || null
     },

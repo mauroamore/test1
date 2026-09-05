@@ -239,31 +239,6 @@ async function syncFiscalReceipt(receipt) {
       const index = fiscalReceipts.findIndex(item => String(item.id) === id);
       if (index >= 0) { fiscalReceipts[index] = receipt; persistFiscalReceipts(); }
     }
-    const voidCopy = receipt.electronicCopy && receipt.electronicCopy.voidCopy;
-    let remoteVoidPdf = voidCopy && voidCopy.remotePath;
-    if (!remoteVoidPdf && voidCopy && voidCopy.localFile && fs.existsSync(voidCopy.localFile)) {
-      const pdf = fs.readFileSync(voidCopy.localFile);
-      const uploadResponse = await fetch(`${RESTAURANT_OPERATIONS_URL}/SaveFiscalReceiptPdf`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          Accept: "application/json",
-          "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY
-        },
-        body: JSON.stringify({ data: JSON.stringify({
-          id: `${id}-void`, fileName: voidCopy.fileName || `${id}-void.pdf`,
-          contentBase64: pdf.toString("base64")
-        }) })
-      });
-      const uploadRaw = await uploadResponse.text();
-      if (!uploadResponse.ok) throw new Error(`Void PDF upload HTTP ${uploadResponse.status}`);
-      const upload = unwrapAspNetJson(JSON.parse(uploadRaw));
-      if (!upload || upload.ok !== true) throw new Error(upload && upload.error || "Remote void PDF upload failed");
-      remoteVoidPdf = upload.path;
-      receipt.electronicCopy.voidCopy.remotePath = remoteVoidPdf;
-      const index = fiscalReceipts.findIndex(item => String(item.id) === id);
-      if (index >= 0) { fiscalReceipts[index] = receipt; persistFiscalReceipts(); }
-    }
     const response = await fetch(`${RESTAURANT_OPERATIONS_URL}/SaveFiscalReceipt`, {
       method: "POST",
       headers: {
@@ -273,9 +248,7 @@ async function syncFiscalReceipt(receipt) {
       },
       body: JSON.stringify({ data: JSON.stringify({ ...fiscalReceiptRemotePayload(receipt), electronicCopy: {
         ...(receipt.electronicCopy || {}), remotePath: remotePdf || null,
-        voidCopy: receipt.electronicCopy && receipt.electronicCopy.voidCopy
-          ? { ...receipt.electronicCopy.voidCopy, remotePath: remoteVoidPdf || null }
-          : null
+        voidCopy: null
       } }) })
     });
     const raw = await response.text();

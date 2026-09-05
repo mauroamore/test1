@@ -1708,34 +1708,12 @@ const server = http.createServer((request, response) => {
             devid: printer.devid || "local_printer",
             signal: controller.signal
           });
-          let electronicCopy = null;
-          if (result.success) {
-            try {
-              const lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
-                operator, port, devid: printer.devid || "local_printer", signal: controller.signal
-              });
-              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { signal: controller.signal });
-              if (pdf.buffer) {
-                fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
-                const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;
-                const fileName = `fiscal-${Date.now()}-${String(documentNumber || "document").replace(/\D/g, "")}.pdf`;
-                const localFile = path.join(FISCAL_RECEIPT_PDF_DIR, fileName);
-                fs.writeFileSync(localFile, pdf.buffer);
-                electronicCopy = { fileName, localFile, sourceUrl: pdf.url, size: pdf.buffer.length, status: "pending" };
-              }
-            } catch (copyError) {
-              // La vendita è già stata emessa: non la trasformiamo in un falso errore.
-              electronicCopy = { status: "error", error: copyError.message };
-            }
-          }
           return sendJson(response, result.success ? 200 : 502, {
             ok: result.success,
             receiptId: input.receiptId,
             code: result.code,
             status: result.status,
             addInfo: result.addInfo,
-            electronicCopy,
-            emissionMode: { code: emissionMode.code, status: emissionMode.status },
             raw: result.raw || "",
             error: result.success ? "" : `La stampante ha risposto con codice ${result.code || "sconosciuto"}`
           });

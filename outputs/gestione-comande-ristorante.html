@@ -8361,14 +8361,23 @@
       const button = document.getElementById("fiscalVoidConfirmBtn");
       button.disabled = true;
       try {
+        const fiscal = receipt.fiscal || {};
+        const addInfo = receipt.response?.addInfo || receipt.voidResponse?.addInfo || {};
+        const zReportNumber = receipt.zReportNumber || fiscal.zReportNumber || fiscal.zRepNumber || addInfo.zReportNumber || addInfo.zRepNumber;
+        const documentNumber = receipt.receiptNumber || fiscal.receiptNumber || fiscal.fiscalReceiptNumber || addInfo.fiscalReceiptNumber || receipt.documentNumber;
+        const fiscalReceiptDate = receipt.fiscalReceiptDate || fiscal.fiscalReceiptDate || fiscal.date || addInfo.fiscalReceiptDate;
+        const rtSerialNumber = receipt.rtSerialNumber || receipt.serialNumber || fiscal.rtSerialNumber || fiscal.serialNumber || addInfo.rtSerialNumber || addInfo.serialNumber;
+        if (!zReportNumber || !documentNumber || !fiscalReceiptDate || !rtSerialNumber) {
+          throw new Error("Dati fiscali incompleti: impossibile determinare Z, documento, data e matricola RT");
+        }
         const response = await fetch("/api/fiscal-printer/void", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             confirm: true, receiptId: receipt.id,
-            zReportNumber: receipt.zReportNumber,
-            documentNumber: receipt.receiptNumber || receipt.documentNumber,
-            fiscalReceiptDate: receipt.fiscalReceiptDate,
-            rtSerialNumber: receipt.rtSerialNumber
+            zReportNumber,
+            documentNumber,
+            fiscalReceiptDate,
+            rtSerialNumber
           })
         });
         const result = await response.json();

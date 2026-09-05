@@ -273,6 +273,10 @@ function buildEReceiptPdfUrl(host, document) {
   if (date.length !== 6) return null;
   const day = date.slice(0, 2), month = date.slice(2, 4), year = date.slice(4, 6);
   const yyyyMMdd = `20${year}${month}${day}`;
+  if (d.pdfName) {
+    const pdfName = String(d.pdfName).trim().split(/[\\/]/).pop();
+    if (pdfName) return `http://${host}/www/dati-rt/e-receipt/${yyyyMMdd}/${encodeURIComponent(pdfName)}`;
+  }
   // Il payload 1387 può contenere un byte di riempimento finale nel campo
   // matricola. L'addInfo XML restituisce invece la matricola canonica usata
   // nel nome del file sull'Epson.

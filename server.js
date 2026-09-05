@@ -230,7 +230,7 @@ async function syncPendingFiscalReceipts() {
   }
 }
 
-async function loadFiscalReceiptHistory() {
+async function loadFiscalReceiptHistory(from, to) {
   if (!RESTAURANT_OPERATIONS_KEY) throw new Error("Restaurant operations key not configured");
   const response = await fetch(`${RESTAURANT_OPERATIONS_URL}/GetFiscalReceipts`, {
     method: "POST",
@@ -239,7 +239,7 @@ async function loadFiscalReceiptHistory() {
       Accept: "application/json",
       "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY
     },
-    body: "{}"
+    body: JSON.stringify({ from: from || "", to: to || "" })
   });
   const raw = await response.text();
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1680,8 +1680,9 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
-  if (request.url === "/api/fiscal-receipts" && request.method === "GET") {
-    loadFiscalReceiptHistory()
+  if (request.url.split("?")[0] === "/api/fiscal-receipts" && request.method === "GET") {
+    const historyUrl = new URL(request.url, "http://localhost");
+    loadFiscalReceiptHistory(historyUrl.searchParams.get("from"), historyUrl.searchParams.get("to"))
       .then(remoteReceipts => {
         const remoteIds = new Set(remoteReceipts.map(receipt => String(receipt.id)));
         const pendingLocal = fiscalReceipts.filter(receipt => !remoteIds.has(String(receipt.id)));

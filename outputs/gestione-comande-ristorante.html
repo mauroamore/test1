@@ -8263,7 +8263,12 @@
 
     async function openFiscalReceipts() {
       try {
-        const response = await fetch("/api/fiscal-receipts", { cache: "no-store" });
+        const from = document.getElementById("fiscalHistoryFrom").value;
+        const to = document.getElementById("fiscalHistoryTo").value;
+        const query = new URLSearchParams();
+        if (from) query.set("from", from);
+        if (to) query.set("to", to);
+        const response = await fetch(`/api/fiscal-receipts${query.toString() ? `?${query}` : ""}`, { cache: "no-store" });
         if (response.ok) {
           const payload = await response.json();
           if (Array.isArray(payload.receipts)) state.fiscalReceipts = payload.receipts;
@@ -8956,7 +8961,7 @@
     document.getElementById("historyCloseBtn").addEventListener("click", () => document.getElementById("historyModal").close());
     document.getElementById("fiscalReceiptsBtn").addEventListener("click", openFiscalReceipts);
     document.getElementById("fiscalReceiptsCloseBtn").addEventListener("click", () => document.getElementById("fiscalReceiptsModal").close());
-    document.getElementById("fiscalHistoryFilterBtn").addEventListener("click", renderFiscalReceipts);
+    document.getElementById("fiscalHistoryFilterBtn").addEventListener("click", openFiscalReceipts);
     document.getElementById("fiscalHistoryClearBtn").addEventListener("click", () => {
       document.getElementById("fiscalHistoryFrom").value = "";
       document.getElementById("fiscalHistoryTo").value = "";

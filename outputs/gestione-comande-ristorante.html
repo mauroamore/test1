@@ -8272,16 +8272,17 @@
         return;
       }
       receipts.forEach(receipt => {
-        const paymentMethod = receipt.payment?.method || receipt.payment?.description || "n/d";
-        const canReissue = receipt.operationType === "void" && receipt.status === "voided";
+        const record = receipt.data && typeof receipt.data === "object" ? receipt.data : receipt;
+        const paymentMethod = record.operationType === "void" ? "annullamento" : (record.payment?.method || record.payment?.description || "n/d");
+        const canReissue = record.operationType === "void" && record.status === "void";
         const row = document.createElement("tr");
-        row.innerHTML = `<td>${escapeHtml(receipt.documentNumber || "n/d")}</td>
-          <td>${escapeHtml(receipt.fiscalReceiptDate || "n/d")}</td>
-          <td>${escapeHtml(receipt.orderId ? `Ordine ${receipt.orderId}` : "n/d")}</td>
-          <td>${escapeHtml(receipt.amount || "n/d")}</td>
+        row.innerHTML = `<td>${escapeHtml(record.documentNumber || "n/d")}</td>
+          <td>${escapeHtml(record.fiscalReceiptDate || "n/d")}</td>
+          <td>${escapeHtml(record.orderId ? `Ordine ${record.orderId}` : "n/d")}</td>
+          <td>${escapeHtml(record.amount || "n/d")}</td>
           <td>${escapeHtml(paymentMethod)}</td>
-          <td>${escapeHtml(receipt.status || "issued")}</td>
-          <td><button class="secondary fiscal-void-btn" type="button" ${receipt.status !== "issued" ? "disabled" : ""} data-fiscal-id="${escapeHtml(receipt.id)}">Annulla</button> <button class="primary fiscal-reissue-btn" type="button" ${canReissue ? "" : "disabled"} data-fiscal-id="${escapeHtml(receipt.id)}">Riemetti</button></td>`;
+          <td>${escapeHtml(record.status || "issued")}</td>
+          <td><button class="secondary fiscal-void-btn" type="button" ${record.status !== "issued" ? "disabled" : ""} data-fiscal-id="${escapeHtml(receipt.id || record.id)}">Annulla</button> <button class="primary fiscal-reissue-btn" type="button" ${canReissue ? "" : "disabled"} data-fiscal-id="${escapeHtml(receipt.id || record.id)}">Riemetti</button></td>`;
         body.appendChild(row);
       });
     }
@@ -8374,7 +8375,7 @@
         const response = await fetch("/api/fiscal-printer/void", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            confirm: true, receiptId: receipt.id,
+            confirm: true, receiptId: source.id || receipt.id,
             zReportNumber,
             documentNumber,
             fiscalReceiptDate,
@@ -8383,25 +8384,25 @@
         });
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || "Annullo non confermato dalla stampante");
-        receipt.status = "voided";
-        receipt.voidedAt = new Date().toISOString();
-        receipt.voidReason = reason;
-        receipt.voidResponse = result;
+        source.status = "voided";
+        source.voidedAt = new Date().toISOString();
+        source.voidReason = reason;
+        source.voidResponse = result;
         if (result.electronicCopy) {
-          receipt.electronicCopy = {
-            ...(receipt.electronicCopy || {}),
+          source.electronicCopy = {
+            ...(source.electronicCopy || {}),
             voidCopy: structuredClone(result.electronicCopy)
           };
         }
         const voidAddInfo = result.addInfo || {};
         const voidReceipt = {
-          ...structuredClone(receipt),
-          id: `${receipt.id}-void-${Date.now()}`,
+          ...structuredClone(source),
+          id: `${source.id || receipt.id}-void-${Date.now()}`,
           operationType: "void",
-          originalReceiptId: receipt.id,
-          status: "voided",
+          originalReceiptId: source.id || receipt.id,
+          status: "void",
           emittedAt: new Date().toISOString(),
-          voidedAt: receipt.voidedAt,
+          voidedAt: source.voidedAt,
           voidReason: reason,
           voidResponse: structuredClone(result),
           electronicCopy: structuredClone(result.electronicCopy || null),
@@ -8409,7 +8410,7 @@
           fiscalReceiptDate: voidAddInfo.fiscalReceiptDate || "",
           fiscalReceiptTime: voidAddInfo.fiscalReceiptTime || "",
           zReportNumber: voidAddInfo.zRepNumber || "",
-          rtSerialNumber: voidAddInfo.serialNumber || receipt.rtSerialNumber || "",
+          rtSerialNumber: voidAddInfo.serialNumber || source.rtSerialNumber || "",
           documentNumber: voidAddInfo.zRepNumber && voidAddInfo.fiscalReceiptNumber
             ? `${voidAddInfo.zRepNumber}-${String(voidAddInfo.fiscalReceiptNumber).padStart(4, "0")}`
             : ""
@@ -8417,7 +8418,7 @@
         delete voidReceipt.voidCopy;
         state.fiscalReceipts = [voidReceipt, ...state.fiscalReceipts.filter(item => item.id !== voidReceipt.id)];
         await Promise.all([
-          fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) }),
+          fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source) }),
           fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(voidReceipt) })
         ]);
         saveState();

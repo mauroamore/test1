@@ -8295,6 +8295,12 @@
         }
       }
       if (!yearInput.value) yearInput.value = String(currentYear);
+      const from = document.getElementById("fiscalHistoryFrom");
+      const to = document.getElementById("fiscalHistoryTo");
+      if (!from.value && !to.value) {
+        from.value = `${yearInput.value}-01-01T00:00`;
+        to.value = `${yearInput.value}-12-31T23:59`;
+      }
     }
 
     let pendingFiscalVoidReceipt = null;
@@ -8984,11 +8990,17 @@
     });
     document.getElementById("fiscalReceiptsCloseBtn").addEventListener("click", () => document.getElementById("fiscalReceiptsModal").close());
     document.getElementById("fiscalHistoryFilterBtn").addEventListener("click", openFiscalReceipts);
+    document.getElementById("fiscalHistoryYear").addEventListener("change", event => {
+      document.getElementById("fiscalHistoryFrom").value = `${event.target.value}-01-01T00:00`;
+      document.getElementById("fiscalHistoryTo").value = `${event.target.value}-12-31T23:59`;
+      openFiscalReceipts();
+    });
     document.getElementById("fiscalHistoryClearBtn").addEventListener("click", () => {
-      document.getElementById("fiscalHistoryFrom").value = "";
-      document.getElementById("fiscalHistoryTo").value = "";
-      document.getElementById("fiscalHistoryYear").value = new Date().getFullYear();
-      renderFiscalReceipts();
+      const year = new Date().getFullYear();
+      document.getElementById("fiscalHistoryYear").value = String(year);
+      document.getElementById("fiscalHistoryFrom").value = `${year}-01-01T00:00`;
+      document.getElementById("fiscalHistoryTo").value = `${year}-12-31T23:59`;
+      openFiscalReceipts();
     });
     document.getElementById("fiscalVoidCloseBtn").addEventListener("click", () => document.getElementById("fiscalVoidModal").close());
     document.getElementById("fiscalVoidCancelBtn").addEventListener("click", () => document.getElementById("fiscalVoidModal").close());

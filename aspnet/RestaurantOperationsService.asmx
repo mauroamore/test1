@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Web;
 using System.Web.Script.Serialization;
 using System.Web.Script.Services;
 using System.Web.Services;
@@ -122,6 +124,32 @@ public class RestaurantOperationsService : WebService
         {
             return serializer.Serialize(new { ok = false, error = ex.Message });
         }
+    }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string SaveFiscalReceiptPdf(string data)
+    {
+        RequireKey();
+        try
+        {
+            if (String.IsNullOrWhiteSpace(data)) return serializer.Serialize(new { ok = false, error = "The PDF data is required." });
+            var payload = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }
+                .Deserialize<Dictionary<string, object>>(data);
+            var id = payload == null || !payload.ContainsKey("id") ? "" : Convert.ToString(payload["id"]);
+            var fileName = payload == null || !payload.ContainsKey("fileName") ? "" : Path.GetFileName(Convert.ToString(payload["fileName"]));
+            var base64 = payload == null || !payload.ContainsKey("contentBase64") ? "" : Convert.ToString(payload["contentBase64"]);
+            if (String.IsNullOrWhiteSpace(id) || String.IsNullOrWhiteSpace(fileName) || String.IsNullOrWhiteSpace(base64))
+                return serializer.Serialize(new { ok = false, error = "PDF payload incompleto." });
+            var bytes = Convert.FromBase64String(base64);
+            var directory = HttpContext.Current.Server.MapPath("~/App_Data/FiscalReceipts");
+            Directory.CreateDirectory(directory);
+            var storedName = id.Replace("/", "_").Replace("\\", "_") + "-" + fileName;
+            var fullPath = Path.Combine(directory, storedName);
+            File.WriteAllBytes(fullPath, bytes);
+            return serializer.Serialize(new { ok = true, path = "/App_Data/FiscalReceipts/" + storedName, size = bytes.Length });
+        }
+        catch (Exception ex) { return serializer.Serialize(new { ok = false, error = ex.Message }); }
     }
 
     [WebMethod]

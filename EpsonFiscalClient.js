@@ -219,6 +219,64 @@ async function printFiscalReceipt(host, { items, payment, operator = "1" }, opti
   return parseResponse(text);
 }
 
+// 1133: paper + electronic receipt for the next fiscal document.
+async function setPaperAndDigitalNextReceipt(host, { operator = "1", ...options } = {}) {
+  return sendCommand(host, `<directIO operator="${escapeXml(operator)}" command="1133" data="${escapeXml(String(operator).padStart(2, "0"))}0202" />`, options);
+}
+
+// 1387/01 returns the authoritative identity of the last emitted document.
+function decodeLastDocumentStatus(result) {
+  const data = String(result && (result.addInfo && (result.addInfo.responseData || result.addInfo.data) || result.responseData || "") || "").replace(/\s+/g, "");
+  if (data.length < 36) return null;
+  return {
+    operator: data.slice(0, 2),
+    totalDocumentAmountCents: data.slice(2, 11),
+    totalVatAmountCents: data.slice(11, 20),
+    date: data.slice(20, 26),
+    time: data.slice(26, 32),
+    zReportNumber: data.slice(32, 36),
+    documentNumber: data.slice(36, 40),
+    printerSerialNumber: data.slice(40, 52),
+    documentKind: data.slice(52, 54),
+    uuid: data.slice(54, 90).trim(),
+    pdfName: data.slice(90).trim()
+  };
+}
+
+async function readLastDocumentStatus(host, { operator = "1", ...options } = {}) {
+  const result = await sendCommand(host, `<directIO operator="${escapeXml(operator)}" command="1387" data="${escapeXml(String(operator).padStart(2, "0"))}" />`, options);
+  return { ...result, decoded: decodeLastDocumentStatus(result) };
+}
+
+function buildEReceiptPdfUrl(host, document) {
+  const d = document && document.decoded ? document.decoded : document;
+  if (!d || !d.date || !d.time || !d.zReportNumber || !d.documentNumber || !d.printerSerialNumber) return null;
+  const date = String(d.date).replace(/\D/g, "");
+  const time = String(d.time).replace(/\D/g, "").padEnd(6, "0").slice(0, 6);
+  if (date.length !== 6) return null;
+  const day = date.slice(0, 2), month = date.slice(2, 4), year = date.slice(4, 6);
+  const yyyyMMdd = `20${year}${month}${day}`;
+  const serial = encodeURIComponent(String(d.printerSerialNumber).trim());
+  const z = String(d.zReportNumber).replace(/\D/g, "");
+  const n = String(d.documentNumber).replace(/\D/g, "").padStart(4, "0");
+  return `http://${host}/www/dati-rt/e-receipt/${yyyyMMdd}/${serial}-${yyyyMMdd}T${time}-Z${z}-N${n}-E_RECEIPT.pdf`;
+}
+
+async function downloadEReceiptPdf(host, document, { attempts = 8, delayMs = 1000, signal } = {}) {
+  const url = buildEReceiptPdfUrl(host, document);
+  if (!url) return { url: null, buffer: null };
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { signal });
+      if (response.ok) return { url, buffer: Buffer.from(await response.arrayBuffer()), attempts: attempt };
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) { lastError = error; }
+    if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+  throw new Error(`PDF E-Receipt non disponibile (${url}): ${lastError ? lastError.message : "errore sconosciuto"}`);
+}
+
 function normalizeFiscalDate(value) {
   const text = String(value || "").trim();
   let match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
@@ -345,6 +403,11 @@ module.exports = {
   queryContentByDate,
   queryContentByNumbers,
   printFiscalReceipt,
+  setPaperAndDigitalNextReceipt,
+  readLastDocumentStatus,
+  decodeLastDocumentStatus,
+  buildEReceiptPdfUrl,
+  downloadEReceiptPdf,
   buildVoidFiscalReceiptXml,
   voidFiscalReceipt
   ,buildPcPosFrame,

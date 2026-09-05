@@ -64,6 +64,7 @@ const REMOTE_BASE_URL = (process.env.REMOTE_BASE_URL || "https://servizi.thaipri
 const STATE_FILE = path.join(ROOT, "ristorante-state.json");
 const FISCAL_RECEIPTS_FILE = path.join(ROOT, "fiscal-receipts.json");
 const FISCAL_RECEIPT_SYNC_FILE = path.join(ROOT, "fiscal-receipt-sync.json");
+const FISCAL_RECEIPT_PDF_DIR = path.join(ROOT, "fiscal-receipts-pdf");
 const MENU_CACHE_FILE = path.join(ROOT, "menu-cache.json");
 const CONFIG_FILE = path.join(ROOT, "restaurant-config.json");
 const PRINT_LOG = path.join(ROOT, "print-simulation.log");
@@ -165,6 +166,15 @@ function persistFiscalReceiptSync() {
 
 function fiscalReceiptRemotePayload(receipt) {
   const payment = receipt.payment && typeof receipt.payment === "object" ? receipt.payment : {};
+  const electronicCopy = receipt.electronicCopy && typeof receipt.electronicCopy === "object"
+    ? {
+      fileName: receipt.electronicCopy.fileName || null,
+      remotePath: receipt.electronicCopy.remotePath || null,
+      sourceUrl: receipt.electronicCopy.sourceUrl || null,
+      size: receipt.electronicCopy.size || null,
+      status: receipt.electronicCopy.status || null
+    }
+    : null;
   return {
     ...receipt,
     restaurantId: receipt.restaurantId || "thai-princess",
@@ -183,6 +193,7 @@ function fiscalReceiptRemotePayload(receipt) {
       method: payment.method || receipt.paymentMethod || null,
       amount: payment.amount || receipt.amount || null
     },
+    electronicCopy,
     status: receipt.status || "issued",
     emittedAt: receipt.emittedAt || new Date().toISOString()
   };
@@ -194,6 +205,31 @@ async function syncFiscalReceipt(receipt) {
   const current = fiscalReceiptSync[id] || {};
   if (current.status === "synced") return true;
   try {
+    let remotePdf = receipt.electronicCopy && receipt.electronicCopy.remotePath;
+    const localPdf = receipt.electronicCopy && receipt.electronicCopy.localFile;
+    if (!remotePdf && localPdf && fs.existsSync(localPdf)) {
+      const pdf = fs.readFileSync(localPdf);
+      const uploadResponse = await fetch(`${RESTAURANT_OPERATIONS_URL}/SaveFiscalReceiptPdf`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          Accept: "application/json",
+          "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY
+        },
+        body: JSON.stringify({ data: JSON.stringify({
+          id, fileName: receipt.electronicCopy.fileName || `${id}.pdf`,
+          contentBase64: pdf.toString("base64")
+        }) })
+      });
+      const uploadRaw = await uploadResponse.text();
+      if (!uploadResponse.ok) throw new Error(`PDF upload HTTP ${uploadResponse.status}`);
+      const upload = unwrapAspNetJson(JSON.parse(uploadRaw));
+      if (!upload || upload.ok !== true) throw new Error(upload && upload.error || "Remote PDF upload failed");
+      remotePdf = upload.path;
+      receipt.electronicCopy.remotePath = remotePdf;
+      const index = fiscalReceipts.findIndex(item => String(item.id) === id);
+      if (index >= 0) { fiscalReceipts[index] = receipt; persistFiscalReceipts(); }
+    }
     const response = await fetch(`${RESTAURANT_OPERATIONS_URL}/SaveFiscalReceipt`, {
       method: "POST",
       headers: {
@@ -201,7 +237,9 @@ async function syncFiscalReceipt(receipt) {
         Accept: "application/json",
         "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY
       },
-      body: JSON.stringify({ data: JSON.stringify(fiscalReceiptRemotePayload(receipt)) })
+      body: JSON.stringify({ data: JSON.stringify({ ...fiscalReceiptRemotePayload(receipt), electronicCopy: {
+        ...(receipt.electronicCopy || {}), remotePath: remotePdf || null
+      } }) })
     });
     const raw = await response.text();
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1596,6 +1634,13 @@ const server = http.createServer((request, response) => {
         try {
           fiscalReceiptInProgress = true;
           fiscalRequestStarted = true;
+          const emissionMode = await epsonFiscal.setPaperAndDigitalNextReceipt(printer.host, {
+            operator,
+            port,
+            devid: printer.devid || "local_printer",
+            signal: controller.signal
+          });
+          if (!emissionMode.success) throw new Error(`Impostazione carta + digitale rifiutata: ${emissionMode.code || "errore stampante"}`);
           const result = await epsonFiscal.printFiscalReceipt(printer.host, receipt, {
             port,
             devid: printer.devid || "local_printer",
@@ -1663,12 +1708,34 @@ const server = http.createServer((request, response) => {
             devid: printer.devid || "local_printer",
             signal: controller.signal
           });
+          let electronicCopy = null;
+          if (result.success) {
+            try {
+              const lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
+                operator, port, devid: printer.devid || "local_printer", signal: controller.signal
+              });
+              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { signal: controller.signal });
+              if (pdf.buffer) {
+                fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
+                const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;
+                const fileName = `fiscal-${Date.now()}-${String(documentNumber || "document").replace(/\D/g, "")}.pdf`;
+                const localFile = path.join(FISCAL_RECEIPT_PDF_DIR, fileName);
+                fs.writeFileSync(localFile, pdf.buffer);
+                electronicCopy = { fileName, localFile, sourceUrl: pdf.url, size: pdf.buffer.length, status: "pending" };
+              }
+            } catch (copyError) {
+              // La vendita è già stata emessa: non la trasformiamo in un falso errore.
+              electronicCopy = { status: "error", error: copyError.message };
+            }
+          }
           return sendJson(response, result.success ? 200 : 502, {
             ok: result.success,
             receiptId: input.receiptId,
             code: result.code,
             status: result.status,
             addInfo: result.addInfo,
+            electronicCopy,
+            emissionMode: { code: emissionMode.code, status: emissionMode.status },
             raw: result.raw || "",
             error: result.success ? "" : `La stampante ha risposto con codice ${result.code || "sconosciuto"}`
           });

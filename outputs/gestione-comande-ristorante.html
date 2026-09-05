@@ -4183,6 +4183,7 @@
               ? `${result.addInfo.zRepNumber}-${String(result.addInfo.fiscalReceiptNumber).padStart(4, "0")}`
               : "",
             addInfo: structuredClone(result.addInfo || {}),
+            electronicCopy: structuredClone(result.electronicCopy || null),
             raw: result.raw || "",
             request: structuredClone(fiscalRequest),
             orderItems: structuredClone(order.items || [])

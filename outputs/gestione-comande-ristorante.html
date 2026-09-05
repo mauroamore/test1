@@ -2887,6 +2887,12 @@
     </div>
     <div class="modal-content">
       <div class="small" style="margin-bottom:12px">Gli estremi vengono conservati per consentire il controllo, l'annullo e la successiva riemissione.</div>
+      <div class="row" style="align-items:end;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <label>Da<input id="fiscalHistoryFrom" type="datetime-local"></label>
+        <label>A<input id="fiscalHistoryTo" type="datetime-local"></label>
+        <button class="secondary" id="fiscalHistoryFilterBtn" type="button">Filtra</button>
+        <button class="ghost" id="fiscalHistoryClearBtn" type="button">Azzera</button>
+      </div>
       <div class="history-list" id="fiscalReceiptsList"></div>
     </div>
   </dialog>
@@ -8225,7 +8231,15 @@
 
     function renderFiscalReceipts() {
       const root = document.getElementById("fiscalReceiptsList");
-      const receipts = Array.isArray(state.fiscalReceipts) ? state.fiscalReceipts : [];
+      const allReceipts = Array.isArray(state.fiscalReceipts) ? state.fiscalReceipts : [];
+      const from = document.getElementById("fiscalHistoryFrom")?.value;
+      const to = document.getElementById("fiscalHistoryTo")?.value;
+      const receipts = allReceipts.filter(receipt => {
+        const value = receipt.emittedAt || `${receipt.fiscalReceiptDate || ""}T${receipt.fiscalReceiptTime || "00:00:00"}`;
+        if (from && value < from) return false;
+        if (to && value > to) return false;
+        return true;
+      });
       root.innerHTML = `<div style="overflow:auto"><table class="fiscal-receipts-table"><thead><tr><th>Documento</th><th>Data</th><th>Ordine / tavolo</th><th>Importo</th><th>Pagamento</th><th>Stato</th><th>Azioni</th></tr></thead><tbody></tbody></table></div>`;
       const body = root.querySelector("tbody");
       if (!receipts.length) {
@@ -8942,6 +8956,12 @@
     document.getElementById("historyCloseBtn").addEventListener("click", () => document.getElementById("historyModal").close());
     document.getElementById("fiscalReceiptsBtn").addEventListener("click", openFiscalReceipts);
     document.getElementById("fiscalReceiptsCloseBtn").addEventListener("click", () => document.getElementById("fiscalReceiptsModal").close());
+    document.getElementById("fiscalHistoryFilterBtn").addEventListener("click", renderFiscalReceipts);
+    document.getElementById("fiscalHistoryClearBtn").addEventListener("click", () => {
+      document.getElementById("fiscalHistoryFrom").value = "";
+      document.getElementById("fiscalHistoryTo").value = "";
+      renderFiscalReceipts();
+    });
     document.getElementById("fiscalVoidCloseBtn").addEventListener("click", () => document.getElementById("fiscalVoidModal").close());
     document.getElementById("fiscalVoidCancelBtn").addEventListener("click", () => document.getElementById("fiscalVoidModal").close());
     document.getElementById("fiscalVoidConfirmBtn").addEventListener("click", confirmFiscalVoid);

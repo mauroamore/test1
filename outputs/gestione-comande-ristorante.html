@@ -3719,6 +3719,7 @@
     }
 
     async function syncFromServer() {
+      if (paymentSyncPaused) return;
       try {
         const response = await fetch(REMOTE_MODE
           ? `${REMOTE_SYNC_URL}?mode=state&key=${encodeURIComponent(REMOTE_KEY)}`
@@ -4027,6 +4028,7 @@
     let paymentDiscountType = "amount";
     let paymentTip = "0";
     let fiscalPaymentInProgress = false;
+    let paymentSyncPaused = false;
     const paymentMethods = ["Contanti", "Carta", "Bancomat", "Buono", "Bonifico", "Altro"];
 
     function paymentCents(value) {
@@ -4411,6 +4413,7 @@
     function openPaymentModal(order) {
       if (order && order.status === "Pagato") return;
       if (!order) return;
+      paymentSyncPaused = true;
       const isNewOrder = paymentOrderId !== order.id;
       const hasSavedPartialPayment = order.paymentStatus === "partial" && order.payment;
       paymentOrderId = order.id;
@@ -8209,6 +8212,10 @@
       finally { button.disabled = false; }
     });
     document.getElementById("paymentCloseBtn").addEventListener("click", () => document.getElementById("paymentModal").close());
+    document.getElementById("paymentModal").addEventListener("close", () => {
+      paymentSyncPaused = false;
+      setTimeout(() => syncFromServer().then(() => refreshReservations()), 0);
+    });
     document.getElementById("precontoCloseBtn").addEventListener("click", () => document.getElementById("precontoModal").close());
     document.getElementById("precontoDiscountInput").addEventListener("input", event => {
       paymentDiscount = event.target.value;

@@ -1311,6 +1311,20 @@ const server = http.createServer((request, response) => {
         const parsedBody = JSON.parse(body);
         const incomingState = parsedBody.state || parsedBody;
         const resetDeliveryOrders = parsedBody.resetDeliveryOrders === true;
+        if (resetDeliveryOrders) {
+          const pendingFiscalReceipts = fiscalReceipts.filter(receipt => {
+            const sync = fiscalReceiptSync[String(receipt.id)];
+            return !sync || sync.status !== "synced";
+          });
+          if (pendingFiscalReceipts.length > 0) {
+            sendJson(response, 409, {
+              ok: false,
+              error: "Reset bloccato: ci sono scontrini non sincronizzati",
+              pendingFiscalReceipts: pendingFiscalReceipts.map(receipt => receipt.id)
+            });
+            return;
+          }
+        }
         const tableLock = parsedBody.tableLock;
         if (tableLock && tableLock.tableId && tableLock.token) {
           const currentLock = tableLocks.get(String(tableLock.tableId));
@@ -1341,6 +1355,12 @@ const server = http.createServer((request, response) => {
         }
         if (previousFeedStatus !== undefined) sharedState.hubriseFeedStatus = previousFeedStatus;
         persistStateFiles();
+        if (resetDeliveryOrders) {
+          fiscalReceipts = [];
+          fiscalReceiptSync = {};
+          persistFiscalReceipts();
+          persistFiscalReceiptSync();
+        }
         // Pubblica l'evento realtime solo dopo aver aggiornato lo snapshot remoto:
         // altrimenti il client remoto si sveglia, legge RestaurantSync e trova ancora
         // il valore precedente.
@@ -1669,6 +1689,17 @@ const server = http.createServer((request, response) => {
       })
       .catch(() => sendJson(response, 200, { receipts: fiscalReceipts, source: "local-fallback" }));
     return;
+  }
+  if (request.url === "/api/fiscal-receipts/sync-status" && request.method === "GET") {
+    const pending = fiscalReceipts.filter(receipt => {
+      const sync = fiscalReceiptSync[String(receipt.id)];
+      return !sync || sync.status !== "synced";
+    });
+    return sendJson(response, 200, {
+      ok: true,
+      synchronized: pending.length === 0,
+      pending: pending.map(receipt => receipt.id)
+    });
   }
   if (request.url === "/api/fiscal-receipts" && request.method === "POST") {
     let body = "";

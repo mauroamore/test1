@@ -9083,9 +9083,21 @@
     });
     orderModalObserver.observe(document.getElementById("orderModal"));
 
-    document.getElementById("resetBtn").addEventListener("click", () => {
+    document.getElementById("resetBtn").addEventListener("click", async () => {
       if (REMOTE_MODE) return;
       if (!confirm("Cancellare tutte le comande aperte?")) return;
+      try {
+        const syncResponse = await fetch("/api/fiscal-receipts/sync-status", { cache: "no-store" });
+        const syncStatus = await syncResponse.json();
+        if (!syncResponse.ok || syncStatus.synchronized !== true) {
+          const count = Array.isArray(syncStatus.pending) ? syncStatus.pending.length : 1;
+          window.alert(`Reset bloccato: ${count} scontrino/i non ancora sincronizzato/i.`);
+          return;
+        }
+      } catch {
+        window.alert("Reset bloccato: impossibile verificare la sincronizzazione degli scontrini.");
+        return;
+      }
       state.tables = state.tables.map(createFreshTable);
       state.deliveryOrders = [];
       state.history = [];

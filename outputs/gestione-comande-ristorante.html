@@ -2083,6 +2083,30 @@
       overflow-y: auto;
     }
 
+    .fiscal-receipts-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      font-size: 0.92rem;
+    }
+    .fiscal-receipts-table th,
+    .fiscal-receipts-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .fiscal-receipts-table th {
+      font-weight: 700;
+      background: #f3f4f4;
+    }
+    .fiscal-receipts-table td.empty {
+      text-align: center;
+      white-space: normal;
+      padding: 18px;
+    }
+
     .history-item {
       padding: 10px;
       border: 1px solid var(--line);
@@ -8196,28 +8220,24 @@
     function renderFiscalReceipts() {
       const root = document.getElementById("fiscalReceiptsList");
       const receipts = Array.isArray(state.fiscalReceipts) ? state.fiscalReceipts : [];
-      root.innerHTML = "";
+      root.innerHTML = `<div style="overflow:auto"><table class="fiscal-receipts-table"><thead><tr><th>Documento</th><th>Data</th><th>Ordine / tavolo</th><th>Importo</th><th>Pagamento</th><th>Stato</th><th>Azioni</th></tr></thead><tbody></tbody></table></div>`;
+      const body = root.querySelector("tbody");
       if (!receipts.length) {
-        root.innerHTML = `<div class="empty">Nessuno scontrino fiscale registrato.</div>`;
+        body.innerHTML = `<tr><td colspan="7" class="empty">Nessuno scontrino fiscale registrato.</td></tr>`;
         return;
       }
       receipts.forEach(receipt => {
-        const item = document.createElement("div");
-        item.className = "history-item";
-        const references = [
-          receipt.documentNumber ? `Documento ${escapeHtml(receipt.documentNumber)}` : "Documento n/d",
-          receipt.fiscalReceiptDate ? escapeHtml(receipt.fiscalReceiptDate) : "Data n/d",
-          receipt.rtSerialNumber ? `RT ${escapeHtml(receipt.rtSerialNumber)}` : "RT n/d"
-        ].join(" · ");
+        const paymentMethod = receipt.payment?.method || receipt.payment?.description || "n/d";
         const canReissue = receipt.status === "voided";
-        item.innerHTML = `<strong>${escapeHtml(receipt.orderId ? `Ordine ${receipt.orderId}` : "Scontrino")}</strong>
-          <div class="small">${references}</div>
-          <div class="small">Importo: ${escapeHtml(receipt.amount || "n/d")} · Stato: ${escapeHtml(receipt.status || "issued")}</div>
-          <div class="row" style="margin-top:8px">
-            <button class="secondary fiscal-void-btn" type="button" ${receipt.status !== "issued" ? "disabled" : ""} data-fiscal-id="${escapeHtml(receipt.id)}">Annulla</button>
-            <button class="primary fiscal-reissue-btn" type="button" ${canReissue ? "" : "disabled"} data-fiscal-id="${escapeHtml(receipt.id)}">Riemetti</button>
-          </div>`;
-        root.appendChild(item);
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${escapeHtml(receipt.documentNumber || "n/d")}</td>
+          <td>${escapeHtml(receipt.fiscalReceiptDate || "n/d")}</td>
+          <td>${escapeHtml(receipt.orderId ? `Ordine ${receipt.orderId}` : "n/d")}</td>
+          <td>${escapeHtml(receipt.amount || "n/d")}</td>
+          <td>${escapeHtml(paymentMethod)}</td>
+          <td>${escapeHtml(receipt.status || "issued")}</td>
+          <td><button class="secondary fiscal-void-btn" type="button" ${receipt.status !== "issued" ? "disabled" : ""} data-fiscal-id="${escapeHtml(receipt.id)}">Annulla</button> <button class="primary fiscal-reissue-btn" type="button" ${canReissue ? "" : "disabled"} data-fiscal-id="${escapeHtml(receipt.id)}">Riemetti</button></td>`;
+        body.appendChild(row);
       });
     }
 

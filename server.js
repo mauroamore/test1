@@ -216,7 +216,9 @@ async function syncFiscalReceipt(receipt) {
   try {
     let remotePdf = receipt.electronicCopy && receipt.electronicCopy.remotePath;
     const localPdf = receipt.electronicCopy && receipt.electronicCopy.localFile;
-    if (!remotePdf && localPdf && fs.existsSync(localPdf)) {
+    // The stored remotePath may be stale after a partial upload or a server cleanup.
+    // When the local PDF exists, upload it again and trust the path returned by the server.
+    if (localPdf && fs.existsSync(localPdf)) {
       const pdf = fs.readFileSync(localPdf);
       const uploadResponse = await fetch(`${RESTAURANT_OPERATIONS_URL}/SaveFiscalReceiptPdf`, {
         method: "POST",

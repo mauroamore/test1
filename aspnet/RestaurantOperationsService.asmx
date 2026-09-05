@@ -126,7 +126,7 @@ public class RestaurantOperationsService : WebService
 
     [WebMethod]
     [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
-    public string GetFiscalReceipts(string year, string from = null, string to = null)
+    public string GetFiscalReceipts(string from = null, string to = null)
     {
         RequireKey();
         var result = new List<object>();
@@ -140,15 +140,12 @@ public class RestaurantOperationsService : WebService
                        fiscal_receipt_time, rt_serial_number, amount, payment_method,
                        status, emitted_at, voided_at, void_reason, reissue_of
                 FROM fiscal_receipts
-                WHERE emitted_at >= CONCAT(@year, '-01-01T00:00:00')
-                  AND emitted_at < CONCAT(CAST(@year AS UNSIGNED) + 1, '-01-01T00:00:00')
-                  AND (@from = '' OR emitted_at >= @from)
-                  AND (@to = '' OR emitted_at <= @to)
+                WHERE emitted_at >= @from
+                  AND emitted_at <= @to
                 ORDER BY emitted_at DESC, id DESC
                 LIMIT 10000", connection))
             {
                 command.CommandTimeout = TimeoutSeconds;
-                command.Parameters.Add("@year", MySqlDbType.VarChar, 4).Value = year ?? "";
                 command.Parameters.Add("@from", MySqlDbType.VarChar, 30).Value = from ?? "";
                 command.Parameters.Add("@to", MySqlDbType.VarChar, 30).Value = to ?? "";
                 using (var reader = command.ExecuteReader())

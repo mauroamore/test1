@@ -8283,19 +8283,8 @@
 
     function setDefaultFiscalHistoryFilters() {
       const now = new Date();
-      const pad = value => String(value).padStart(2, "0");
-      const start = new Date(now);
-      if (now.getHours() < 18) start.setDate(start.getDate() - 1);
-      start.setHours(18, 0, 0, 0);
-      const localDateTime = value => `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
-      const from = document.getElementById("fiscalHistoryFrom");
-      const to = document.getElementById("fiscalHistoryTo");
       const yearInput = document.getElementById("fiscalHistoryYear");
       if (!yearInput.value) yearInput.value = now.getFullYear();
-      if (!from.value && !to.value) {
-        from.value = localDateTime(start);
-        to.value = localDateTime(now);
-      }
     }
 
     let pendingFiscalVoidReceipt = null;

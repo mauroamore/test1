@@ -230,7 +230,7 @@ async function syncPendingFiscalReceipts() {
   }
 }
 
-async function loadFiscalReceiptHistory(year, from, to) {
+async function loadFiscalReceiptHistory(from, to) {
   if (!RESTAURANT_OPERATIONS_KEY) throw new Error("Restaurant operations key not configured");
   const response = await fetch(`${RESTAURANT_OPERATIONS_URL}/GetFiscalReceipts`, {
     method: "POST",
@@ -239,7 +239,7 @@ async function loadFiscalReceiptHistory(year, from, to) {
       Accept: "application/json",
       "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY
     },
-    body: JSON.stringify({ year: year || "", from: from || "", to: to || "" })
+    body: JSON.stringify({ from: from || "", to: to || "" })
   });
   const raw = await response.text();
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1684,7 +1684,13 @@ const server = http.createServer((request, response) => {
     const historyUrl = new URL(request.url, "http://localhost");
     const year = historyUrl.searchParams.get("year");
     if (!/^\d{4}$/.test(year || "")) return sendJson(response, 400, { ok: false, error: "L'anno è obbligatorio" });
-    loadFiscalReceiptHistory(year, historyUrl.searchParams.get("from"), historyUrl.searchParams.get("to"))
+    const yearStart = `${year}-01-01T00:00:00`;
+    const yearEnd = `${year}-12-31T23:59:59.999`;
+    const requestedFrom = historyUrl.searchParams.get("from") || yearStart;
+    const requestedTo = historyUrl.searchParams.get("to") || yearEnd;
+    const from = requestedFrom < yearStart ? yearStart : requestedFrom;
+    const to = requestedTo > yearEnd ? yearEnd : requestedTo;
+    loadFiscalReceiptHistory(from, to)
       .then(remoteReceipts => {
         const remoteIds = new Set(remoteReceipts.map(receipt => String(receipt.id)));
         const pendingLocal = fiscalReceipts.filter(receipt => !remoteIds.has(String(receipt.id)));

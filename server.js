@@ -1668,7 +1668,9 @@ const server = http.createServer((request, response) => {
                 devid: printer.devid || "local_printer",
                 signal: controller.signal
               });
-              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { signal: controller.signal });
+              // The PDF is generated after the fiscal response; keep the secondary
+              // lookup short so cash payments are not held by PDF polling.
+              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { attempts: 4, delayMs: 500, signal: controller.signal });
               if (pdf.buffer) {
                 fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
                 const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;
@@ -1762,7 +1764,7 @@ const server = http.createServer((request, response) => {
                 devid: printer.devid || "local_printer",
                 signal: controller.signal
               });
-              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { signal: controller.signal });
+              const pdf = await epsonFiscal.downloadEReceiptPdf(printer.host, lastDocument, { attempts: 4, delayMs: 500, signal: controller.signal });
               if (pdf.buffer) {
                 fs.mkdirSync(FISCAL_RECEIPT_PDF_DIR, { recursive: true });
                 const documentNumber = lastDocument.decoded && lastDocument.decoded.documentNumber;

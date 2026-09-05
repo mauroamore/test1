@@ -2076,6 +2076,28 @@
       overflow: hidden;
     }
 
+    .fiscal-history-modal {
+      width: min(1100px, calc(100vw - 32px));
+      max-width: calc(100vw - 32px);
+    }
+
+    .fiscal-history-filters {
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
+
+    .fiscal-history-filters > label,
+    .fiscal-history-filters > button {
+      flex: 0 0 auto;
+    }
+
+    @media (max-width: 760px) {
+      .fiscal-history-filters {
+        flex-wrap: wrap;
+        white-space: normal;
+      }
+    }
+
     .history-list {
       display: grid;
       gap: 10px;
@@ -2880,14 +2902,14 @@
     </div>
   </dialog>
 
-  <dialog class="label-modal history-modal" id="fiscalReceiptsModal">
+  <dialog class="label-modal fiscal-history-modal history-modal" id="fiscalReceiptsModal">
     <div class="modal-head">
       <h2>Scontrini fiscali emessi</h2>
       <button class="ghost" id="fiscalReceiptsCloseBtn" type="button" title="Chiudi">X</button>
     </div>
     <div class="modal-content">
       <div class="small" style="margin-bottom:12px">Gli estremi vengono conservati per consentire il controllo, l'annullo e la successiva riemissione.</div>
-      <div class="row" style="align-items:end;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="row fiscal-history-filters" style="align-items:end;gap:10px;flex-wrap:nowrap;margin-bottom:12px;white-space:nowrap">
         <label>Anno<select id="fiscalHistoryYear" required></select></label>
         <label>Da<input id="fiscalHistoryFrom" type="datetime-local"></label>
         <label>A<input id="fiscalHistoryTo" type="datetime-local"></label>

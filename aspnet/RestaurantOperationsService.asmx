@@ -109,14 +109,25 @@ public class RestaurantOperationsService : WebService
                 return serializer.Serialize(new { ok = false, error = "The fiscal receipt JSON must contain id." });
 
             using (var connection = HubRiseIntegration.OpenDatabase())
-            using (var command = new MySqlCommand(@"
-                INSERT INTO fiscal_receipts (data)
-                VALUES (CAST(@data AS JSON))
-                ON DUPLICATE KEY UPDATE data = VALUES(data)", connection))
             {
-                command.CommandTimeout = TimeoutSeconds;
-                command.Parameters.Add("@data", MySqlDbType.LongText).Value = data;
-                command.ExecuteNonQuery();
+                using (var update = new MySqlCommand(@"
+                    UPDATE fiscal_receipts
+                    SET data = CAST(@data AS JSON)
+                    WHERE JSON_UNQUOTE(JSON_EXTRACT(data, '$.id')) = @receiptId", connection))
+                {
+                    update.CommandTimeout = TimeoutSeconds;
+                    update.Parameters.Add("@data", MySqlDbType.LongText).Value = data;
+                    update.Parameters.Add("@receiptId", MySqlDbType.VarChar, 180).Value = Convert.ToString(payload["id"]);
+                    if (update.ExecuteNonQuery() == 0)
+                    {
+                        using (var insert = new MySqlCommand("INSERT INTO fiscal_receipts (data) VALUES (CAST(@data AS JSON))", connection))
+                        {
+                            insert.CommandTimeout = TimeoutSeconds;
+                            insert.Parameters.Add("@data", MySqlDbType.LongText).Value = data;
+                            insert.ExecuteNonQuery();
+                        }
+                    }
+                }
             }
             return serializer.Serialize(new { ok = true, id = Convert.ToString(payload["id"]) });
         }

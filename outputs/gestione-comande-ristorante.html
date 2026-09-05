@@ -3741,8 +3741,18 @@
           // already loaded by refreshReservations instead of briefly replacing
           // it with an older snapshot and rendering a blinking table.
           const loadedReservations = Array.isArray(state.reservations) ? state.reservations : [];
+          const paymentOrderSnapshot = paymentOrderId != null
+            ? findOrderById(paymentOrderId)
+            : null;
           state = payload.state;
           state.reservations = loadedReservations;
+          if (paymentOrderSnapshot) {
+            const collections = [state.tables || [], state.deliveryOrders || []];
+            for (const collection of collections) {
+              const index = collection.findIndex(order => String(order.id) === String(paymentOrderSnapshot.id));
+              if (index >= 0) collection[index] = structuredClone(paymentOrderSnapshot);
+            }
+          }
           normalizeSharedState();
           pendingCourseActivations.forEach((course, orderId) => {
             const pendingOrder = [...(state.tables || []), ...(state.deliveryOrders || [])]

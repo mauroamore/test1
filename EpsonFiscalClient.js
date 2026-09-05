@@ -297,16 +297,47 @@ function buildEReceiptPdfUrl(host, document) {
 async function downloadEReceiptPdf(host, document, { attempts = 8, delayMs = 1000, signal } = {}) {
   const url = buildEReceiptPdfUrl(host, document);
   if (!url) return { url: null, buffer: null };
-  let lastError;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const response = await fetch(url, { signal });
-      if (response.ok) return { url, buffer: Buffer.from(await response.arrayBuffer()), attempts: attempt };
-      lastError = new Error(`HTTP ${response.status}`);
-    } catch (error) { lastError = error; }
-    if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, delayMs));
+  const tryDownload = async (candidateUrl) => {
+    let lastError;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        const response = await fetch(candidateUrl, { signal });
+        if (response.ok) return { url: candidateUrl, buffer: Buffer.from(await response.arrayBuffer()), attempts: attempt };
+        lastError = new Error(`HTTP ${response.status}`);
+      } catch (error) { lastError = error; }
+      if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+    return { error: lastError || new Error("errore sconosciuto") };
+  };
+
+  const first = await tryDownload(url);
+  if (first.buffer) return first;
+
+  // Alcuni firmware restituiscono "000" come pdfName anche quando il PDF
+  // esiste. In quel caso cerchiamo il nome reale nell'indice Epson.
+  const d = document && document.decoded ? document.decoded : document;
+  const date = String(d.date).replace(/\D/g, "");
+  const time = String(d.time).replace(/\D/g, "").padEnd(6, "0").slice(0, 6);
+  const yyyyMMdd = `20${date.slice(4, 6)}${date.slice(2, 4)}${date.slice(0, 2)}`;
+  const serial = String((document.addInfo && document.addInfo.serialNumber) || d.printerSerialNumber || "").trim();
+  const z = String(d.zReportNumber).replace(/\D/g, "");
+  const n = String(d.documentNumber).replace(/\D/g, "").padStart(4, "0");
+  const indexUrl = `http://${host}/www/dati-rt/e-receipt/${yyyyMMdd}/`;
+  try {
+    const indexResponse = await fetch(indexUrl, { signal });
+    if (indexResponse.ok) {
+      const html = await indexResponse.text();
+      const names = [...html.matchAll(/href=["']([^"']+\.pdf)["']/gi)].map(match => decodeURIComponent(match[1]));
+      const match = names.find(name => name.includes(serial) && name.includes(`${yyyyMMdd}T${time}`) && name.includes(`Z${z}`) && name.includes(`N${n}`));
+      if (match) {
+        const fallback = await tryDownload(`${indexUrl}${encodeURIComponent(match)}`);
+        if (fallback.buffer) return fallback;
+      }
+    }
+  } catch (error) {
+    first.error = error;
   }
-  throw new Error(`PDF E-Receipt non disponibile (${url}): ${lastError ? lastError.message : "errore sconosciuto"}`);
+  throw new Error(`PDF E-Receipt non disponibile (${url}): ${first.error ? first.error.message : "errore sconosciuto"}`);
 }
 
 function normalizeFiscalDate(value) {

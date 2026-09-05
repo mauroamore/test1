@@ -1528,8 +1528,6 @@ const server = http.createServer((request, response) => {
     request.on("end", async () => {
       try {
         const input = JSON.parse(body || "{}");
-        const paymentStartedAt = Date.now();
-        appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_receipt_start", receiptId: input.receiptId || null })}\n`);
         const orderId = String(input.orderId || "");
         const amountCents = Math.round(Number(input.amountCents));
         if (!orderId || !Number.isInteger(amountCents) || amountCents < 1) {
@@ -1693,6 +1691,8 @@ const server = http.createServer((request, response) => {
     request.on("end", async () => {
       try {
         const input = JSON.parse(body || "{}");
+        const paymentStartedAt = Date.now();
+        appendLog(PAYMENT_FLOW_LOG, `${new Date().toISOString()} ${JSON.stringify({ event: "fiscal_receipt_start", receiptId: input.receiptId || null })}\n`);
         const printer = sharedState && sharedState.settings && sharedState.settings.fiscalPrinter;
         const simulatedReceipt = printer && (printer.simulation === true || printer.simulateReceipts === true);
         const testModeOneCent = printer && printer.testModeOneCent === true;

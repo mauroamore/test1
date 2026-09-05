@@ -8388,12 +8388,6 @@
         source.voidedAt = new Date().toISOString();
         source.voidReason = reason;
         source.voidResponse = result;
-        if (result.electronicCopy) {
-          source.electronicCopy = {
-            ...(source.electronicCopy || {}),
-            voidCopy: structuredClone(result.electronicCopy)
-          };
-        }
         const voidAddInfo = result.addInfo || {};
         const voidReceipt = {
           ...structuredClone(source),

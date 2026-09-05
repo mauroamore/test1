@@ -2541,7 +2541,7 @@
           <label>Reparto IVA 10% <input id="fiscalPrinterDepartmentInput" type="number" min="1" max="99" value="2"></label>
         </div>
         <div class="small">Inserisci qui l'indirizzo di rete assegnato alla stampante fiscale. Per Epson Fiscal ePOS-Print la porta normalmente è 80, non 9100.</div>
-        <div class="row"><button class="secondary" id="fiscalPrinterTestBtn" type="button">Verifica collegamento</button><span class="small" id="fiscalPrinterStatus" role="status">Il test legge soltanto lo stato: non emette scontrini.</span></div>
+        <div class="row"><button class="secondary" id="fiscalPrinterTestBtn" type="button">Verifica collegamento</button><button class="ghost" id="fiscalReceiptsBtn" type="button">Storico scontrini</button><span class="small" id="fiscalPrinterStatus" role="status">Il test legge soltanto lo stato: non emette scontrini.</span></div>
       </div>
     </section>
   </section>
@@ -2852,6 +2852,37 @@
     </div>
     <div class="modal-content">
       <div class="history-list" id="historyList"></div>
+    </div>
+  </dialog>
+
+  <dialog class="label-modal history-modal" id="fiscalReceiptsModal">
+    <div class="modal-head">
+      <h2>Scontrini fiscali emessi</h2>
+      <button class="ghost" id="fiscalReceiptsCloseBtn" type="button" title="Chiudi">X</button>
+    </div>
+    <div class="modal-content">
+      <div class="small" style="margin-bottom:12px">Gli estremi vengono conservati per consentire il controllo, l'annullo e la successiva riemissione.</div>
+      <div class="history-list" id="fiscalReceiptsList"></div>
+    </div>
+  </dialog>
+
+  <dialog class="label-modal" id="fiscalVoidModal">
+    <div class="modal-head"><h2>Annulla scontrino fiscale</h2><button class="ghost" id="fiscalVoidCloseBtn" type="button">X</button></div>
+    <div class="modal-content">
+      <div class="small" id="fiscalVoidSummary"></div>
+      <label>Motivo dell'annullo<textarea id="fiscalVoidReason" rows="3" placeholder="Es. prezzo o articolo errato"></textarea></label>
+      <div class="row"><button class="secondary" id="fiscalVoidCancelBtn" type="button">Annulla</button><button class="danger" id="fiscalVoidConfirmBtn" type="button">Conferma annullo fiscale</button></div>
+    </div>
+  </dialog>
+
+  <dialog class="label-modal" id="fiscalReissueModal">
+    <div class="modal-head"><h2>Riemetti scontrino</h2><button class="ghost" id="fiscalReissueCloseBtn" type="button">X</button></div>
+    <div class="modal-content">
+      <div class="small" id="fiscalReissueSummary"></div>
+      <label>Descrizione fiscale<input id="fiscalReissueDescription" type="text" value="CONTO RISTORANTE"></label>
+      <label>Importo<input id="fiscalReissueAmount" type="number" min="0.01" step="0.01"></label>
+      <label>Metodo di pagamento<select id="fiscalReissueMethod"><option>Contanti</option><option>Carta</option><option>Bancomat</option><option>Buono</option><option>Bonifico</option><option>Altro</option></select></label>
+      <div class="row"><button class="secondary" id="fiscalReissueCancelBtn" type="button">Annulla</button><button class="primary" id="fiscalReissueConfirmBtn" type="button">Emetti nuovo scontrino</button></div>
     </div>
   </dialog>
 
@@ -4101,6 +4132,7 @@
             request: structuredClone(fiscalRequest),
             orderItems: structuredClone(order.items || [])
           };
+          recordFiscalReceipt(order, row);
         } catch (error) {
           row.processing = false;
           row.fiscal = {
@@ -4159,6 +4191,35 @@
       const due = paymentDueCents(order);
       const paid = paymentRows.filter(item => item.paid).reduce((sum, item) => sum + paymentCents(item.amount), 0);
       if (paymentRows.length && paymentRows.every(item => item.paid) && paid === due) finalizePaidOrder();
+    }
+
+    function recordFiscalReceipt(order, row) {
+      if (!order || !row?.fiscal || row.fiscal.status === "failed") return;
+      if (!Array.isArray(state.fiscalReceipts)) state.fiscalReceipts = [];
+      const fiscal = row.fiscal;
+      const referenceKey = [fiscal.rtSerialNumber, fiscal.zReportNumber, fiscal.receiptNumber, fiscal.fiscalReceiptDate].join("|");
+      const existing = state.fiscalReceipts.find(receipt => receipt.referenceKey === referenceKey && referenceKey !== "|||" && receipt.orderId === order.id);
+      if (existing) return;
+      state.fiscalReceipts.unshift({
+        id: crypto.randomUUID ? crypto.randomUUID() : `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        status: "issued",
+        orderId: order.id,
+        tableId: order.source ? null : order.id,
+        emittedAt: new Date().toISOString(),
+        referenceKey,
+        receiptNumber: fiscal.receiptNumber || "",
+        fiscalReceiptDate: fiscal.fiscalReceiptDate || "",
+        fiscalReceiptTime: fiscal.fiscalReceiptTime || "",
+        zReportNumber: fiscal.zReportNumber || "",
+        rtSerialNumber: fiscal.rtSerialNumber || "",
+        documentNumber: fiscal.documentNumber || "",
+        amount: fiscal.amount || "",
+        payment: structuredClone(row),
+        request: structuredClone(fiscal.request || {}),
+        response: { addInfo: structuredClone(fiscal.addInfo || {}), raw: fiscal.raw || "" },
+        orderItems: structuredClone(fiscal.orderItems || order.items || [])
+      });
+      saveState();
     }
 
     function persistPartialPayment(order) {
@@ -8132,6 +8193,122 @@
       };
     }
 
+    function renderFiscalReceipts() {
+      const root = document.getElementById("fiscalReceiptsList");
+      const receipts = Array.isArray(state.fiscalReceipts) ? state.fiscalReceipts : [];
+      root.innerHTML = "";
+      if (!receipts.length) {
+        root.innerHTML = `<div class="empty">Nessuno scontrino fiscale registrato.</div>`;
+        return;
+      }
+      receipts.forEach(receipt => {
+        const item = document.createElement("div");
+        item.className = "history-item";
+        const references = [
+          receipt.documentNumber ? `Documento ${escapeHtml(receipt.documentNumber)}` : "Documento n/d",
+          receipt.fiscalReceiptDate ? escapeHtml(receipt.fiscalReceiptDate) : "Data n/d",
+          receipt.rtSerialNumber ? `RT ${escapeHtml(receipt.rtSerialNumber)}` : "RT n/d"
+        ].join(" · ");
+        const canReissue = receipt.status === "voided";
+        item.innerHTML = `<strong>${escapeHtml(receipt.orderId ? `Ordine ${receipt.orderId}` : "Scontrino")}</strong>
+          <div class="small">${references}</div>
+          <div class="small">Importo: ${escapeHtml(receipt.amount || "n/d")} · Stato: ${escapeHtml(receipt.status || "issued")}</div>
+          <div class="row" style="margin-top:8px">
+            <button class="secondary fiscal-void-btn" type="button" ${receipt.status !== "issued" ? "disabled" : ""} data-fiscal-id="${escapeHtml(receipt.id)}">Annulla</button>
+            <button class="primary fiscal-reissue-btn" type="button" ${canReissue ? "" : "disabled"} data-fiscal-id="${escapeHtml(receipt.id)}">Riemetti</button>
+          </div>`;
+        root.appendChild(item);
+      });
+    }
+
+    function openFiscalReceipts() {
+      renderFiscalReceipts();
+      document.getElementById("fiscalReceiptsModal").showModal();
+    }
+
+    let pendingFiscalVoidReceipt = null;
+    let pendingFiscalReissueReceipt = null;
+
+    function openFiscalVoid(receipt) {
+      pendingFiscalVoidReceipt = receipt;
+      document.getElementById("fiscalVoidSummary").textContent = `Documento ${receipt.documentNumber || "n/d"} · ${receipt.amount || "n/d"} EUR. L'operazione sarà registrata dalla stampante fiscale.`;
+      document.getElementById("fiscalVoidReason").value = "";
+      document.getElementById("fiscalVoidModal").showModal();
+    }
+
+    function openFiscalReissue(receipt) {
+      pendingFiscalReissueReceipt = receipt;
+      document.getElementById("fiscalReissueSummary").textContent = `Scontrino annullato: documento ${receipt.documentNumber || "n/d"}. Correggi i dati e conferma una nuova emissione.`;
+      const payment = receipt.payment || {};
+      document.getElementById("fiscalReissueAmount").value = Number(payment.amount || receipt.amount || 0).toFixed(2);
+      document.getElementById("fiscalReissueMethod").value = payment.method || "Contanti";
+      document.getElementById("fiscalReissueDescription").value = (receipt.orderItems && receipt.orderItems[0] && receipt.orderItems[0].description) || "CONTO RISTORANTE";
+      document.getElementById("fiscalReissueModal").showModal();
+    }
+
+    async function confirmFiscalVoid() {
+      const receipt = pendingFiscalVoidReceipt;
+      if (!receipt) return;
+      const reason = document.getElementById("fiscalVoidReason").value.trim();
+      if (!reason) return window.alert("Inserisci il motivo dell'annullo.");
+      const button = document.getElementById("fiscalVoidConfirmBtn");
+      button.disabled = true;
+      try {
+        const response = await fetch("/api/fiscal-printer/void", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            confirm: true, receiptId: receipt.id,
+            zReportNumber: receipt.zReportNumber,
+            documentNumber: receipt.receiptNumber || receipt.documentNumber,
+            fiscalReceiptDate: receipt.fiscalReceiptDate,
+            rtSerialNumber: receipt.rtSerialNumber
+          })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "Annullo non confermato dalla stampante");
+        receipt.status = "voided";
+        receipt.voidedAt = new Date().toISOString();
+        receipt.voidReason = reason;
+        receipt.voidResponse = result;
+        saveState();
+        document.getElementById("fiscalVoidModal").close();
+        renderFiscalReceipts();
+        openFiscalReissue(receipt);
+      } catch (error) {
+        window.alert(`Annullo non completato: ${error.message}`);
+      } finally { button.disabled = false; }
+    }
+
+    async function confirmFiscalReissue() {
+      const receipt = pendingFiscalReissueReceipt;
+      if (!receipt) return;
+      const amount = Number(document.getElementById("fiscalReissueAmount").value);
+      const description = document.getElementById("fiscalReissueDescription").value.trim();
+      const method = document.getElementById("fiscalReissueMethod").value;
+      if (!Number.isFinite(amount) || amount <= 0 || !description) return window.alert("Controlla descrizione e importo.");
+      const button = document.getElementById("fiscalReissueConfirmBtn");
+      button.disabled = true;
+      try {
+        const response = await fetch("/api/fiscal-printer/receipt", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: [{ description, quantity: "1", unitPrice: amount.toFixed(2), department: String(state.settings.fiscalPrinter?.defaultDepartment || "2") }], payment: { method, description: method.toUpperCase(), amount: amount.toFixed(2), paymentType: fiscalPaymentType(method), index: "1" } })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "Riemissione non confermata dalla stampante");
+        receipt.status = "reissued";
+        receipt.reissuedAt = new Date().toISOString();
+        receipt.reissueResponse = result;
+        const addInfo = result.addInfo || {};
+        const newReceipt = { ...receipt, id: `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`, status: "issued", reissueOf: receipt.id, amount: amount.toFixed(2), payment: { method, amount: amount.toFixed(2) }, orderItems: [{ description, quantity: 1, unitPrice: amount.toFixed(2) }], emittedAt: new Date().toISOString(), receiptNumber: addInfo.fiscalReceiptNumber || "", fiscalReceiptDate: addInfo.fiscalReceiptDate || "", fiscalReceiptTime: addInfo.fiscalReceiptTime || "", zReportNumber: addInfo.zRepNumber || "", rtSerialNumber: addInfo.serialNumber || "", documentNumber: addInfo.zRepNumber && addInfo.fiscalReceiptNumber ? `${addInfo.zRepNumber}-${String(addInfo.fiscalReceiptNumber).padStart(4, "0")}` : "", response: { addInfo, raw: result.raw || "" } };
+        state.fiscalReceipts.unshift(newReceipt);
+        saveState();
+        document.getElementById("fiscalReissueModal").close();
+        renderFiscalReceipts();
+      } catch (error) {
+        window.alert(`Riemissione non completata: ${error.message}`);
+      } finally { button.disabled = false; }
+    }
+
     async function freeCurrentTable() {
       if (REMOTE_MODE) return;
       // La conferma puo' arrivare mentre il tavolo e' ancora una bozza locale:
@@ -8727,6 +8904,22 @@
     });
 
     document.getElementById("historyCloseBtn").addEventListener("click", () => document.getElementById("historyModal").close());
+    document.getElementById("fiscalReceiptsBtn").addEventListener("click", openFiscalReceipts);
+    document.getElementById("fiscalReceiptsCloseBtn").addEventListener("click", () => document.getElementById("fiscalReceiptsModal").close());
+    document.getElementById("fiscalVoidCloseBtn").addEventListener("click", () => document.getElementById("fiscalVoidModal").close());
+    document.getElementById("fiscalVoidCancelBtn").addEventListener("click", () => document.getElementById("fiscalVoidModal").close());
+    document.getElementById("fiscalVoidConfirmBtn").addEventListener("click", confirmFiscalVoid);
+    document.getElementById("fiscalReissueCloseBtn").addEventListener("click", () => document.getElementById("fiscalReissueModal").close());
+    document.getElementById("fiscalReissueCancelBtn").addEventListener("click", () => document.getElementById("fiscalReissueModal").close());
+    document.getElementById("fiscalReissueConfirmBtn").addEventListener("click", confirmFiscalReissue);
+    document.getElementById("fiscalReceiptsList").addEventListener("click", event => {
+      const button = event.target.closest("button[data-fiscal-id]");
+      if (!button) return;
+      const receipt = (state.fiscalReceipts || []).find(item => item.id === button.dataset.fiscalId);
+      if (!receipt) return;
+      if (button.classList.contains("fiscal-void-btn")) openFiscalVoid(receipt);
+      else openFiscalReissue(receipt);
+    });
     document.getElementById("confirmFreeTableNoBtn").addEventListener("click", () => document.getElementById("confirmFreeTableModal").close());
     document.getElementById("confirmFreeTableCancelBtn").addEventListener("click", () => document.getElementById("confirmFreeTableModal").close());
     document.getElementById("confirmFreeTableYesBtn").addEventListener("click", freeCurrentTable);

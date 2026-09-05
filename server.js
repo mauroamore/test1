@@ -1460,6 +1460,7 @@ const server = http.createServer((request, response) => {
             code: result.code,
             status: result.status,
             addInfo: result.addInfo,
+            raw: result.raw || "",
             error: result.success ? "" : `La stampante ha risposto con codice ${result.code || "sconosciuto"}`
           });
         } finally {
@@ -1475,6 +1476,59 @@ const server = http.createServer((request, response) => {
           outcomeUncertain: fiscalRequestStarted,
           error: message
         });
+      }
+    });
+    return;
+  }
+  if (request.url === "/api/fiscal-printer/void" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => {
+      body += chunk;
+      if (body.length > 32 * 1024) request.destroy();
+    });
+    request.on("end", async () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        if (!input.receiptId || input.confirm !== true) {
+          return sendJson(response, 400, { ok: false, error: "Conferma annullo o identificativo scontrino mancanti" });
+        }
+        const printer = sharedState && sharedState.settings && sharedState.settings.fiscalPrinter;
+        if (!printer || printer.enabled !== true || !printer.host) {
+          return sendJson(response, 409, { ok: false, error: "Stampante fiscale non abilitata o non configurata" });
+        }
+        if (fiscalReceiptInProgress) return sendJson(response, 409, { ok: false, error: "Un'altra operazione fiscale è già in corso" });
+        const refs = {
+          operator: String(printer.operator || "1"),
+          zReportNumber: input.zReportNumber,
+          documentNumber: input.documentNumber,
+          fiscalReceiptDate: input.fiscalReceiptDate,
+          rtSerialNumber: input.rtSerialNumber
+        };
+        epsonFiscal.buildVoidFiscalReceiptXml(refs);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        try {
+          fiscalReceiptInProgress = true;
+          const result = await epsonFiscal.voidFiscalReceipt(printer.host, refs, {
+            port: Number(printer.port || 80),
+            devid: printer.devid || "local_printer",
+            signal: controller.signal
+          });
+          return sendJson(response, result.success ? 200 : 502, {
+            ok: result.success,
+            receiptId: input.receiptId,
+            code: result.code,
+            status: result.status,
+            addInfo: result.addInfo,
+            raw: result.raw || "",
+            error: result.success ? "" : `La stampante ha risposto con codice ${result.code || "sconosciuto"}`
+          });
+        } finally {
+          clearTimeout(timer);
+          fiscalReceiptInProgress = false;
+        }
+      } catch (error) {
+        return sendJson(response, 502, { ok: false, error: error.name === "AbortError" ? "Timeout durante l'annullamento" : error.message });
       }
     });
     return;

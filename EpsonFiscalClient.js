@@ -219,6 +219,37 @@ async function printFiscalReceipt(host, { items, payment, operator = "1" }, opti
   return parseResponse(text);
 }
 
+function normalizeFiscalDate(value) {
+  const text = String(value || "").trim();
+  let match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (match) return `${match[1].padStart(2, "0")}${match[2].padStart(2, "0")}${match[3]}`;
+  match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}${match[2]}${match[1]}`;
+  throw new Error("Data fiscale non valida: usare GG/MM/AAAA");
+}
+
+function buildVoidFiscalReceiptXml({ zReportNumber, documentNumber, fiscalReceiptDate, rtSerialNumber, operator = "1" }) {
+  if (!zReportNumber || !documentNumber || !fiscalReceiptDate || !rtSerialNumber) {
+    throw new Error("Per annullare servono numero Z, numero documento, data fiscale e matricola RT");
+  }
+  const command = `VOID ${String(zReportNumber).padStart(4, "0")} ${String(documentNumber).padStart(4, "0")} ${normalizeFiscalDate(fiscalReceiptDate)} ${rtSerialNumber}`;
+  return `<printRecMessage operator="${escapeXml(operator)}" description="${escapeXml(command)}" type="4" index="1" font="4" />`;
+}
+
+async function voidFiscalReceipt(host, refs, options = {}) {
+  const innerXml = buildVoidFiscalReceiptXml(refs);
+  const url = buildUrl(host, options);
+  const body = buildEnvelope(innerXml, "printerFiscalReceipt");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/xml; charset=utf-8" },
+    body,
+    signal: options.signal
+  });
+  const text = await response.text();
+  return parseResponse(text);
+}
+
 // Protocollo Epson FP legacy PC-POS: stampa di un documento non fiscale.
 // Le righe del comando 064 sono esattamente 40 byte; il dispositivo aggiunge
 // autonomamente le diciture NON FISCALE in testa e in coda.
@@ -310,7 +341,9 @@ module.exports = {
   login,
   queryContentByDate,
   queryContentByNumbers,
-  printFiscalReceipt
+  printFiscalReceipt,
+  buildVoidFiscalReceiptXml,
+  voidFiscalReceipt
   ,buildPcPosFrame,
   printNonFiscalReceipt
 };

@@ -62,6 +62,8 @@ const APP_VERSION = (() => {
 })();
 const REMOTE_BASE_URL = (process.env.REMOTE_BASE_URL || "https://servizi.thaiprincess.it").replace(/\/$/, "");
 const STATE_FILE = path.join(ROOT, "ristorante-state.json");
+const FISCAL_RECEIPTS_FILE = path.join(ROOT, "fiscal-receipts.json");
+const FISCAL_RECEIPT_SYNC_FILE = path.join(ROOT, "fiscal-receipt-sync.json");
 const MENU_CACHE_FILE = path.join(ROOT, "menu-cache.json");
 const CONFIG_FILE = path.join(ROOT, "restaurant-config.json");
 const PRINT_LOG = path.join(ROOT, "print-simulation.log");
@@ -89,6 +91,9 @@ function appendLog(file, line) {
 const RESTAURANT_SYNC_LOG = path.join(ROOT, "restaurant-sync.log");
 const RESTAURANT_SYNC_URL = process.env.RESTAURANT_SYNC_URL || `${REMOTE_BASE_URL}/RestaurantSync.ashx`;
 const RESTAURANT_SYNC_KEY = process.env.RESTAURANT_SYNC_KEY || "";
+const RESTAURANT_OPERATIONS_URL = process.env.RESTAURANT_OPERATIONS_URL || `${REMOTE_BASE_URL}/RestaurantOperationsService.asmx`;
+const RESTAURANT_OPERATIONS_KEY = process.env.RESTAURANT_OPERATIONS_KEY || RESTAURANT_SYNC_KEY;
+const FISCAL_RECEIPT_SYNC_INTERVAL_MS = Number(process.env.FISCAL_RECEIPT_SYNC_INTERVAL_MS || 15000);
 const RESTAURANT_SYNC_INTERVAL_MS = Number(process.env.RESTAURANT_SYNC_INTERVAL_MS || 5000);
 const REALTIME_URL = (process.env.REALTIME_URL || "https://vorrei-realtime.onrender.com").replace(/\/$/, "");
 const REALTIME_KEY = process.env.REALTIME_KEY || RESTAURANT_SYNC_KEY;
@@ -147,6 +152,83 @@ const persistedState = readJsonFile(STATE_FILE);
 const persistedMenu = readJsonFile(MENU_CACHE_FILE);
 const persistedConfig = readJsonFile(CONFIG_FILE);
 let sharedState = persistedState ? migrateStateToHubRiseShape(persistedState) : null;
+let fiscalReceipts = readJsonFile(FISCAL_RECEIPTS_FILE, []);
+if (!Array.isArray(fiscalReceipts)) fiscalReceipts = [];
+let fiscalReceiptSync = readJsonFile(FISCAL_RECEIPT_SYNC_FILE, {});
+if (!fiscalReceiptSync || typeof fiscalReceiptSync !== "object" || Array.isArray(fiscalReceiptSync)) fiscalReceiptSync = {};
+function persistFiscalReceipts() {
+  fs.writeFileSync(FISCAL_RECEIPTS_FILE, JSON.stringify(fiscalReceipts, null, 2));
+}
+function persistFiscalReceiptSync() {
+  fs.writeFileSync(FISCAL_RECEIPT_SYNC_FILE, JSON.stringify(fiscalReceiptSync, null, 2));
+}
+
+function fiscalReceiptRemotePayload(receipt) {
+  const payment = receipt.payment && typeof receipt.payment === "object" ? receipt.payment : {};
+  return {
+    ...receipt,
+    restaurantId: receipt.restaurantId || "thai-princess",
+    source: receipt.source || "local",
+    fiscal: {
+      ...(receipt.fiscal && typeof receipt.fiscal === "object" ? receipt.fiscal : {}),
+      documentNumber: receipt.documentNumber || "",
+      receiptNumber: receipt.receiptNumber || "",
+      zReportNumber: receipt.zReportNumber || "",
+      fiscalReceiptDate: receipt.fiscalReceiptDate || "",
+      fiscalReceiptTime: receipt.fiscalReceiptTime || "",
+      rtSerialNumber: receipt.rtSerialNumber || ""
+    },
+    payment: {
+      ...payment,
+      method: payment.method || receipt.paymentMethod || "",
+      amount: payment.amount || receipt.amount || ""
+    },
+    status: receipt.status || "issued",
+    emittedAt: receipt.emittedAt || new Date().toISOString()
+  };
+}
+
+async function syncFiscalReceipt(receipt) {
+  if (!RESTAURANT_OPERATIONS_KEY || !receipt || !receipt.id) return false;
+  const id = String(receipt.id);
+  const current = fiscalReceiptSync[id] || {};
+  if (current.status === "synced") return true;
+  try {
+    const response = await fetch(`${RESTAURANT_OPERATIONS_URL}/SaveFiscalReceipt`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        Accept: "application/json",
+        "X-Restaurant-Operations-Key": RESTAURANT_OPERATIONS_KEY
+      },
+      body: JSON.stringify({ data: JSON.stringify(fiscalReceiptRemotePayload(receipt)) })
+    });
+    const raw = await response.text();
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const parsed = unwrapAspNetJson(JSON.parse(raw));
+    if (!parsed || parsed.ok !== true) throw new Error(parsed && parsed.error || "Remote save failed");
+    fiscalReceiptSync[id] = { status: "synced", syncedAt: new Date().toISOString(), error: null };
+    persistFiscalReceiptSync();
+    return true;
+  } catch (error) {
+    fiscalReceiptSync[id] = {
+      status: "error",
+      lastAttemptAt: new Date().toISOString(),
+      attempts: Number(current.attempts || 0) + 1,
+      error: error.message
+    };
+    persistFiscalReceiptSync();
+    return false;
+  }
+}
+
+async function syncPendingFiscalReceipts() {
+  if (!RESTAURANT_OPERATIONS_KEY) return;
+  for (const receipt of fiscalReceipts) {
+    const status = fiscalReceiptSync[String(receipt.id)];
+    if (!status || status.status !== "synced") await syncFiscalReceipt(receipt);
+  }
+}
 if (sharedState && persistedConfig) {
   sharedState.room = persistedConfig.room || sharedState.room;
   sharedState.settings = persistedConfig.settings || sharedState.settings;
@@ -1422,7 +1504,8 @@ const server = http.createServer((request, response) => {
       try {
         const input = JSON.parse(body || "{}");
         const printer = sharedState && sharedState.settings && sharedState.settings.fiscalPrinter;
-        if (!printer || printer.enabled !== true || !printer.host) {
+        const simulatedReceipt = printer && (printer.simulation === true || printer.simulateReceipts === true);
+        if (!printer || printer.enabled !== true || (!printer.host && !simulatedReceipt)) {
           return sendJson(response, 409, { ok: false, error: "Stampante fiscale non abilitata o non configurata" });
         }
         const port = Number(printer.port || 80);
@@ -1432,6 +1515,29 @@ const server = http.createServer((request, response) => {
           items: input.items,
           payment: input.payment
         };
+        if (simulatedReceipt) {
+          const amount = (Array.isArray(input.items) ? input.items : []).reduce((sum, item) =>
+            sum + Number(item.quantity || 1) * Number(String(item.unitPrice || item.price || 0).replace(",", ".")), 0);
+          const now = new Date();
+          const receiptNumber = String(Date.now()).slice(-6);
+          return sendJson(response, 200, {
+            ok: true,
+            simulated: true,
+            testModeOneCent: false,
+            fiscalAmount: amount.toFixed(2).replace(".", ","),
+            code: "OK",
+            status: "SIMULATED",
+            addInfo: {
+              fiscalReceiptNumber: receiptNumber,
+              fiscalReceiptDate: now.toISOString().slice(0, 10),
+              fiscalReceiptTime: now.toTimeString().slice(0, 8),
+              zRepNumber: `SIM-${now.toISOString().slice(0, 10).replace(/-/g, "")}`,
+              serialNumber: "SIMULATED-RT",
+              fiscalReceiptAmount: amount.toFixed(2).replace(".", ",")
+            },
+            raw: "SIMULATED_FISCAL_RECEIPT"
+          });
+        }
         const testModeOneCent = printer.testModeOneCent === true;
         const receipt = epsonFiscal.applyOneCentTestMode(requestedReceipt, {
           enabled: testModeOneCent,
@@ -1493,7 +1599,8 @@ const server = http.createServer((request, response) => {
           return sendJson(response, 400, { ok: false, error: "Conferma annullo o identificativo scontrino mancanti" });
         }
         const printer = sharedState && sharedState.settings && sharedState.settings.fiscalPrinter;
-        if (!printer || printer.enabled !== true || !printer.host) {
+        const simulatedReceipt = printer && (printer.simulation === true || printer.simulateReceipts === true);
+        if (!printer || printer.enabled !== true || (!printer.host && !simulatedReceipt)) {
           return sendJson(response, 409, { ok: false, error: "Stampante fiscale non abilitata o non configurata" });
         }
         if (fiscalReceiptInProgress) return sendJson(response, 409, { ok: false, error: "Un'altra operazione fiscale è già in corso" });
@@ -1530,6 +1637,29 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 502, { ok: false, error: error.name === "AbortError" ? "Timeout durante l'annullamento" : error.message });
       }
+    });
+    return;
+  }
+  if (request.url === "/api/fiscal-receipts" && request.method === "GET") return sendJson(response, 200, { receipts: fiscalReceipts });
+  if (request.url === "/api/fiscal-receipts" && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => { body += chunk; if (body.length > 256 * 1024) request.destroy(); });
+    request.on("end", () => {
+      try {
+        const receipt = JSON.parse(body || "{}");
+        if (!receipt.id || !receipt.emittedAt) return sendJson(response, 400, { ok: false, error: "Scontrino non valido" });
+        const index = fiscalReceipts.findIndex(item => item.id === receipt.id);
+        if (index >= 0) fiscalReceipts[index] = receipt;
+        else fiscalReceipts.unshift(receipt);
+        persistFiscalReceipts();
+        fiscalReceiptSync[String(receipt.id)] = {
+          ...(fiscalReceiptSync[String(receipt.id)] || {}),
+          status: "pending"
+        };
+        persistFiscalReceiptSync();
+        syncFiscalReceipt(receipt).catch(() => {});
+        return sendJson(response, 200, { ok: true, receipt, sync: fiscalReceiptSync[String(receipt.id)] });
+      } catch (error) { return sendJson(response, 400, { ok: false, error: error.message }); }
     });
     return;
   }
@@ -1624,6 +1754,9 @@ if (HOST) server.listen(PORT, HOST, () => console.log(`Ristorante disponibile su
 else server.listen(PORT, () => console.log(`Ristorante disponibile su http://localhost:${PORT}`));
 
 connectRealtimeBridge();
+
+syncPendingFiscalReceipts().catch(() => {});
+setInterval(() => { syncPendingFiscalReceipts().catch(() => {}); }, FISCAL_RECEIPT_SYNC_INTERVAL_MS);
 
 if (HUBRISE_FEED_KEY) {
   pollHubRiseOrders();

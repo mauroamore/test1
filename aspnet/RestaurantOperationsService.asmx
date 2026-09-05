@@ -91,6 +91,81 @@ public class RestaurantOperationsService : WebService
         return serializer.Serialize(new Dictionary<string, object> { { "statuses", statuses } });
     }
 
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string SaveFiscalReceipt(string data)
+    {
+        RequireKey();
+        try
+        {
+            if (String.IsNullOrWhiteSpace(data))
+                return serializer.Serialize(new { ok = false, error = "The fiscal receipt data is required." });
+
+            var payload = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }
+                .Deserialize<Dictionary<string, object>>(data);
+            if (payload == null || !payload.ContainsKey("id") || payload["id"] == null)
+                return serializer.Serialize(new { ok = false, error = "The fiscal receipt JSON must contain id." });
+
+            using (var connection = HubRiseIntegration.OpenDatabase())
+            using (var command = new MySqlCommand(@"
+                INSERT INTO fiscal_receipts (data)
+                VALUES (CAST(@data AS JSON))
+                ON DUPLICATE KEY UPDATE data = VALUES(data)", connection))
+            {
+                command.CommandTimeout = TimeoutSeconds;
+                command.Parameters.Add("@data", MySqlDbType.LongText).Value = data;
+                command.ExecuteNonQuery();
+            }
+            return serializer.Serialize(new { ok = true, id = Convert.ToString(payload["id"]) });
+        }
+        catch (Exception ex)
+        {
+            return serializer.Serialize(new { ok = false, error = ex.Message });
+        }
+    }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string GetFiscalReceipts()
+    {
+        RequireKey();
+        var result = new List<object>();
+        var readerSerializer = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue };
+        try
+        {
+            using (var connection = HubRiseIntegration.OpenDatabase())
+            using (var command = new MySqlCommand(@"
+                SELECT CAST(data AS CHAR) AS data, id, restaurant_id, order_id, table_id,
+                       source, document_number, receipt_number, fiscal_receipt_date,
+                       fiscal_receipt_time, rt_serial_number, amount, payment_method,
+                       status, emitted_at, voided_at, void_reason, reissue_of
+                FROM fiscal_receipts
+                ORDER BY emitted_at DESC, id DESC
+                LIMIT 200", connection))
+            {
+                command.CommandTimeout = TimeoutSeconds;
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var item = new Dictionary<string, object>();
+                        for (var i = 0; i < reader.FieldCount; i++)
+                            item[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                        var rawData = Convert.ToString(item["data"] ?? "{}");
+                        try { item["data"] = readerSerializer.DeserializeObject(rawData); }
+                        catch { }
+                        result.Add(item);
+                    }
+                }
+            }
+            return readerSerializer.Serialize(new { ok = true, receipts = result });
+        }
+        catch (Exception ex)
+        {
+            return readerSerializer.Serialize(new { ok = false, error = ex.Message, receipts = result });
+        }
+    }
+
     private string Queue(string operation, string payload)
     {
         var commandId = operation + "-" + Guid.NewGuid().ToString("N");

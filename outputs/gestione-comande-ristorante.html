@@ -2555,6 +2555,7 @@
       <div class="panel-header"><h2>Stampante fiscale Epson</h2><span class="small">Protocollo Fiscal ePOS-Print</span></div>
       <div class="panel-body stack">
         <label class="checkbox-label"><input id="fiscalPrinterEnabledInput" type="checkbox"> Abilita stampante fiscale</label>
+        <label class="checkbox-label"><input id="fiscalPrinterSimulationInput" type="checkbox"> Simula scontrini fiscali (non contatta la stampante)</label>
         <label class="checkbox-label"><input id="fiscalPrinterOneCentTestInput" type="checkbox"> Modalità test fiscale: forza ogni scontrino a €0,01</label>
         <div class="small">Attenzione: anche in modalità test viene emesso un documento fiscale reale da un centesimo, registrato nei corrispettivi.</div>
         <div class="fiscal-printer-controls">
@@ -3138,7 +3139,7 @@
           coverCharge: 2,
           posSimulation: false,
           posNetwork: { lanHost: "192.168.1.240", wifiHost: "192.168.1.160", port: 8081, terminalId: "37105051", cashRegisterId: "00000001", lrcMode: "stxetx" },
-          fiscalPrinter: { enabled: false, testModeOneCent: false, host: "", port: 80, devid: "local_printer", operator: "1", defaultDepartment: "2" },
+          fiscalPrinter: { enabled: false, simulation: false, testModeOneCent: false, host: "", port: 80, devid: "local_printer", operator: "1", defaultDepartment: "2" },
         menuSearchKeyboard: "numeric",
         kitchenColumns: 6,
         kitchenSummaryWidth: 260,
@@ -4078,7 +4079,8 @@
       const usesCash = row.method === "Contanti";
       const gestionaleOnly = row.method === "Altro";
       const posReady = state.settings.posSimulation === true;
-      const fiscalReady = state.settings.fiscalPrinter?.enabled === true && Boolean(state.settings.fiscalPrinter?.host);
+      const fiscalPrinter = state.settings.fiscalPrinter || {};
+      const fiscalReady = fiscalPrinter.enabled === true && (Boolean(fiscalPrinter.host) || fiscalPrinter.simulation === true);
       let manualPos = false;
       if (!usesCard && !usesCash && !gestionaleOnly && !fiscalReady && !posReady && !manualPos) {
         showPaymentError("Stampante fiscale non collegata: il pagamento non è stato eseguito.", "Configura e abilita la stampante fiscale nel Setup");
@@ -4224,7 +4226,7 @@
       const referenceKey = [fiscal.rtSerialNumber, fiscal.zReportNumber, fiscal.receiptNumber, fiscal.fiscalReceiptDate].join("|");
       const existing = state.fiscalReceipts.find(receipt => receipt.referenceKey === referenceKey && referenceKey !== "|||" && receipt.orderId === order.id);
       if (existing) return;
-      state.fiscalReceipts.unshift({
+      const storedReceipt = {
         id: crypto.randomUUID ? crypto.randomUUID() : `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         status: "issued",
         orderId: order.id,
@@ -4242,7 +4244,9 @@
         request: structuredClone(fiscal.request || {}),
         response: { addInfo: structuredClone(fiscal.addInfo || {}), raw: fiscal.raw || "" },
         orderItems: structuredClone(fiscal.orderItems || order.items || [])
-      });
+      };
+      state.fiscalReceipts.unshift(storedReceipt);
+      fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(storedReceipt) }).catch(() => {});
       saveState();
     }
 
@@ -6959,7 +6963,7 @@
 
     function renderSetup() {
       state.settings ||= {};
-      state.settings.fiscalPrinter ||= { enabled: false, testModeOneCent: false, host: "", port: 80, devid: "local_printer", operator: "1", defaultDepartment: "2" };
+      state.settings.fiscalPrinter ||= { enabled: false, simulation: false, testModeOneCent: false, host: "", port: 80, devid: "local_printer", operator: "1", defaultDepartment: "2" };
       const fiscalPrinter = state.settings.fiscalPrinter;
       document.getElementById("posSimulationInput").checked = state.settings.posSimulation === true;
       state.settings.posNetwork ||= { lanHost: "192.168.1.240", wifiHost: "192.168.1.160", port: 8081, terminalId: "37105051", cashRegisterId: "00000001", lrcMode: "stxetx" };
@@ -6972,6 +6976,7 @@
       document.getElementById("posLrcModeInput").value = posNetwork.lrcMode || "stxetx";
       document.getElementById("menuSearchKeyboardInput").value = state.settings.menuSearchKeyboard || "numeric";
       document.getElementById("fiscalPrinterEnabledInput").checked = fiscalPrinter.enabled === true;
+      document.getElementById("fiscalPrinterSimulationInput").checked = fiscalPrinter.simulation === true || fiscalPrinter.simulateReceipts === true;
       document.getElementById("fiscalPrinterOneCentTestInput").checked = fiscalPrinter.testModeOneCent === true;
       document.getElementById("fiscalPrinterHostInput").value = fiscalPrinter.host || "";
       document.getElementById("fiscalPrinterPortInput").value = Number(fiscalPrinter.port || 80);
@@ -7105,6 +7110,7 @@
     function readFiscalPrinterSetup() {
       return {
         enabled: document.getElementById("fiscalPrinterEnabledInput").checked,
+        simulation: document.getElementById("fiscalPrinterSimulationInput").checked,
         testModeOneCent: document.getElementById("fiscalPrinterOneCentTestInput").checked,
         host: document.getElementById("fiscalPrinterHostInput").value.trim(),
         port: Number(document.getElementById("fiscalPrinterPortInput").value || 80),
@@ -8241,7 +8247,14 @@
       });
     }
 
-    function openFiscalReceipts() {
+    async function openFiscalReceipts() {
+      try {
+        const response = await fetch("/api/fiscal-receipts", { cache: "no-store" });
+        if (response.ok) {
+          const payload = await response.json();
+          if (Array.isArray(payload.receipts)) state.fiscalReceipts = payload.receipts;
+        }
+      } catch {}
       renderFiscalReceipts();
       document.getElementById("fiscalReceiptsModal").showModal();
     }
@@ -8290,6 +8303,7 @@
         receipt.voidedAt = new Date().toISOString();
         receipt.voidReason = reason;
         receipt.voidResponse = result;
+        fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) }).catch(() => {});
         saveState();
         document.getElementById("fiscalVoidModal").close();
         renderFiscalReceipts();
@@ -8321,6 +8335,8 @@
         const addInfo = result.addInfo || {};
         const newReceipt = { ...receipt, id: `fiscal-${Date.now()}-${Math.random().toString(16).slice(2)}`, status: "issued", reissueOf: receipt.id, amount: amount.toFixed(2), payment: { method, amount: amount.toFixed(2) }, orderItems: [{ description, quantity: 1, unitPrice: amount.toFixed(2) }], emittedAt: new Date().toISOString(), receiptNumber: addInfo.fiscalReceiptNumber || "", fiscalReceiptDate: addInfo.fiscalReceiptDate || "", fiscalReceiptTime: addInfo.fiscalReceiptTime || "", zReportNumber: addInfo.zRepNumber || "", rtSerialNumber: addInfo.serialNumber || "", documentNumber: addInfo.zRepNumber && addInfo.fiscalReceiptNumber ? `${addInfo.zRepNumber}-${String(addInfo.fiscalReceiptNumber).padStart(4, "0")}` : "", response: { addInfo, raw: result.raw || "" } };
         state.fiscalReceipts.unshift(newReceipt);
+        fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) }).catch(() => {});
+        fetch("/api/fiscal-receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newReceipt) }).catch(() => {});
         saveState();
         document.getElementById("fiscalReissueModal").close();
         renderFiscalReceipts();
@@ -8820,7 +8836,7 @@
       document.getElementById("menuSearchInput").setAttribute("inputmode", state.settings.menuSearchKeyboard);
       saveState();
     });
-    ["fiscalPrinterEnabledInput", "fiscalPrinterOneCentTestInput", "fiscalPrinterHostInput", "fiscalPrinterPortInput", "fiscalPrinterDevidInput", "fiscalPrinterOperatorInput", "fiscalPrinterDepartmentInput"].forEach(id => {
+    ["fiscalPrinterEnabledInput", "fiscalPrinterSimulationInput", "fiscalPrinterOneCentTestInput", "fiscalPrinterHostInput", "fiscalPrinterPortInput", "fiscalPrinterDevidInput", "fiscalPrinterOperatorInput", "fiscalPrinterDepartmentInput"].forEach(id => {
       document.getElementById(id).addEventListener("change", saveFiscalPrinterSetup);
     });
     document.getElementById("fiscalPrinterTestBtn").addEventListener("click", testFiscalPrinterConnection);

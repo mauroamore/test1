@@ -233,7 +233,10 @@ function buildVoidFiscalReceiptXml({ zReportNumber, documentNumber, fiscalReceip
     throw new Error("Per annullare servono numero Z, numero documento, data fiscale e matricola RT");
   }
   const command = `VOID ${String(zReportNumber).padStart(4, "0")} ${String(documentNumber).padStart(4, "0")} ${normalizeFiscalDate(fiscalReceiptDate)} ${rtSerialNumber}`;
-  return `<printRecMessage operator="${escapeXml(operator)}" description="${escapeXml(command)}" type="4" index="1" font="4" />`;
+  // EpsonFpMate richiede per il messaggio VOID gli attributi documentati con
+  // questa nomenclatura; la variante operator/description viene rifiutata da
+  // alcuni firmware con il generico codice PRINTER ERROR.
+  return `<printRecMessage Ope="${escapeXml(operator)}" Text="${escapeXml(command)}" Type="4" Index="1" Font="4" />`;
 }
 
 async function voidFiscalReceipt(host, refs, options = {}) {

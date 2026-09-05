@@ -1452,7 +1452,38 @@ const server = http.createServer((request, response) => {
         }
         const currentRevision = Number(sharedState && sharedState.stateRevision || 0);
         const incomingRevision = Number(incomingState.stateRevision || 0);
+        const paymentCommit = parsedBody.paymentCommit === true;
+        const paymentOrderId = parsedBody.paymentOrderId == null ? "" : String(parsedBody.paymentOrderId);
         if (currentRevision > 0 && incomingRevision < currentRevision) {
+          if (paymentCommit && paymentOrderId) {
+            const incomingCollections = [incomingState.tables || [], incomingState.deliveryOrders || []];
+            const paidOrder = incomingCollections.flat().find(order => String(order.id) === paymentOrderId);
+            const currentCollections = [sharedState.tables || [], sharedState.deliveryOrders || []];
+            const currentOrder = currentCollections.flat().find(order => String(order.id) === paymentOrderId);
+            if (!paidOrder || !currentOrder) {
+              sendJson(response, 409, { ok: false, stale: true, state: sharedState, error: "Ordine del pagamento non trovato" });
+              return;
+            }
+            for (const collection of currentCollections) {
+              const index = collection.findIndex(order => String(order.id) === paymentOrderId);
+              if (index >= 0) collection[index] = paidOrder;
+            }
+            const incomingHistory = Array.isArray(incomingState.history) ? incomingState.history : [];
+            const paidHistory = incomingHistory.find(entry => String(entry.id) === paymentOrderId);
+            if (paidHistory) {
+              if (!Array.isArray(sharedState.history)) sharedState.history = [];
+              const historyIndex = sharedState.history.findIndex(entry => String(entry.id) === paymentOrderId);
+              if (historyIndex >= 0) sharedState.history[historyIndex] = paidHistory;
+              else sharedState.history.unshift(paidHistory);
+            }
+            sharedState.stateRevision = currentRevision + 1;
+            persistStateFiles();
+            pushStateSnapshot().finally(() => {
+              broadcast();
+              sendJson(response, 200, { ok: true, mergedPayment: true, stateRevision: sharedState.stateRevision });
+            });
+            return;
+          }
           sendJson(response, 409, { ok: false, stale: true, state: sharedState });
           return;
         }

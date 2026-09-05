@@ -1826,7 +1826,11 @@ const server = http.createServer((request, response) => {
         const pendingLocal = fiscalReceipts.filter(receipt => !remoteIds.has(String(receipt.id)));
         sendJson(response, 200, { receipts: [...pendingLocal, ...remoteReceipts], source: "database" });
       })
-      .catch(() => sendJson(response, 200, { receipts: fiscalReceipts, source: "local-fallback" }));
+      .catch(error => sendJson(response, 502, {
+        receipts: fiscalReceipts,
+        source: "local-fallback",
+        error: error && error.message ? error.message : "Remote history load failed"
+      }));
     return;
   }
   if (request.url === "/api/fiscal-receipts/sync-status" && request.method === "GET") {

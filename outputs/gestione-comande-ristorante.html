@@ -8296,11 +8296,13 @@
         if (from) query.set("from", from);
         if (to) query.set("to", to);
         const response = await fetch(`/api/fiscal-receipts${query.toString() ? `?${query}` : ""}`, { cache: "no-store" });
-        if (response.ok) {
-          const payload = await response.json();
-          if (Array.isArray(payload.receipts)) state.fiscalReceipts = payload.receipts;
-        }
-      } catch {}
+        const payload = await response.json();
+        if (Array.isArray(payload.receipts)) state.fiscalReceipts = payload.receipts;
+        if (!response.ok && payload.error) throw new Error(payload.error);
+      } catch (error) {
+        console.error("Caricamento storico scontrini fallito:", error);
+        window.alert(`Impossibile caricare lo storico remoto: ${error.message}`);
+      }
       renderFiscalReceipts();
       document.getElementById("fiscalReceiptsModal").showModal();
     }

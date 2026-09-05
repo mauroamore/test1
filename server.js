@@ -282,9 +282,16 @@ async function syncPendingFiscalReceipts() {
 }
 
 function queueFiscalElectronicCopy({ receiptId, printer, lastDocument }) {
-  if (!receiptId || !printer || !lastDocument) return;
+  if (!receiptId || !printer) return;
   setImmediate(async () => {
     try {
+      if (!lastDocument) {
+        lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
+          operator: printer.operator || "1",
+          port: printer.port || 80,
+          devid: printer.devid || "local_printer"
+        });
+      }
       let index = -1;
       for (let attempt = 0; attempt < 20 && index < 0; attempt += 1) {
         index = fiscalReceipts.findIndex(item => String(item.id) === String(receiptId));
@@ -1704,14 +1711,11 @@ const server = http.createServer((request, response) => {
           let electronicCopy = null;
           if (result.success) {
             try {
-              const lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
-                operator,
-                port,
-                devid: printer.devid || "local_printer",
-                signal: controller.signal
-              });
               electronicCopy = { status: "pending" };
-              queueFiscalElectronicCopy({ receiptId: input.receiptId, printer: { host: printer.host }, lastDocument });
+              queueFiscalElectronicCopy({
+                receiptId: input.receiptId,
+                printer: { host: printer.host, operator, port, devid: printer.devid || "local_printer" }
+              });
             } catch (copyError) {
               electronicCopy = { status: "error", error: copyError.message };
             }
@@ -1792,14 +1796,11 @@ const server = http.createServer((request, response) => {
           let electronicCopy = null;
           if (result.success && !simulatedReceipt) {
             try {
-              const lastDocument = await epsonFiscal.readLastDocumentStatus(printer.host, {
-                operator: refs.operator,
-                port: Number(printer.port || 80),
-                devid: printer.devid || "local_printer",
-                signal: controller.signal
-              });
               electronicCopy = { status: "pending" };
-              queueFiscalElectronicCopy({ receiptId: input.voidReceiptId, printer: { host: printer.host }, lastDocument });
+              queueFiscalElectronicCopy({
+                receiptId: input.voidReceiptId,
+                printer: { host: printer.host, operator: refs.operator, port: Number(printer.port || 80), devid: printer.devid || "local_printer" }
+              });
             } catch (copyError) {
               electronicCopy = { status: "error", error: copyError.message };
             }

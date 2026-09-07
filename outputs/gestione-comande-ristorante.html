@@ -6281,7 +6281,7 @@
           .reduce((total, line) => total + Number(line.qty || 0), 0);
         button.className = `menu-item${justAdded ? " just-added" : ""}`;
         button.dataset.itemId = item.id;
-        button.innerHTML = `<strong><span class="item-quantity">${quantity ? `${quantity}x` : ""}</span><span>${item.name}</span></strong><span class="small">${item.category}</span><span class="price">${money.format(item.price)}</span>`;
+      button.innerHTML = `<strong><span class="item-quantity">${quantity ? `${quantity}x` : ""}</span><span>${escapeHtml(item.name)}</span></strong><span class="small">${escapeHtml(item.category)}</span><span class="price">${money.format(item.price)}</span>`;
         let longPressTimer = null;
         let longPressed = false;
         const cancelLongPress = () => {

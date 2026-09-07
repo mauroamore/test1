@@ -583,7 +583,10 @@ function handleDeliverooWebhook(request, response) {
     const entry = {
       receivedAt: new Date().toISOString(),
       path: request.url,
-      headers: request.headers,
+      headers: Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [
+        name,
+        /authorization|cookie|key|token|signature/i.test(name) ? "[redacted]" : value
+      ])),
       body: (() => {
         try { return JSON.parse(body || "{}"); } catch { return body; }
       })()

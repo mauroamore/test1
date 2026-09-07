@@ -35,7 +35,7 @@ public class DbAdmin : IHttpHandler
 
         var expectedKey = ConfigurationManager.AppSettings["DbAdminKey"];
         var suppliedKey = context.Request.Headers["X-Db-Admin-Key"];
-        if (string.IsNullOrEmpty(expectedKey) || !string.Equals(expectedKey, suppliedKey, StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(expectedKey) || !FixedTimeEquals(expectedKey, suppliedKey))
         {
             context.Response.StatusCode = 401;
             context.Response.Write("{\"error\":\"Unauthorized\"}");
@@ -119,6 +119,17 @@ public class DbAdmin : IHttpHandler
             context.Response.StatusCode = 500;
             context.Response.Write("{\"error\":\"" + EscapeJson(ex.Message) + "\"}");
         }
+    }
+
+    private static bool FixedTimeEquals(string expected, string supplied)
+    {
+        if (expected == null || supplied == null) return false;
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        var suppliedBytes = Encoding.UTF8.GetBytes(supplied);
+        if (expectedBytes.Length != suppliedBytes.Length) return false;
+        var difference = 0;
+        for (var index = 0; index < expectedBytes.Length; index++) difference |= expectedBytes[index] ^ suppliedBytes[index];
+        return difference == 0;
     }
 
     private static bool LooksLikeQuery(string sql)

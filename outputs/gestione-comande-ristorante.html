@@ -4748,7 +4748,7 @@
     function tableReservationFor(table) {
       const reservations = Array.isArray(state.reservations) ? state.reservations : [];
       return reservations.find(reservation => {
-        if (!["confirmed", "late", "seated"].includes(reservation.status)) return false;
+        if (!isActiveReservation(reservation)) return false;
         let ids = [];
         try { ids = Array.isArray(reservation.tableIds) ? reservation.tableIds : JSON.parse(reservation.notes || "[]"); } catch { ids = []; }
         return ids.map(String).includes(String(table.id));
@@ -4757,6 +4757,11 @@
 
     function reservationDisplayName(reservation) {
       return reservation.surname || reservation.lastName || reservation.name || reservation.customerName || "Walk-in";
+    }
+
+    function isActiveReservation(reservation) {
+      const status = String(reservation?.status || "").trim().toLowerCase();
+      return ["confirmed", "late", "seated", "confermata", "in ritardo", "seduto"].includes(status);
     }
 
     function reservationCustomer(reservation) {
@@ -4958,7 +4963,7 @@
     function applySeatedReservations() {
       let changed = false;
       const activeReservationIds = new Set((state.reservations || [])
-        .filter(reservation => ["confirmed", "late", "seated"].includes(reservation.status))
+        .filter(isActiveReservation)
         .map(reservation => String(reservation.id || reservation.reservationId || "")));
       // Una prenotazione cancellata/chiusa non deve lasciare sul tavolo il vecchio
       // cliente o i coperti. Senza questa pulizia il polling alterna lo snapshot

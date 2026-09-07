@@ -3825,6 +3825,9 @@
             }
           }
           mergeKitchenStatusesIntoLocalDraft();
+          // Anche lo snapshot principale può contenere riferimenti a prenotazioni
+          // già concluse: ripulisci subito i tavoli, senza attendere il polling dedicato.
+          applySeatedReservations();
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
           // Una bozza aperta appartiene a questo dispositivo e non deve essere
           // sovrascritta dai refresh dello stato condiviso.

@@ -4543,6 +4543,19 @@
         latestHistory.payment = structuredClone(order.payment);
       }
       await finishReservationForOrder(order);
+      const paymentResponse = await fetch(`/api/orders/${encodeURIComponent(order.id)}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedRevision: Number(state.stateRevision || 0),
+          payment: structuredClone(order.payment),
+          orderSnapshot: structuredClone(order),
+          closedAt: new Date().toISOString()
+        })
+      });
+      const paymentResult = await paymentResponse.json();
+      if (!paymentResponse.ok || !paymentResult.ok) throw new Error(paymentResult.error || "Salvataggio pagamento non riuscito");
+      if (paymentResult.stateRevision) state.stateRevision = paymentResult.stateRevision;
       await saveState();
       document.getElementById("paymentModal").close();
       render();

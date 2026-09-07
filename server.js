@@ -1519,6 +1519,45 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
+  const paymentIntentMatch = request.url.match(/^\/api\/orders\/([^/?]+)\/payment$/);
+  if (paymentIntentMatch && request.method === "POST") {
+    let body = "";
+    request.on("data", chunk => body += chunk);
+    request.on("end", () => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const orderId = decodeURIComponent(paymentIntentMatch[1]);
+        const expectedRevision = Number(input.expectedRevision || 0);
+        const currentRevision = Number(sharedState && sharedState.stateRevision || 0);
+        if (expectedRevision && expectedRevision !== currentRevision) {
+          return sendJson(response, 409, { ok: false, stale: true, state: sharedState, stateRevision: currentRevision });
+        }
+        const collections = [sharedState?.tables || [], sharedState?.deliveryOrders || []];
+        const order = collections.flat().find(item => String(item.id) === orderId);
+        if (!order) return sendJson(response, 404, { ok: false, error: "Ordine non trovato" });
+        if (!input.payment || typeof input.payment !== "object") return sendJson(response, 400, { ok: false, error: "Pagamento non valido" });
+        const paidAt = String(input.payment.paidAt || new Date().toISOString());
+        order.status = input.payment.status === "partial" ? "Pagamento parziale" : "Pagato";
+        order.paymentStatus = input.payment.status === "partial" ? "partial" : "paid";
+        order.paidAt = paidAt;
+        order.payment = input.payment;
+        order.occupied = true;
+        const historyEntry = { ...(input.orderSnapshot || order), status: order.status, paymentStatus: order.paymentStatus, paidAt, payment: input.payment, closedAt: input.closedAt || paidAt };
+        if (!Array.isArray(sharedState.history)) sharedState.history = [];
+        const historyIndex = sharedState.history.findIndex(item => String(item.id) === orderId);
+        if (historyIndex >= 0) sharedState.history[historyIndex] = { ...sharedState.history[historyIndex], ...historyEntry };
+        else sharedState.history.unshift(historyEntry);
+        sharedState.stateRevision = currentRevision + 1;
+        persistStateFiles();
+        broadcast();
+        pushStateSnapshot().catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} payment intent ${error.message}\n`));
+        return sendJson(response, 200, { ok: true, stateRevision: sharedState.stateRevision, order: structuredClone(order) });
+      } catch (error) {
+        return sendJson(response, 400, { ok: false, error: error.message || "Pagamento non valido" });
+      }
+    });
+    return;
+  }
   if (request.url === "/api/state" && request.method === "POST") {
     let body = "";
     request.on("data", chunk => body += chunk);

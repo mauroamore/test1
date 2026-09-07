@@ -19,10 +19,18 @@ public class MenuService : WebService
     [WebMethod]
     public string GetMenu()
     {
-        // Il gestionale gira su un'origine diversa dal sito del servizio.
-        Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
-        Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
-        Context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
+        var origin = Context.Request.Headers["Origin"];
+        var allowedOrigins = (ConfigurationManager.AppSettings["MenuServiceCorsOrigins"] ?? "")
+            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var allowedOrigin in allowedOrigins)
+        {
+            if (string.Equals(origin, allowedOrigin.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                Context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+                Context.Response.Headers["Vary"] = "Origin";
+                break;
+            }
+        }
 
         var categories = new List<Dictionary<string, object>>();
         var byId = new Dictionary<int, Dictionary<string, object>>();
@@ -56,7 +64,7 @@ public class MenuService : WebService
                 }
             }
 
-            using (var command = new MySqlCommand("SELECT id, category_id, name, description_en, description_it, image_url, is_delivery, price, spiciness_level FROM v2_products WHERE is_active = 1 ORDER BY category_id, id", connection))
+            using (var command = new MySqlCommand("SELECT id, category_id, name, description_en, description_it, image_url, is_delivery, is_visible, price, spiciness_level FROM v2_products WHERE is_active = 1 AND is_visible = 1 ORDER BY category_id, id", connection))
             using (var reader = command.ExecuteReader())
             {
                 while (reader.Read())

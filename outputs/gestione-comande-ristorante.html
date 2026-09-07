@@ -8344,6 +8344,22 @@
       };
     }
 
+    function createCleanOperationalState(previousState) {
+      const previous = previousState && typeof previousState === "object" ? previousState : {};
+      const clean = structuredClone(initialState);
+      // Il reset cancella i dati operativi, ma non deve perdere il setup della
+      // sala, le impostazioni, il menu locale o il layout dei tavoli.
+      clean.room = structuredClone(previous.room || clean.room);
+      clean.settings = structuredClone(previous.settings || clean.settings);
+      clean.menu = Array.isArray(previous.menu) ? structuredClone(previous.menu) : clean.menu;
+      clean.variations = structuredClone(previous.variations || clean.variations);
+      clean.tables = Array.isArray(previous.tables)
+        ? previous.tables.map(createFreshTable)
+        : clean.tables.map(createFreshTable);
+      clean.stateRevision = Number(previous.stateRevision || 0);
+      return clean;
+    }
+
     function renderFiscalReceipts() {
       const root = document.getElementById("fiscalReceiptsList");
       const allReceipts = Array.isArray(state.fiscalReceipts) ? state.fiscalReceipts : [];
@@ -9346,11 +9362,7 @@
         window.alert("Reset bloccato: impossibile verificare la sincronizzazione degli scontrini.");
         return;
       }
-      state.tables = state.tables.map(createFreshTable);
-      state.deliveryOrders = [];
-      state.history = [];
-      state.selectedTable = null;
-      state.selectedOrderId = null;
+      state = createCleanOperationalState(state);
       clearLocalOrderDraft();
       paymentRows = [];
       paymentOrderId = null;

@@ -3,6 +3,7 @@ const fs = require("fs");
 const net = require("net");
 const path = require("path");
 const childProcess = require("child_process");
+const crypto = require("crypto");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
@@ -429,7 +430,9 @@ function sendJson(response, status, body) {
 function updateAuthorized(request) {
   if (!UPDATE_KEY) return false;
   const headerKey = request.headers["x-update-key"] || "";
-  return headerKey === UPDATE_KEY;
+  const received = Buffer.from(String(headerKey));
+  const expected = Buffer.from(String(UPDATE_KEY));
+  return received.length === expected.length && crypto.timingSafeEqual(received, expected);
 }
 
 function runUpdateScript() {

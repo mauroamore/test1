@@ -122,6 +122,36 @@ const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || "").split(",").map(origin => origin.trim()).filter(Boolean));
 
+function readRequestBody(request, maxBytes = MAX_REQUEST_BODY_BYTES) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    let size = 0;
+    let settled = false;
+    const fail = error => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    request.on("data", chunk => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        request.destroy();
+        fail(Object.assign(new Error("Richiesta troppo grande"), { code: "REQUEST_TOO_LARGE" }));
+        return;
+      }
+      body += chunk;
+    });
+    request.on("end", () => {
+      if (!settled) {
+        settled = true;
+        resolve(body);
+      }
+    });
+    request.on("error", fail);
+    request.on("aborted", () => fail(new Error("Richiesta interrotta")));
+  });
+}
+
 function corsOrigin(request) {
   const origin = request.headers.origin;
   if (!origin) return null;
@@ -688,12 +718,7 @@ async function processPosPaymentEvent(eventData) {
 }
 
 function handleDeliverooWebhook(request, response) {
-  let body = "";
-  request.on("data", chunk => {
-    body += chunk;
-    if (body.length > 2 * 1024 * 1024) request.destroy();
-  });
-  request.on("end", () => {
+  readRequestBody(request).then(body => {
     const entry = {
       receivedAt: new Date().toISOString(),
       path: request.url,
@@ -707,16 +732,17 @@ function handleDeliverooWebhook(request, response) {
     };
     appendLog(DELIVEROO_WEBHOOK_LOG, `${JSON.stringify(entry)}\n`);
     sendJson(response, 200, { ok: true, received: true });
-  });
+  }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, {
+    ok: false,
+    error: error.message
+  }));
 }
 
 function handleReservationsProxy(request, response) {
   const method = new URL(request.url, "http://localhost").searchParams.get("method");
   const allowed = new Set(["GetReservations", "UpdateReservation", "InsertWalkin"]);
   if (!allowed.has(method)) return sendJson(response, 400, { error: "Metodo prenotazioni non valido" });
-  let body = "";
-  request.on("data", chunk => body += chunk);
-  request.on("end", async () => {
+  readRequestBody(request).then(async body => {
     try {
       const upstream = await fetch(`${REMOTE_BASE_URL}/Sigonella.aspx/${method}`, {
         method: "POST",
@@ -732,7 +758,9 @@ function handleReservationsProxy(request, response) {
     } catch (error) {
       sendJson(response, 502, { error: "Servizio prenotazioni non disponibile", detail: error.message });
     }
-  });
+  }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, {
+    error: error.message
+  }));
 }
 
 function mergeDeliveryOrders(newOrders) {

@@ -2042,10 +2042,17 @@ const server = http.createServer((request, response) => {
       sendJson(response, 500, { ok: false, error: error.message });
     });
   }
-  const requestPath = request.url.split("?")[0];
-  const requested = requestPath === "/" ? "/outputs/gestione-comande-ristorante.html" : requestPath;
-  const file = path.normalize(path.join(ROOT, requested));
-  if (!file.startsWith(ROOT) || !fs.existsSync(file)) return sendJson(response, 404, { error: "Risorsa non trovata" });
+  const publicFiles = new Map([
+    ["/", "outputs/gestione-comande-ristorante.html"],
+    ["/outputs/gestione-comande-ristorante.html", "outputs/gestione-comande-ristorante.html"],
+    ["/outputs/menu-editor.html", "outputs/menu-editor.html"],
+    ["/outputs/camera-test.html", "outputs/camera-test.html"],
+    ["/outputs/customer-menu-prototype.html", "outputs/customer-menu-prototype.html"]
+  ]);
+  const fileName = publicFiles.get(request.url.split("?")[0]);
+  if (!fileName) return sendJson(response, 404, { error: "Risorsa non trovata" });
+  const file = path.join(ROOT, fileName);
+  if (!fs.existsSync(file)) return sendJson(response, 404, { error: "Risorsa non trovata" });
   response.writeHead(200, { "Content-Type": file.endsWith(".html") ? "text/html; charset=utf-8" : "text/plain" });
   fs.createReadStream(file).pipe(response);
 });

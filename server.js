@@ -1451,9 +1451,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/hubrise/status" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       if (!HUBRISE_STATUS_KEY) return sendJson(response, 503, { error: "HUBRISE_STATUS_KEY non impostata" });
       try {
         const upstream = await fetch(HUBRISE_STATUS_URL, {
@@ -1467,13 +1465,11 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         sendJson(response, 502, { error: "Aggiornamento stato HubRise non disponibile", detail: error.message });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { error: error.message }));
     return;
   }
   if (request.url === "/api/log-freed" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       if (!RESTAURANT_SYNC_KEY) return sendJson(response, 503, { error: "RESTAURANT_SYNC_KEY non impostata" });
       try {
         const upstream = await fetch(RESTAURANT_SYNC_URL + "?mode=log_freed" +
@@ -1488,7 +1484,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         sendJson(response, 502, { error: "Registro remoto non disponibile", detail: error.message });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { error: error.message }));
     return;
   }
   if (request.url === "/api/operations" && request.method === "POST") {
@@ -2149,9 +2145,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/print/preconto-graphic" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
@@ -2171,7 +2165,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 502, { ok: false, error: String(error.message || error) });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if ((request.url === "/reservations" || request.url === "/reservations/" || request.url === "/ReservationsNew") && request.method === "GET") {

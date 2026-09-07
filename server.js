@@ -108,11 +108,26 @@ let updateInProgress = false;
 let fiscalReceiptInProgress = false;
 const TABLE_LOCK_TTL_MS = 15000;
 function readJsonFile(filePath, fallback = null) {
+  for (const candidato of [filePath, `${filePath}.tmp`]) {
+    if (!fs.existsSync(candidato)) continue;
+    try {
+      return JSON.parse(fs.readFileSync(candidato, "utf8"));
+    } catch (error) {
+      console.warn(`Impossibile leggere ${candidato}: ${error.message}`);
+    }
+  }
+  return fallback;
+}
+
+function writeJsonFileAtomic(filePath, content) {
+  const temporaryPath = `${filePath}.tmp`;
+  fs.writeFileSync(temporaryPath, content);
   try {
-    return fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, "utf8")) : fallback;
+    fs.renameSync(temporaryPath, filePath);
   } catch (error) {
-    console.warn(`Impossibile leggere ${filePath}: ${error.message}`);
-    return fallback;
+    try { fs.writeFileSync(filePath, content); } finally {
+      try { fs.unlinkSync(temporaryPath); } catch {}
+    }
   }
 }
 
@@ -145,9 +160,9 @@ function configForStorage(state) {
 
 function persistStateFiles() {
   if (!sharedState) return;
-  if (sharedState.menu) fs.writeFileSync(MENU_CACHE_FILE, JSON.stringify(sharedState.menu, null, 2));
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(configForStorage(sharedState), null, 2));
-  fs.writeFileSync(STATE_FILE, JSON.stringify(stateForStorage(sharedState), null, 2));
+  if (sharedState.menu) writeJsonFileAtomic(MENU_CACHE_FILE, JSON.stringify(sharedState.menu, null, 2));
+  writeJsonFileAtomic(CONFIG_FILE, JSON.stringify(configForStorage(sharedState), null, 2));
+  writeJsonFileAtomic(STATE_FILE, JSON.stringify(stateForStorage(sharedState), null, 2));
 }
 
 const persistedState = readJsonFile(STATE_FILE);
@@ -159,10 +174,10 @@ if (!Array.isArray(fiscalReceipts)) fiscalReceipts = [];
 let fiscalReceiptSync = readJsonFile(FISCAL_RECEIPT_SYNC_FILE, {});
 if (!fiscalReceiptSync || typeof fiscalReceiptSync !== "object" || Array.isArray(fiscalReceiptSync)) fiscalReceiptSync = {};
 function persistFiscalReceipts() {
-  fs.writeFileSync(FISCAL_RECEIPTS_FILE, JSON.stringify(fiscalReceipts, null, 2));
+  writeJsonFileAtomic(FISCAL_RECEIPTS_FILE, JSON.stringify(fiscalReceipts, null, 2));
 }
 function persistFiscalReceiptSync() {
-  fs.writeFileSync(FISCAL_RECEIPT_SYNC_FILE, JSON.stringify(fiscalReceiptSync, null, 2));
+  writeJsonFileAtomic(FISCAL_RECEIPT_SYNC_FILE, JSON.stringify(fiscalReceiptSync, null, 2));
 }
 
 function fiscalReceiptRemotePayload(receipt) {
@@ -368,13 +383,22 @@ async function loadSharedMenuCatalog() {
   if (sigonellaMenuCatalog.size) return sigonellaMenuCatalog;
   const response = await fetch(SIGONELLA_MENU_URL, { method: "POST", headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json" }, body: "{}" });
   if (!response.ok) throw new Error("Menu HTTP " + response.status);
-  const xml = await response.text();
-  const match = xml.match(/<string[^>]*>([\s\S]*?)<\/string>/i);
-  if (!match) throw new Error("Risposta menu non valida");
-  const categories = JSON.parse(match[1]
-    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&"));
+  const text = await response.text();
+  let categories = null;
+  try {
+    let value = JSON.parse(text);
+    if (value && typeof value.d === "string") value = JSON.parse(value.d);
+    else if (value && value.d !== undefined) value = value.d;
+    if (Array.isArray(value)) categories = value;
+  } catch {}
+  if (!categories) {
+    const match = text.match(/<string[^>]*>([\s\S]*?)<\/string>/i);
+    if (!match) throw new Error("Risposta menu non valida");
+    categories = JSON.parse(match[1]
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&"));
+  }
   const catalog = new Map();
   for (const category of Array.isArray(categories) ? categories : []) {
     for (const item of Array.isArray(category.items) ? category.items : []) {

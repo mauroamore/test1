@@ -7,6 +7,11 @@ print-simulation.log
 hubrise-feed.log
 restaurant-sync.log
 sigonella-orders*.log
+fiscal-receipts.json
+fiscal-receipt-sync.json
+fiscal-receipts-pdf/
+crash.log
+*.json.tmp
 
 # Local secrets and machine-specific startup files
 .env

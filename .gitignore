@@ -3,6 +3,10 @@
 ristorante-state.json
 menu-cache.json
 restaurant-config.json
+# Dati fiscali di esercizio: importi, numeri di documento e copie PDF
+fiscal-receipts.json
+fiscal-receipt-sync.json
+fiscal-receipts-pdf/
 print-simulation.log
 hubrise-feed.log
 restaurant-sync.log

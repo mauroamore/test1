@@ -16,9 +16,15 @@ git merge-base --is-ancestor HEAD origin/main || {
 
 state_backup="$backup_dir/ristorante-state.json"
 if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-  git checkout -- ristorante-state.json
+  # ristorante-state.json non e' piu' tracciato. Il checkout serve solo all'aggiornamento che
+  # introduce l'untracking: li' il file e' ancora nell'indice e il server lo ha gia' riscritto,
+  # quindi senza scartare le modifiche locali il pull rifiuterebbe di cancellarlo. Dopo quella
+  # transizione il comando fallisce senza conseguenze.
+  git checkout -- ristorante-state.json 2>/dev/null || true
   git pull --ff-only origin main
-  cp -p "$state_backup" ristorante-state.json 2>/dev/null || true
+  # Ripristina solo se il pull ha davvero cancellato il file: in un aggiornamento normale il
+  # file non viene toccato e riscriverlo dal backup riporterebbe indietro lo stato della sala.
+  [[ -f ristorante-state.json ]] || cp -p "$state_backup" ristorante-state.json 2>/dev/null || true
 fi
 
 npm install --omit=dev

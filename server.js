@@ -1399,9 +1399,7 @@ const server = http.createServer((request, response) => {
   ].includes(request.url)) return handleDeliverooWebhook(request, response);
   if (request.url.startsWith("/api/reservations") && request.method === "POST") return handleReservationsProxy(request, response);
   if (request.url === "/api/sigonella/update-order" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const order = input.order || {};
@@ -1441,7 +1439,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 502, { ok: false, error: error.message });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/menu" && request.method === "GET") {

@@ -42,3 +42,13 @@ Riferimento: `revisioneprogetto20260907.md`.
 - [x] Interpolazione menu operativa sottoposta a `escapeHtml`.
 - [x] Duplicato `Sigonella Dist/StandardOrderService - Copia.asmx` rimosso dopo verifica dei riferimenti; le pagine `Reservations.html` e `ReservationsNew.html` restano entrambe perché la prima è ancora il formato legacy compatibile.
 - [x] Cartella `outputs` mantenuta intenzionalmente come percorso di pubblicazione compatibile; nessuna riorganizzazione necessaria senza cambiare i riferimenti di deploy.
+
+## Seconda passata — 2026-09-07
+
+- [x] La chiave locale non viene più aggirata tramite `Origin`/`Host`: le mutazioni richiedono `X-Local-Api-Key`; senza chiave il servizio resta chiuso salvo `ALLOW_INSECURE_LOCAL_API=1` esplicito per sviluppo.
+- [x] `pollHubRiseOrders`, `pollExternalCommands` e il push dello stato hanno guardie in-flight; il push viene saltato quando `stateRevision` non è cambiata.
+- [x] Rimosso il secondo listener globale del body dal dispatcher: il limite e la lettura restano centralizzati in `readRequestBody`.
+- [x] Lo script di test scopre automaticamente le suite in `test/` e `nexi-ecr-lan/test/`.
+- [ ] Estrarre il merge dello stato e aggiungere test dedicati all'autorizzazione/CORS: miglioramento utile, ma non bloccante per il comportamento corrente.
+- [ ] Eliminare la chiave `REALTIME_KEY` dalla query string e autenticare le GET: interventi separati, da pianificare per compatibilità con client e flussi esistenti.
+- [x] Le chiavi HubRise restano nell'header previsto dal nuovo flusso (`X-HubRise-Feed-Key`); il servizio remoto aggiornato è operativo.

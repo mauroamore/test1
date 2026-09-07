@@ -87,7 +87,15 @@ const HUBRISE_STATUS_URL = process.env.HUBRISE_STATUS_URL || `${REMOTE_BASE_URL}
 const HUBRISE_STATUS_KEY = process.env.HUBRISE_STATUS_KEY || "";
 
 function appendLog(file, line) {
-  try { fs.appendFileSync(file, line); } catch (error) {
+  try {
+    const maxBytes = Number(process.env.LOG_MAX_BYTES || 5 * 1024 * 1024);
+    if (fs.existsSync(file) && fs.statSync(file).size + Buffer.byteLength(line) > maxBytes) {
+      const rotated = `${file}.1`;
+      try { fs.rmSync(rotated, { force: true }); } catch {}
+      fs.renameSync(file, rotated);
+    }
+    fs.appendFileSync(file, line);
+  } catch (error) {
     console.warn(`Impossibile scrivere il log ${file}: ${error.code || error.message}`);
   }
 }
@@ -111,6 +119,21 @@ let sigonellaPollInFlight = false;
 let statePushInFlight = false;
 const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
+
+function logProcessFailure(kind, error) {
+  const message = error && (error.stack || error.message) || String(error);
+  appendLog(path.join(ROOT, "crash.log"), `${new Date().toISOString()} ${kind} ${message}\n`);
+}
+
+process.on("uncaughtException", error => {
+  logProcessFailure("uncaughtException", error);
+  process.exitCode = 1;
+  setImmediate(() => process.exit(1));
+});
+
+process.on("unhandledRejection", reason => {
+  logProcessFailure("unhandledRejection", reason);
+});
 function readJsonFile(filePath, fallback = null) {
   for (const candidato of [filePath, `${filePath}.tmp`]) {
     if (!fs.existsSync(candidato)) continue;

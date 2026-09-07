@@ -119,6 +119,15 @@ let sigonellaPollInFlight = false;
 let statePushInFlight = false;
 const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
+const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || "").split(",").map(origin => origin.trim()).filter(Boolean));
+
+function corsOrigin(request) {
+  const origin = request.headers.origin;
+  if (!origin) return null;
+  if (ALLOWED_ORIGINS.has(origin)) return origin;
+  const host = request.headers.host;
+  return host && (origin === `http://${host}` || origin === `https://${host}`) ? origin : "";
+}
 
 function logProcessFailure(kind, error) {
   const message = error && (error.stack || error.message) || String(error);
@@ -448,7 +457,9 @@ async function loadSharedMenuCatalog() {
 if (sharedState && !Number.isFinite(Number(sharedState.stateRevision))) sharedState.stateRevision = 1;
 
 function sendJson(response, status, body) {
-  response.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  const headers = { "Content-Type": "application/json" };
+  if (response._corsOrigin) headers["Access-Control-Allow-Origin"] = response._corsOrigin;
+  response.writeHead(status, headers);
   response.end(JSON.stringify(body));
 }
 
@@ -1193,8 +1204,21 @@ async function pollExternalCommands() {
 }
 
 const server = http.createServer((request, response) => {
+  response._corsOrigin = corsOrigin(request);
+  if (request.headers.origin && !response._corsOrigin) {
+    response.writeHead(403, { "Content-Type": "application/json" });
+    return response.end(JSON.stringify({ ok: false, error: "Origine non autorizzata" }));
+  }
   if (request.method === "OPTIONS") {
-    response.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type" });
+    if (!response._corsOrigin) {
+      response.writeHead(403, { "Content-Type": "application/json" });
+      return response.end(JSON.stringify({ ok: false, error: "Origine non autorizzata" }));
+    }
+    response.writeHead(204, {
+      "Access-Control-Allow-Origin": response._corsOrigin,
+      "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Update-Key, X-Api-Key"
+    });
     return response.end();
   }
   if (!["GET", "HEAD"].includes(request.method)) {
@@ -1353,7 +1377,7 @@ const server = http.createServer((request, response) => {
           body
         });
         const text = await upstream.text();
-        response.writeHead(upstream.status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+        response.writeHead(upstream.status, { "Content-Type": "application/json", ...(response._corsOrigin ? { "Access-Control-Allow-Origin": response._corsOrigin } : {}) });
         response.end(text);
       } catch (error) {
         sendJson(response, 502, { error: "Aggiornamento stato HubRise non disponibile", detail: error.message });
@@ -1374,7 +1398,7 @@ const server = http.createServer((request, response) => {
           body
         });
         const text = await upstream.text();
-        response.writeHead(upstream.status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+        response.writeHead(upstream.status, { "Content-Type": "application/json", ...(response._corsOrigin ? { "Access-Control-Allow-Origin": response._corsOrigin } : {}) });
         response.end(text);
       } catch (error) {
         sendJson(response, 502, { error: "Registro remoto non disponibile", detail: error.message });
@@ -2028,7 +2052,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/events" && request.method === "GET") {
-    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*" });
+    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", ...(response._corsOrigin ? { "Access-Control-Allow-Origin": response._corsOrigin } : {}) });
     response.write("retry: 2000\n\n");
     clients.add(response);
     request.on("close", () => clients.delete(response));

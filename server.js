@@ -107,6 +107,8 @@ const clients = new Set();
 const tableLocks = new Map();
 let updateInProgress = false;
 let fiscalReceiptInProgress = false;
+let sigonellaPollInFlight = false;
+let statePushInFlight = false;
 const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 function readJsonFile(filePath, fallback = null) {
@@ -789,7 +791,7 @@ function mergeSigonellaOrders(orders) {
   return changed;
 }
 
-async function pollSigonellaOrders() {
+async function pollSigonellaOrdersOnce() {
   try {
     appendLog(SIGONELLA_ORDERS_LOG, `${new Date().toISOString()} poll start ${SIGONELLA_ORDERS_URL}\n`);
     if (!sigonellaMenuCatalog.size) {
@@ -839,6 +841,12 @@ async function pollSigonellaOrders() {
   } catch (error) {
     appendLog(SIGONELLA_ORDERS_LOG, `${new Date().toISOString()} ${error.message}\n`);
   }
+}
+
+async function pollSigonellaOrders() {
+  if (sigonellaPollInFlight) return;
+  sigonellaPollInFlight = true;
+  try { await pollSigonellaOrdersOnce(); } finally { sigonellaPollInFlight = false; }
 }
 
 function persistAndBroadcast(event = "state.updated", data = {}) {
@@ -894,7 +902,7 @@ function localNowString() {
 
 // Spinge l'istantanea completa (autorevole) verso il DB remoto, cosi' l'istanza esterna la puo'
 // leggere. Fallisce in silenzio come il polling HubRise: non deve mai bloccare l'uso locale.
-async function pushStateSnapshot() {
+async function pushStateSnapshotOnce() {
   if (!RESTAURANT_SYNC_KEY || !sharedState) return;
   try {
     const url = RESTAURANT_SYNC_URL + "?mode=push_state" +
@@ -908,6 +916,12 @@ async function pushStateSnapshot() {
   } catch (error) {
     fs.appendFileSync(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} push_state ${error.message}\n`);
   }
+}
+
+async function pushStateSnapshot() {
+  if (statePushInFlight) return;
+  statePushInFlight = true;
+  try { await pushStateSnapshotOnce(); } finally { statePushInFlight = false; }
 }
 
 // Trova un ordine Pick-up manuale (mai un tavolo, mai un ordine HubRise: quelli restano di sola

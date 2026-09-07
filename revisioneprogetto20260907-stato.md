@@ -23,7 +23,8 @@ Riferimento: `revisioneprogetto20260907.md`.
 - [x] Poller Sigonella e sincronizzazione stato protetti da guardia in-flight.
 - [x] Log operativi centralizzati e ruotati oltre 5 MB.
 - [x] Pagamento disponibile tramite endpoint atomico con precondizione `stateRevision`.
-- [ ] Il refactoring completo del server monolitico in moduli e router tabellare è ancora da pianificare in una migrazione separata.
+- [x] Le prime route GET (`/api/state`, `/api/version`) sono state estratte in una tabella.
+- [ ] Il refactoring completo del server monolitico in moduli e router tabellare è ancora da completare in una migrazione separata.
 
 ## Test e CI
 

@@ -107,6 +107,7 @@ const tableLocks = new Map();
 let updateInProgress = false;
 let fiscalReceiptInProgress = false;
 const TABLE_LOCK_TTL_MS = 15000;
+const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 function readJsonFile(filePath, fallback = null) {
   for (const candidato of [filePath, `${filePath}.tmp`]) {
     if (!fs.existsSync(candidato)) continue;
@@ -1150,6 +1151,24 @@ const server = http.createServer((request, response) => {
   if (request.method === "OPTIONS") {
     response.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type" });
     return response.end();
+  }
+  if (!["GET", "HEAD"].includes(request.method)) {
+    const declaredLength = Number(request.headers["content-length"] || 0);
+    if (declaredLength > MAX_REQUEST_BODY_BYTES) {
+      response.writeHead(413, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ ok: false, error: "Richiesta troppo grande" }));
+      request.destroy();
+      return;
+    }
+    let receivedBytes = 0;
+    request.on("data", chunk => {
+      receivedBytes += chunk.length;
+      if (receivedBytes > MAX_REQUEST_BODY_BYTES && !response.writableEnded) {
+        response.writeHead(413, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ ok: false, error: "Richiesta troppo grande" }));
+        request.destroy();
+      }
+    });
   }
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
   if (request.url === "/api/table-locks" && request.method === "GET") {

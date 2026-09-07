@@ -2941,6 +2941,50 @@
   </dialog>
 
   <script>
+    // Autenticazione locale legata alla chiave privata non esportabile del browser.
+    (() => {
+      const tokenKey = "local-api-session";
+      const dbName = "gestione-comande-auth";
+      const originalFetch = window.fetch.bind(window);
+      const openDb = () => new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore("keys");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const dbValue = async (mode, action) => { const db = await openDb(); return new Promise((resolve, reject) => { const tx = db.transaction("keys", mode); const result = action(tx.objectStore("keys")); result.onsuccess = () => resolve(result.result); result.onerror = () => reject(result.error); }); };
+      const getKeyPair = async () => {
+        let pair = await dbValue("readonly", store => store.get("pair"));
+        if (!pair) { pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]); await dbValue("readwrite", store => store.put(pair, "pair")); }
+        return pair;
+      };
+      const bytes = buffer => btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const auth = async () => {
+        const pair = await getKeyPair();
+        const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
+        let token = localStorage.getItem(tokenKey);
+        if (!token) {
+          const password = window.prompt("Password autorizzazione dispositivo");
+          if (!password) throw new Error("Autorizzazione locale annullata");
+          const response = await originalFetch("/api/local-auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password, publicKey }) });
+          if (!response.ok) throw new Error("Password locale non valida");
+          token = (await response.json()).token; localStorage.setItem(tokenKey, token);
+        }
+        return { token, pair };
+      };
+      window.fetch = async (input, init = {}) => {
+        const url = typeof input === "string" ? input : input.url;
+        const method = String(init.method || (typeof input === "string" ? "GET" : input.method) || "GET").toUpperCase();
+        if (!url.startsWith("/api/") || ["GET", "HEAD", "OPTIONS"].includes(method) || url === "/api/local-auth/login") return originalFetch(input, init);
+        const { token, pair } = await auth();
+        const timestamp = Date.now(); const payload = `${timestamp}.${method}.${url.split("?")[0]}`;
+        const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, pair.privateKey, new TextEncoder().encode(payload));
+        const headers = new Headers(init.headers || {}); headers.set("X-Local-Session", token); headers.set("X-Local-Timestamp", String(timestamp)); headers.set("X-Local-Signature", bytes(signature));
+        const response = await originalFetch(input, { ...init, headers });
+        if (response.status === 401) localStorage.removeItem(tokenKey);
+        return response;
+      };
+    })();
     // structuredClone e' un global relativamente recente (Safari 15.4+/Chrome 98+): su un
     // browser piu' vecchio non esiste affatto, e la primissima riga sotto che lo chiama
     // (dentro initialState, valutata subito al caricamento) farebbe fallire TUTTO lo script

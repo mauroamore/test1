@@ -110,6 +110,8 @@ const REALTIME_URL = (process.env.REALTIME_URL || "https://vorrei-realtime.onren
 const REALTIME_KEY = process.env.REALTIME_KEY || RESTAURANT_SYNC_KEY;
 const UPDATE_KEY = process.env.UPDATE_KEY || "";
 const LOCAL_API_KEY = process.env.LOCAL_API_KEY || "";
+const LOCAL_AUTH_PASSWORD = process.env.LOCAL_AUTH_PASSWORD || LOCAL_API_KEY;
+const localSessions = new Map();
 const SERVICE_NAME = process.env.SERVICE_NAME || "gestione-comande.service";
 const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
 const clients = new Set();
@@ -171,10 +173,22 @@ function constantTimeKeyEquals(receivedValue, expectedValue) {
   return received.length === expected.length && crypto.timingSafeEqual(received, expected);
 }
 
+function localSessionAuthorized(request) {
+  const token = String(request.headers["x-local-session"] || "");
+  const timestamp = Number(request.headers["x-local-timestamp"] || 0);
+  const signature = String(request.headers["x-local-signature"] || "");
+  const session = localSessions.get(token);
+  if (!session || session.expiresAt <= Date.now() || !timestamp || Math.abs(Date.now() - timestamp) > 300000 || !signature) return false;
+  try {
+    const payload = `${timestamp}.${request.method}.${request.url.split("?")[0]}`;
+    return crypto.verify("sha256", Buffer.from(payload), { key: session.publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(signature, "base64url"));
+  } catch { return false; }
+}
+
 function mutationAuthorized(request, response) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return true;
   if (!LOCAL_API_KEY) return ALLOW_INSECURE_LOCAL_API;
-  return constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY);
+  return constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY) || localSessionAuthorized(request);
 }
 
 function handleFiscalReceiptHistory(request, response) {
@@ -1329,6 +1343,20 @@ const server = http.createServer((request, response) => {
   if (request.headers.origin && !response._corsOrigin) {
     response.writeHead(403, { "Content-Type": "application/json" });
     return response.end(JSON.stringify({ ok: false, error: "Origine non autorizzata" }));
+  }
+  if (request.method === "POST" && request.url === "/api/local-auth/login") {
+    return readRequestBody(request).then(body => {
+      const input = JSON.parse(body || "{}");
+      if (!LOCAL_AUTH_PASSWORD || !constantTimeKeyEquals(input.password, LOCAL_AUTH_PASSWORD) || !input.publicKey) {
+        return sendJson(response, 401, { ok: false, error: "Password non valida" });
+      }
+      let publicKey;
+      try { publicKey = crypto.createPublicKey({ key: input.publicKey, format: "jwk" }); }
+      catch { return sendJson(response, 400, { ok: false, error: "Chiave browser non valida" }); }
+      const token = crypto.randomBytes(32).toString("base64url");
+      localSessions.set(token, { publicKey, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+      return sendJson(response, 200, { ok: true, token });
+    }).catch(error => sendJson(response, 400, { ok: false, error: error.message }));
   }
   if (!mutationAuthorized(request, response)) {
     response.writeHead(401, { "Content-Type": "application/json" });

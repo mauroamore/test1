@@ -411,13 +411,28 @@ async function loadSharedMenuCatalog() {
   if (sigonellaMenuCatalog.size) return sigonellaMenuCatalog;
   const response = await fetch(SIGONELLA_MENU_URL, { method: "POST", headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json" }, body: "{}" });
   if (!response.ok) throw new Error("Menu HTTP " + response.status);
-  const xml = await response.text();
-  const match = xml.match(/<string[^>]*>([\s\S]*?)<\/string>/i);
-  if (!match) throw new Error("Risposta menu non valida");
-  const categories = JSON.parse(match[1]
-    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&"));
+  const testo = await response.text();
+  // Il servizio .asmx risponde JSON ({"d":"<array serializzato>"}) quando la richiesta dichiara
+  // Content-Type: application/json, come fa questa, e XML (<string>...</string>) altrimenti.
+  // Qui si tentava solo la forma XML, quindi il menu falliva a ogni giro con "Risposta menu non
+  // valida". Si accettano entrambe, con lo stesso srotolamento di "d" usato per il POS.
+  let categories = null;
+  try {
+    let valore = JSON.parse(testo);
+    if (valore && typeof valore.d === "string") valore = JSON.parse(valore.d);
+    else if (valore && valore.d !== undefined) valore = valore.d;
+    if (Array.isArray(valore)) categories = valore;
+  } catch (error) {
+    // non e' JSON: sotto si prova la forma XML
+  }
+  if (!categories) {
+    const match = testo.match(/<string[^>]*>([\s\S]*?)<\/string>/i);
+    if (!match) throw new Error("Risposta menu non valida");
+    categories = JSON.parse(match[1]
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&"));
+  }
   const catalog = new Map();
   for (const category of Array.isArray(categories) ? categories : []) {
     for (const item of Array.isArray(category.items) ? category.items : []) {

@@ -33,7 +33,7 @@ Riferimento: `revisioneprogetto20260907.md`.
 - [x] Test preconto PC-POS aggiunto.
 - [x] Controllo sintassi esteso ai moduli `src`.
 - [x] Suite locale: 15 test superati.
-- [ ] Copertura dedicata completa di `EpsonFiscalClient.js` ancora da aggiungere.
+- [x] Copertura delle funzioni pure di `EpsonFiscalClient.js` per XML fiscale, annullamento e nome PDF.
 
 ## Igiene codice
 

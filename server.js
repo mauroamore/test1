@@ -852,8 +852,10 @@ function persistAndBroadcast(event = "state.updated", data = {}) {
 async function pollHubRiseOrders() {
   if (!HUBRISE_FEED_KEY) return;
   try {
-    const url = HUBRISE_FEED_URL + "?key=" + encodeURIComponent(HUBRISE_FEED_KEY);
-    const response = await fetch(url, { method: "GET" });
+    const response = await fetch(HUBRISE_FEED_URL, {
+      method: "GET",
+      headers: { "X-HubRise-Feed-Key": HUBRISE_FEED_KEY }
+    });
     if (!response.ok) throw new Error("HTTP " + response.status);
     const data = await response.json();
     if (data && data.state) {
@@ -895,11 +897,11 @@ function localNowString() {
 async function pushStateSnapshot() {
   if (!RESTAURANT_SYNC_KEY || !sharedState) return;
   try {
-    const url = RESTAURANT_SYNC_URL + "?mode=push_state&key=" + encodeURIComponent(RESTAURANT_SYNC_KEY) +
+    const url = RESTAURANT_SYNC_URL + "?mode=push_state" +
       "&now=" + encodeURIComponent(localNowString());
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY },
       body: JSON.stringify(stateForStorage(sharedState))
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
@@ -1119,8 +1121,8 @@ function applyExternalCommand(command) {
 async function pollExternalCommands() {
   if (!RESTAURANT_SYNC_KEY || !sharedState) return;
   try {
-    const listUrl = RESTAURANT_SYNC_URL + "?mode=pending_commands&key=" + encodeURIComponent(RESTAURANT_SYNC_KEY);
-    const listResponse = await fetch(listUrl, { method: "GET" });
+    const listUrl = RESTAURANT_SYNC_URL + "?mode=pending_commands";
+    const listResponse = await fetch(listUrl, { method: "GET", headers: { "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY } });
     if (!listResponse.ok) throw new Error("HTTP " + listResponse.status);
     const data = await listResponse.json();
     const pending = Array.isArray(data.commands) ? data.commands : [];
@@ -1140,10 +1142,10 @@ async function pollExternalCommands() {
     }
     if (appliedIds.length) {
       persistAndBroadcast();
-      const ackUrl = RESTAURANT_SYNC_URL + "?mode=ack_commands&key=" + encodeURIComponent(RESTAURANT_SYNC_KEY);
+      const ackUrl = RESTAURANT_SYNC_URL + "?mode=ack_commands";
       const ackResponse = await fetch(ackUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY },
         body: JSON.stringify({ client_command_ids: appliedIds })
       });
       if (!ackResponse.ok) throw new Error("HTTP " + ackResponse.status + " durante ack_commands");
@@ -1328,10 +1330,10 @@ const server = http.createServer((request, response) => {
     request.on("end", async () => {
       if (!RESTAURANT_SYNC_KEY) return sendJson(response, 503, { error: "RESTAURANT_SYNC_KEY non impostata" });
       try {
-        const upstream = await fetch(RESTAURANT_SYNC_URL + "?mode=log_freed&key=" + encodeURIComponent(RESTAURANT_SYNC_KEY) +
+        const upstream = await fetch(RESTAURANT_SYNC_URL + "?mode=log_freed" +
           "&now=" + encodeURIComponent(localNowString()), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY },
           body
         });
         const text = await upstream.text();

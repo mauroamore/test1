@@ -27,7 +27,7 @@ public class HubRiseOrdersFeed : IHttpHandler
         context.Response.ContentType = "application/json";
 
         var expectedKey = ConfigurationManager.AppSettings["HubRiseOrdersFeedKey"];
-        var suppliedKey = context.Request.QueryString["key"];
+        var suppliedKey = context.Request.Headers["X-HubRise-Feed-Key"];
         if (string.IsNullOrEmpty(expectedKey) || !string.Equals(expectedKey, suppliedKey, StringComparison.Ordinal))
         {
             context.Response.StatusCode = 401;

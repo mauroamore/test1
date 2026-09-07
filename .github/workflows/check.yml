@@ -1,0 +1,27 @@
+name: Controlli
+
+# Gli stessi controlli che scripts/update-app.sh esegue sul PC del ristorante prima di
+# riavviare il servizio, ma eseguiti prima: qui il difetto emerge alla pubblicazione,
+# non quando il ristorante ha gia' scaricato il codice.
+on:
+  push:
+  pull_request:
+
+jobs:
+  controlli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # La stessa major in uso sul PC del ristorante.
+          node-version: '22'
+
+      # Nessun "npm ci": check:syntax si limita a fare il parsing dei sorgenti e i test
+      # usano soltanto moduli built-in di Node, quindi non serve installare nulla. Cosi'
+      # i controlli non dipendono dalla compilazione di @napi-rs/canvas, che e' nativa e
+      # non c'entra con cio' che si sta verificando. Se un domani un test richiedesse una
+      # dipendenza vera, aggiungere qui un passo "npm ci".
+      - name: Sintassi e test
+        run: npm run check

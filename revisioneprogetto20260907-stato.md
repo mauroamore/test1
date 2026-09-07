@@ -5,6 +5,7 @@ Riferimento: `revisioneprogetto20260907.md`.
 ## Sicurezza API
 
 - [x] Corpo delle richieste limitato a 2 MB.
+- [x] Lettura dei body JSON centralizzata in `readRequestBody`, con limiti specifici per payload e gestione di richieste interrotte.
 - [x] API mutanti protette opzionalmente da `LOCAL_API_KEY`.
 - [x] Accesso browser limitato allo stesso origin o a `ALLOWED_ORIGINS`.
 - [x] CORS wildcard rimosso da Node e `MenuService`.

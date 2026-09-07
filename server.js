@@ -1354,9 +1354,7 @@ const server = http.createServer((request, response) => {
   }
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
   if (request.url === "/api/table-lock" && (request.method === "POST" || request.method === "DELETE")) {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", () => {
+    readRequestBody(request).then(body => {
       try {
         const input = JSON.parse(body || "{}");
         const tableId = String(input.tableId || "");
@@ -1494,9 +1492,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/operations" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", () => {
+    readRequestBody(request).then(body => {
       try {
         const input = JSON.parse(body || "{}");
         const operation = String(input.operation || "");
@@ -1587,7 +1583,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 400, { ok: false, error: "Payload operativo non valido" });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   const paymentIntentMatch = request.url.match(/^\/api\/orders\/([^/?]+)\/payment$/);
@@ -1626,7 +1622,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 400, { ok: false, error: error.message || "Pagamento non valido" });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/state" && request.method === "POST") {

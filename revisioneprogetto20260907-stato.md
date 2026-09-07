@@ -40,4 +40,5 @@ Riferimento: `revisioneprogetto20260907.md`.
 ## Igiene codice
 
 - [x] Interpolazione menu operativa sottoposta a `escapeHtml`.
-- [ ] Rimozione dei duplicati storici e riorganizzazione della cartella `outputs` da fare con una successiva pulizia controllata.
+- [x] Duplicato `Sigonella Dist/StandardOrderService - Copia.asmx` rimosso dopo verifica dei riferimenti; le pagine `Reservations.html` e `ReservationsNew.html` restano entrambe perché la prima è ancora il formato legacy compatibile.
+- [ ] Riorganizzazione della cartella `outputs` da fare con una successiva pulizia controllata.

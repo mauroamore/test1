@@ -2044,10 +2044,7 @@ const server = http.createServer((request, response) => {
   }
   const publicFiles = new Map([
     ["/", "outputs/gestione-comande-ristorante.html"],
-    ["/outputs/gestione-comande-ristorante.html", "outputs/gestione-comande-ristorante.html"],
-    ["/outputs/menu-editor.html", "outputs/menu-editor.html"],
-    ["/outputs/camera-test.html", "outputs/camera-test.html"],
-    ["/outputs/customer-menu-prototype.html", "outputs/customer-menu-prototype.html"]
+    ["/outputs/gestione-comande-ristorante.html", "outputs/gestione-comande-ristorante.html"]
   ]);
   const fileName = publicFiles.get(request.url.split("?")[0]);
   if (!fileName) return sendJson(response, 404, { error: "Risorsa non trovata" });

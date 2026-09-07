@@ -195,7 +195,18 @@ const routeTable = new Map([
     }
     return sendJson(response, 200, { locked: true, status: "attivo", expiresAt: current.expiresAt });
   }],
-  ["GET /api/fiscal-receipts", handleFiscalReceiptHistory]
+  ["GET /api/fiscal-receipts", handleFiscalReceiptHistory],
+  ["GET /api/fiscal-receipts/sync-status", (_request, response) => syncPendingFiscalReceipts().then(() => {
+    const pending = fiscalReceipts.filter(receipt => {
+      const sync = fiscalReceiptSync[String(receipt.id)];
+      return !sync || sync.status !== "synced";
+    });
+    sendJson(response, 200, {
+      ok: true,
+      synchronized: pending.length === 0,
+      pending: pending.map(receipt => receipt.id)
+    });
+  })]
 ]);
 
 function logProcessFailure(kind, error) {
@@ -2056,19 +2067,6 @@ const server = http.createServer((request, response) => {
       }
     });
     return;
-  }
-  if (request.url === "/api/fiscal-receipts/sync-status" && request.method === "GET") {
-    return syncPendingFiscalReceipts().then(() => {
-      const pending = fiscalReceipts.filter(receipt => {
-        const sync = fiscalReceiptSync[String(receipt.id)];
-        return !sync || sync.status !== "synced";
-      });
-      sendJson(response, 200, {
-        ok: true,
-        synchronized: pending.length === 0,
-        pending: pending.map(receipt => receipt.id)
-      });
-    });
   }
   if (request.url === "/api/fiscal-receipts/pdf" && request.method === "POST") {
     let body = "";

@@ -7,6 +7,9 @@ print-simulation.log
 hubrise-feed.log
 restaurant-sync.log
 sigonella-orders*.log
+crash.log
+# temporanei della scrittura atomica dello stato
+*.json.tmp
 
 # Local secrets and machine-specific startup files
 .env

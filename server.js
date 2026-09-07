@@ -54,6 +54,7 @@ loadLocalEnv(path.join(__dirname, ".env"));
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || undefined; // undefined = tutte le interfacce (serve ai palmari in LAN)
 const ROOT = __dirname;
+const CRASH_LOG = path.join(ROOT, "crash.log");
 const APP_VERSION = (() => {
   try {
     return childProcess.execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
@@ -111,12 +112,51 @@ let updateInProgress = false;
 let fiscalReceiptInProgress = false;
 const TABLE_LOCK_TTL_MS = 15000;
 function readJsonFile(filePath, fallback = null) {
-  try {
-    return fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, "utf8")) : fallback;
-  } catch (error) {
-    console.warn(`Impossibile leggere ${filePath}: ${error.message}`);
-    return fallback;
+  // Se il file principale manca o non si parsa, il temporaneo e' l'ultima copia scritta per
+  // intero: e' quello che resta se il processo e' morto fra la scrittura e la rinomina.
+  // Senza questo recupero un file di stato troncato faceva ripartire la sala vuota.
+  for (const candidato of [filePath, `${filePath}.tmp`]) {
+    if (!fs.existsSync(candidato)) continue;
+    try {
+      return JSON.parse(fs.readFileSync(candidato, "utf8"));
+    } catch (error) {
+      console.warn(`Impossibile leggere ${candidato}: ${error.message}`);
+    }
   }
+  return fallback;
+}
+
+// Scrivere sul file di destinazione lo lascia troncato se il processo muore a meta' scrittura,
+// e un JSON troncato non e' recuperabile. Si scrive quindi su un temporaneo e si rinomina, che
+// e' atomico: la destinazione resta o quella vecchia o quella nuova, mai a meta'.
+// La cartella e' sincronizzata da Dropbox, che tiene aperto il file di destinazione mentre lo
+// carica: misurato, la rinomina incontra EPERM in piu' della meta' delle scritture e passa al
+// tentativo successivo. Da qui il ciclo di ritentativi. Se non passasse comunque, si ricade
+// sulla scrittura diretta: e' il comportamento di prima, quindi mai peggio dello status quo.
+function writeJsonFileAtomic(filePath, contenuto) {
+  const temporaneo = `${filePath}.tmp`;
+  fs.writeFileSync(temporaneo, contenuto);
+  for (let tentativo = 1; tentativo <= 12; tentativo++) {
+    try {
+      fs.renameSync(temporaneo, filePath);
+      return;
+    } catch (error) {
+      if (!["EPERM", "EBUSY", "EACCES"].includes(error.code) || tentativo === 12) {
+        appendLog(CRASH_LOG, `${new Date().toISOString()} rinomina fallita per ${filePath} (${error.code}): scrittura diretta di ripiego
+`);
+        fs.writeFileSync(filePath, contenuto);
+        try { fs.unlinkSync(temporaneo); } catch (errore) { /* il temporaneo resta, verra' sovrascritto */ }
+        return;
+      }
+      attendiBrevemente(15);
+    }
+  }
+}
+
+// Attesa sincrona: persistStateFiles e' sincrono e viene chiamato dentro i gestori di richiesta.
+function attendiBrevemente(millisecondi) {
+  const scadenza = Date.now() + millisecondi;
+  while (Date.now() < scadenza) { /* attesa attiva breve, dell'ordine dei millisecondi */ }
 }
 
 function stateForStorage(state) {
@@ -148,9 +188,9 @@ function configForStorage(state) {
 
 function persistStateFiles() {
   if (!sharedState) return;
-  if (sharedState.menu) fs.writeFileSync(MENU_CACHE_FILE, JSON.stringify(sharedState.menu, null, 2));
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(configForStorage(sharedState), null, 2));
-  fs.writeFileSync(STATE_FILE, JSON.stringify(stateForStorage(sharedState), null, 2));
+  if (sharedState.menu) writeJsonFileAtomic(MENU_CACHE_FILE, JSON.stringify(sharedState.menu, null, 2));
+  writeJsonFileAtomic(CONFIG_FILE, JSON.stringify(configForStorage(sharedState), null, 2));
+  writeJsonFileAtomic(STATE_FILE, JSON.stringify(stateForStorage(sharedState), null, 2));
 }
 
 const persistedState = readJsonFile(STATE_FILE);
@@ -162,10 +202,10 @@ if (!Array.isArray(fiscalReceipts)) fiscalReceipts = [];
 let fiscalReceiptSync = readJsonFile(FISCAL_RECEIPT_SYNC_FILE, {});
 if (!fiscalReceiptSync || typeof fiscalReceiptSync !== "object" || Array.isArray(fiscalReceiptSync)) fiscalReceiptSync = {};
 function persistFiscalReceipts() {
-  fs.writeFileSync(FISCAL_RECEIPTS_FILE, JSON.stringify(fiscalReceipts, null, 2));
+  writeJsonFileAtomic(FISCAL_RECEIPTS_FILE, JSON.stringify(fiscalReceipts, null, 2));
 }
 function persistFiscalReceiptSync() {
-  fs.writeFileSync(FISCAL_RECEIPT_SYNC_FILE, JSON.stringify(fiscalReceiptSync, null, 2));
+  writeJsonFileAtomic(FISCAL_RECEIPT_SYNC_FILE, JSON.stringify(fiscalReceiptSync, null, 2));
 }
 
 function fiscalReceiptRemotePayload(receipt) {
@@ -2063,6 +2103,37 @@ const server = http.createServer((request, response) => {
   if (!file || !fs.existsSync(file)) return sendJson(response, 404, { error: "Risorsa non trovata" });
   response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   fs.createReadStream(file).pipe(response);
+});
+
+// Il processo regge la cassa durante il servizio e nessun supervisore lo fa ripartire: Start.ps1
+// si limita a segnalare l'arresto e ad aspettare che qualcuno prema R. Morire per un'eccezione
+// in un ramo secondario - una risposta malformata di un servizio remoto, una stampante che
+// sparisce - lascerebbe la sala senza comande. Si preferisce quindi restare in piedi e lasciare
+// traccia: il rovescio della medaglia e' che si prosegue con uno stato potenzialmente incoerente,
+// percio' crash.log va guardato, non ignorato.
+process.on("uncaughtException", error => {
+  const riga = `${new Date().toISOString()} uncaughtException: ${error && error.stack ? error.stack : error}
+`;
+  console.error(riga);
+  appendLog(CRASH_LOG, riga);
+});
+
+process.on("unhandledRejection", motivo => {
+  const riga = `${new Date().toISOString()} unhandledRejection: ${motivo && motivo.stack ? motivo.stack : motivo}
+`;
+  console.error(riga);
+  appendLog(CRASH_LOG, riga);
+});
+
+// Un errore di listen deve restare fatale: senza questo il gestore uncaughtException qui sopra
+// lo assorbirebbe e il processo resterebbe vivo senza ascoltare, dando l'illusione di un server
+// avviato mentre a rispondere e' un'altra istanza rimasta sulla porta.
+server.on("error", error => {
+  const riga = `${new Date().toISOString()} avvio fallito: ${error && error.code ? error.code : error}
+`;
+  console.error(riga);
+  appendLog(CRASH_LOG, riga);
+  process.exit(1);
 });
 
 if (HOST) server.listen(PORT, HOST, () => console.log(`Ristorante disponibile su http://${HOST}:${PORT}`));

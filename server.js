@@ -143,6 +143,29 @@ function mutationAuthorized(request, response) {
   return constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY);
 }
 
+function handleFiscalReceiptHistory(request, response) {
+  const historyUrl = new URL(request.url, "http://localhost");
+  const year = historyUrl.searchParams.get("year");
+  if (!/^\d{4}$/.test(year || "")) return sendJson(response, 400, { ok: false, error: "L'anno è obbligatorio" });
+  const yearStart = `${year}-01-01T00:00:00`;
+  const yearEnd = `${year}-12-31T23:59:59.999`;
+  const requestedFrom = historyUrl.searchParams.get("from") || yearStart;
+  const requestedTo = historyUrl.searchParams.get("to") || yearEnd;
+  const from = requestedFrom < yearStart ? yearStart : requestedFrom;
+  const to = requestedTo > yearEnd ? yearEnd : requestedTo;
+  loadFiscalReceiptHistory(from, to)
+    .then(remoteReceipts => {
+      const remoteIds = new Set(remoteReceipts.map(receipt => String(receipt.id)));
+      const pendingLocal = fiscalReceipts.filter(receipt => !remoteIds.has(String(receipt.id)));
+      sendJson(response, 200, { receipts: [...pendingLocal, ...remoteReceipts], source: "database" });
+    })
+    .catch(error => sendJson(response, 502, {
+      receipts: fiscalReceipts,
+      source: "local-fallback",
+      error: error && error.message ? error.message : "Remote history load failed"
+    }));
+}
+
 const routeTable = new Map([
   ["GET /api/state", (_request, response) => sendJson(response, 200, { state: sharedState })],
   ["GET /api/version", (_request, response) => sendJson(response, 200, {
@@ -171,7 +194,8 @@ const routeTable = new Map([
       return sendJson(response, 200, { locked: false, status: "scaduto", expiresAt: current.expiresAt });
     }
     return sendJson(response, 200, { locked: true, status: "attivo", expiresAt: current.expiresAt });
-  }]
+  }],
+  ["GET /api/fiscal-receipts", handleFiscalReceiptHistory]
 ]);
 
 function logProcessFailure(kind, error) {
@@ -2031,29 +2055,6 @@ const server = http.createServer((request, response) => {
         return sendJson(response, 502, { ok: false, error: error.name === "AbortError" ? "Timeout durante l'annullamento" : error.message });
       }
     });
-    return;
-  }
-  if (request.url.split("?")[0] === "/api/fiscal-receipts" && request.method === "GET") {
-    const historyUrl = new URL(request.url, "http://localhost");
-    const year = historyUrl.searchParams.get("year");
-    if (!/^\d{4}$/.test(year || "")) return sendJson(response, 400, { ok: false, error: "L'anno è obbligatorio" });
-    const yearStart = `${year}-01-01T00:00:00`;
-    const yearEnd = `${year}-12-31T23:59:59.999`;
-    const requestedFrom = historyUrl.searchParams.get("from") || yearStart;
-    const requestedTo = historyUrl.searchParams.get("to") || yearEnd;
-    const from = requestedFrom < yearStart ? yearStart : requestedFrom;
-    const to = requestedTo > yearEnd ? yearEnd : requestedTo;
-    loadFiscalReceiptHistory(from, to)
-      .then(remoteReceipts => {
-        const remoteIds = new Set(remoteReceipts.map(receipt => String(receipt.id)));
-        const pendingLocal = fiscalReceipts.filter(receipt => !remoteIds.has(String(receipt.id)));
-        sendJson(response, 200, { receipts: [...pendingLocal, ...remoteReceipts], source: "database" });
-      })
-      .catch(error => sendJson(response, 502, {
-        receipts: fiscalReceipts,
-        source: "local-fallback",
-        error: error && error.message ? error.message : "Remote history load failed"
-      }));
     return;
   }
   if (request.url === "/api/fiscal-receipts/sync-status" && request.method === "GET") {

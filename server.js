@@ -2070,7 +2070,13 @@ const server = http.createServer((request, response) => {
   const file = path.join(ROOT, fileName);
   if (!fs.existsSync(file)) return sendJson(response, 404, { error: "Risorsa non trovata" });
   response.writeHead(200, { "Content-Type": file.endsWith(".html") ? "text/html; charset=utf-8" : "text/plain" });
-  fs.createReadStream(file).pipe(response);
+  const stream = fs.createReadStream(file);
+  stream.on("error", error => {
+    appendLog(path.join(ROOT, "crash.log"), `${new Date().toISOString()} static ${fileName}: ${error.message}\n`);
+    if (!response.headersSent) sendJson(response, 500, { ok: false, error: "Errore nella lettura della pagina" });
+    else response.destroy(error);
+  });
+  stream.pipe(response);
 });
 
 if (HOST) server.listen(PORT, HOST, () => console.log(`Ristorante disponibile su http://${HOST}:${PORT}`));

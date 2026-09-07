@@ -12,5 +12,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Installa dipendenze
+        run: npm ci
       - name: Sintassi e test
         run: npm run check

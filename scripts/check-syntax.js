@@ -39,6 +39,9 @@ checkCommonJs("server.js");
 checkCommonJs("EpsonFiscalClient.js");
 checkCommonJs("NexiEcr17Check.js");
 checkCommonJs("print-test-report.js");
+checkCommonJs("src/pcpos-preconto.js");
+checkCommonJs("src/external-order-normalization.js");
+checkCommonJs("src/graphic-preconto.js");
 checkHtmlScripts(path.join("outputs", "gestione-comande-ristorante.html"));
 
 console.log("Syntax checks passed");

@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node server.js",
     "check:syntax": "node scripts/check-syntax.js",
-    "test": "node --test nexi-ecr-lan/test/codec.test.js nexi-ecr-lan/test/diagnostics.test.js nexi-ecr-lan/test/pay-safe.test.js nexi-ecr-lan/test/transaction-log.test.js test/external-order-normalization.test.js",
+    "test": "node --test nexi-ecr-lan/test/codec.test.js nexi-ecr-lan/test/diagnostics.test.js nexi-ecr-lan/test/pay-safe.test.js nexi-ecr-lan/test/transaction-log.test.js test/external-order-normalization.test.js test/pcpos-preconto.test.js",
     "check": "npm run check:syntax && npm test"
   },
   "dependencies": {

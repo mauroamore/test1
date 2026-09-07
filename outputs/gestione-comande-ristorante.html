@@ -3502,6 +3502,8 @@
       if (!state || typeof state !== "object") state = structuredClone(initialState);
       if (!Array.isArray(state.tables)) state.tables = structuredClone(initialState.tables);
       if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
+      if (!Array.isArray(state.reservations)) state.reservations = [];
+      state.reservations = state.reservations.filter(isActiveReservation);
       if (!state.settings || typeof state.settings !== "object") state.settings = structuredClone(initialState.settings);
       state.settings.kitchenColumns = clamp(Number(state.settings.kitchenColumns || 6), 1, 12);
       state.settings.kitchenSummaryWidth = clamp(Number(state.settings.kitchenSummaryWidth || 260), 160, 600);

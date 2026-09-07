@@ -215,7 +215,7 @@ function handleFiscalReceiptHistory(request, response) {
 }
 
 const routeTable = new Map([
-  ["GET /api/state", (_request, response) => sendJson(response, 200, { state: sharedState })],
+  ["GET /api/state", (_request, response) => sendJson(response, 200, { state: stateForClient(sharedState) })],
   ["GET /api/version", (_request, response) => sendJson(response, 200, {
     version: APP_VERSION,
     packageVersion: require("./package.json").version
@@ -309,6 +309,13 @@ function stateForStorage(state) {
       return runtimeTable;
     });
   }
+  return snapshot;
+}
+
+function stateForClient(state) {
+  if (!state) return state;
+  const snapshot = { ...state };
+  delete snapshot.menu;
   return snapshot;
 }
 
@@ -1377,7 +1384,7 @@ const server = http.createServer((request, response) => {
   const routeKey = `${request.method} ${request.url.split("?")[0]}`;
   const routeHandler = routeTable.get(routeKey);
   if (routeHandler) return routeHandler(request, response);
-  if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
+  if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: stateForClient(sharedState) });
   if (request.url === "/api/table-lock" && (request.method === "POST" || request.method === "DELETE")) {
     readRequestBody(request).then(body => {
       try {

@@ -3789,6 +3789,7 @@
           const editingSigonellaOrder = orderModalSnapshot && currentOrder()?.source === "sigonella"
             ? currentOrder()
             : null;
+          const loadedMenu = Array.isArray(state.menu) ? state.menu : [];
           // Use the reservation list included in the fresh server snapshot.
           // Keeping the previous local list here could resurrect cancelled or
           // closed reservations until the modal was reopened.
@@ -3799,6 +3800,7 @@
             ? findOrderById(paymentOrderId)
             : null;
           state = payload.state;
+          if (!Array.isArray(state.menu) || state.menu.length === 0) state.menu = loadedMenu;
           state.reservations = incomingReservations;
           if (paymentOrderSnapshot) {
             const collections = [state.tables || [], state.deliveryOrders || []];

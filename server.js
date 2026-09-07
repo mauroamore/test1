@@ -2013,12 +2013,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/fiscal-printer/void" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => {
-      body += chunk;
-      if (body.length > 32 * 1024) request.destroy();
-    });
-    request.on("end", async () => {
+    readRequestBody(request, 32 * 1024).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         if (!input.receiptId || input.confirm !== true) {
@@ -2089,13 +2084,11 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 502, { ok: false, error: error.name === "AbortError" ? "Timeout durante l'annullamento" : error.message });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/fiscal-receipts/pdf" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => { body += chunk; if (body.length > 32 * 1024) request.destroy(); });
-    request.on("end", async () => {
+    readRequestBody(request, 32 * 1024).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const responseRemote = await fetch(`${RESTAURANT_OPERATIONS_URL}/GetFiscalReceiptPdf`, {
@@ -2109,13 +2102,11 @@ const server = http.createServer((request, response) => {
         response.writeHead(200, { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${String(parsed.fileName || "scontrino.pdf").replace(/[^a-zA-Z0-9._-]/g, "_")}"`, "Content-Length": buffer.length });
         response.end(buffer);
       } catch (error) { sendJson(response, 502, { ok: false, error: error.message }); }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/fiscal-receipts" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => { body += chunk; if (body.length > 256 * 1024) request.destroy(); });
-    request.on("end", async () => {
+    readRequestBody(request, 256 * 1024).then(async body => {
       try {
         const receipt = JSON.parse(body || "{}");
         if (!receipt.id || !receipt.emittedAt) return sendJson(response, 400, { ok: false, error: "Scontrino non valido" });
@@ -2136,7 +2127,7 @@ const server = http.createServer((request, response) => {
           sync: fiscalReceiptSync[String(receipt.id)]
         });
       } catch (error) { return sendJson(response, 400, { ok: false, error: error.message }); }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/events" && request.method === "GET") {
@@ -2147,9 +2138,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/print/raw" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
@@ -2166,7 +2155,7 @@ const server = http.createServer((request, response) => {
         appendLog(PRINT_LOG, `${new Date().toISOString()} ERROR ${error.stack || error}\n`);
         return sendJson(response, 502, { ok: false, error: String(error.message || error) });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/print/preconto-graphic" && request.method === "POST") {

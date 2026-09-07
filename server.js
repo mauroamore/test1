@@ -1828,12 +1828,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/fiscal-printer/status" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => {
-      body += chunk;
-      if (body.length > 16 * 1024) request.destroy();
-    });
-    request.on("end", async () => {
+    readRequestBody(request, 16 * 1024).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const host = String(input.host || "").trim();
@@ -1878,17 +1873,12 @@ const server = http.createServer((request, response) => {
           : `Stampante non raggiungibile: ${error.message}`;
         return sendJson(response, 502, { ok: false, error: message });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/fiscal-printer/receipt" && request.method === "POST") {
-    let body = "";
     let fiscalRequestStarted = false;
-    request.on("data", chunk => {
-      body += chunk;
-      if (body.length > 128 * 1024) request.destroy();
-    });
-    request.on("end", async () => {
+    readRequestBody(request, 128 * 1024).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const printer = sharedState && sharedState.settings && sharedState.settings.fiscalPrinter;
@@ -1995,7 +1985,7 @@ const server = http.createServer((request, response) => {
           error: message
         });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/fiscal-printer/void" && request.method === "POST") {

@@ -94,6 +94,15 @@ function migrateLocalOrderToHubRiseShape(order) {
 
 function migrateStateToHubRiseShape(state) {
   if (!state || typeof state !== "object") return state;
+  // Older snapshots could contain the runtime state twice: the current
+  // snapshot at the top level and a legacy nested `state` object containing
+  // menu/configuration data. Flatten it before any other migration so the
+  // persisted operational state cannot keep the legacy wrapper forever.
+  if (state.state && typeof state.state === "object" && !Array.isArray(state.state)) {
+    const nestedState = state.state;
+    state = { ...nestedState, ...state };
+    delete state.state;
+  }
   for (const key of ["tables", "deliveryOrders"]) {
     if (Array.isArray(state[key])) state[key] = state[key].map(migrateLocalOrderToHubRiseShape);
   }

@@ -3758,7 +3758,12 @@
       // L'istanza esterna non e' mai autorevole: non spinge mai lo stato intero, solo comandi
       // puntuali (vedi sendRemoteCommand) per le poche azioni concesse sui Pick-up manuali.
       if (REMOTE_MODE) return;
-      const body = { state };
+      // Il menu e' un catalogo separato: non va rispedito a ogni modifica di
+      // tavoli, comande o prenotazioni. Resta disponibile in localStorage e
+      // viene aggiornato solo dal caricamento del menu.
+      const statePayload = { ...state };
+      delete statePayload.menu;
+      const body = { state: statePayload };
       if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
       if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
       return fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
@@ -3784,16 +3789,17 @@
           const editingSigonellaOrder = orderModalSnapshot && currentOrder()?.source === "sigonella"
             ? currentOrder()
             : null;
-          // Reservations have their own authoritative API and can arrive a
-          // moment after the room snapshot. Keep the latest reservation list
-          // already loaded by refreshReservations instead of briefly replacing
-          // it with an older snapshot and rendering a blinking table.
-          const loadedReservations = Array.isArray(state.reservations) ? state.reservations : [];
+          // Use the reservation list included in the fresh server snapshot.
+          // Keeping the previous local list here could resurrect cancelled or
+          // closed reservations until the modal was reopened.
+          const incomingReservations = Array.isArray(payload.state.reservations)
+            ? payload.state.reservations.filter(isActiveReservation)
+            : [];
           const paymentOrderSnapshot = paymentOrderId != null
             ? findOrderById(paymentOrderId)
             : null;
           state = payload.state;
-          state.reservations = loadedReservations;
+          state.reservations = incomingReservations;
           if (paymentOrderSnapshot) {
             const collections = [state.tables || [], state.deliveryOrders || []];
             for (const collection of collections) {

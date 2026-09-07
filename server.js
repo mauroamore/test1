@@ -299,6 +299,7 @@ function stateForStorage(state) {
   if (!state) return state;
   const snapshot = { ...state };
   delete snapshot.menu;
+  delete snapshot.fiscalReceipts;
   delete snapshot.room;
   delete snapshot.settings;
   if (Array.isArray(snapshot.tables)) {
@@ -316,6 +317,7 @@ function stateForClient(state) {
   if (!state) return state;
   const snapshot = { ...state };
   delete snapshot.menu;
+  delete snapshot.fiscalReceipts;
   return snapshot;
 }
 

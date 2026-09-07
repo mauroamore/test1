@@ -1741,9 +1741,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/pos/payment" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const orderId = String(input.orderId || "");
@@ -1816,9 +1814,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/print/test" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
@@ -1838,7 +1834,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         sendJson(response, 502, { ok: false, error: error.message });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/fiscal-printer/status" && request.method === "POST") {
@@ -2205,7 +2201,7 @@ const server = http.createServer((request, response) => {
     }).catch(error => {
       updateInProgress = false;
       sendJson(response, 500, { ok: false, error: error.message });
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
   }
   const publicFiles = new Map([
     ["/", "outputs/gestione-comande-ristorante.html"],

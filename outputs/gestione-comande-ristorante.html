@@ -3056,9 +3056,9 @@
       const command = Object.assign({ client_command_id: clientCommandId, type }, fields);
       pendingRemoteCommands.set(clientCommandId, { type, sentAt: Date.now(), status: "pending" });
       renderRemoteStatusStrip();
-      fetch(`${REMOTE_SYNC_URL}?mode=command&key=${encodeURIComponent(REMOTE_KEY)}`, {
+      fetch(`${REMOTE_SYNC_URL}?mode=command`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Restaurant-Sync-Key": REMOTE_KEY },
         body: JSON.stringify(command)
       }).catch(() => {});
       return clientCommandId;
@@ -3098,7 +3098,9 @@
       }
       const ids = [...pendingRemoteCommands.keys()];
       try {
-        const response = await fetch(`${REMOTE_SYNC_URL}?mode=command_status&ids=${encodeURIComponent(ids.join(","))}&key=${encodeURIComponent(REMOTE_KEY)}`);
+        const response = await fetch(`${REMOTE_SYNC_URL}?mode=command_status&ids=${encodeURIComponent(ids.join(","))}`, {
+          headers: { "X-Restaurant-Sync-Key": REMOTE_KEY }
+        });
         if (response.ok) {
           const data = await response.json();
           const statuses = data.statuses || {};
@@ -3720,9 +3722,9 @@
 
     async function syncFromServer() {
       try {
-        const response = await fetch(REMOTE_MODE
-          ? `${REMOTE_SYNC_URL}?mode=state&key=${encodeURIComponent(REMOTE_KEY)}`
-          : "/api/state");
+        const response = await fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=state` : "/api/state", REMOTE_MODE
+          ? { headers: { "X-Restaurant-Sync-Key": REMOTE_KEY } }
+          : undefined);
         if (!response.ok) {
           console.warn("Sincronizzazione remota HTTP", response.status);
           return;

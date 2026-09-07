@@ -109,6 +109,7 @@ const RESTAURANT_SYNC_INTERVAL_MS = Number(process.env.RESTAURANT_SYNC_INTERVAL_
 const REALTIME_URL = (process.env.REALTIME_URL || "https://vorrei-realtime.onrender.com").replace(/\/$/, "");
 const REALTIME_KEY = process.env.REALTIME_KEY || RESTAURANT_SYNC_KEY;
 const UPDATE_KEY = process.env.UPDATE_KEY || "";
+const LOCAL_API_KEY = process.env.LOCAL_API_KEY || "";
 const SERVICE_NAME = process.env.SERVICE_NAME || "gestione-comande.service";
 const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
 const clients = new Set();
@@ -127,6 +128,19 @@ function corsOrigin(request) {
   if (ALLOWED_ORIGINS.has(origin)) return origin;
   const host = request.headers.host;
   return host && (origin === `http://${host}` || origin === `https://${host}`) ? origin : "";
+}
+
+function constantTimeKeyEquals(receivedValue, expectedValue) {
+  if (!receivedValue || !expectedValue) return false;
+  const received = Buffer.from(String(receivedValue));
+  const expected = Buffer.from(String(expectedValue));
+  return received.length === expected.length && crypto.timingSafeEqual(received, expected);
+}
+
+function mutationAuthorized(request, response) {
+  if (!LOCAL_API_KEY || ["GET", "HEAD", "OPTIONS"].includes(request.method)) return true;
+  if (response._corsOrigin) return true;
+  return constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY);
 }
 
 function logProcessFailure(kind, error) {
@@ -466,9 +480,7 @@ function sendJson(response, status, body) {
 function updateAuthorized(request) {
   if (!UPDATE_KEY) return false;
   const headerKey = request.headers["x-update-key"] || "";
-  const received = Buffer.from(String(headerKey));
-  const expected = Buffer.from(String(UPDATE_KEY));
-  return received.length === expected.length && crypto.timingSafeEqual(received, expected);
+  return constantTimeKeyEquals(headerKey, UPDATE_KEY);
 }
 
 function runUpdateScript() {
@@ -1208,6 +1220,10 @@ const server = http.createServer((request, response) => {
   if (request.headers.origin && !response._corsOrigin) {
     response.writeHead(403, { "Content-Type": "application/json" });
     return response.end(JSON.stringify({ ok: false, error: "Origine non autorizzata" }));
+  }
+  if (!mutationAuthorized(request, response)) {
+    response.writeHead(401, { "Content-Type": "application/json" });
+    return response.end(JSON.stringify({ ok: false, error: "Chiave API locale mancante o non valida" }));
   }
   if (request.method === "OPTIONS") {
     if (!response._corsOrigin) {

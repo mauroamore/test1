@@ -1790,21 +1790,17 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/pos/status" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       try {
         const input = JSON.parse(body || "{}");
         const pos = await getNexiEcrClient({ host: String(input.host || "").trim(), port: Number(input.port || 8081), terminalId: String(input.terminalId || "").trim(), cashRegisterId: String(input.cashRegisterId || "").trim(), lrcMode: String(input.lrcMode || "stxetx") });
         return sendJson(response, 200, { ok: true, status: await pos.status() });
       } catch (error) { return sendJson(response, 502, { ok: false, error: error.message || String(error) }); }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/pos/discover" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       let input; try { input = JSON.parse(body || "{}"); } catch { input = {}; }
       const subnet = String(input.subnet || "192.168.1").replace(/[^0-9.]/g, "");
       const port = Number(input.port || 8081);
@@ -1816,7 +1812,7 @@ const server = http.createServer((request, response) => {
         socket.once("timeout", () => { socket.destroy(); resolve(); });
       })));
       return sendJson(response, 200, { ok: true, port, hosts: hosts.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) });
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/print/test" && request.method === "POST") {

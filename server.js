@@ -100,6 +100,9 @@ const RESTAURANT_SYNC_INTERVAL_MS = Number(process.env.RESTAURANT_SYNC_INTERVAL_
 const REALTIME_URL = (process.env.REALTIME_URL || "https://vorrei-realtime.onrender.com").replace(/\/$/, "");
 const REALTIME_KEY = process.env.REALTIME_KEY || RESTAURANT_SYNC_KEY;
 const UPDATE_KEY = process.env.UPDATE_KEY || "";
+// Valvola di sfogo: se un palmare non inviasse ne' Origin ne' Referer, il gestore puo'
+// riaprire le scritture senza toccare il codice, in attesa di una correzione mirata.
+const CONSENTI_CHIAMATE_SENZA_ORIGINE = process.env.CONSENTI_CHIAMATE_SENZA_ORIGINE === "1";
 const SERVICE_NAME = process.env.SERVICE_NAME || "gestione-comande.service";
 const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
 const clients = new Set();
@@ -397,8 +400,31 @@ async function loadSharedMenuCatalog() {
 if (sharedState && !Number.isFinite(Number(sharedState.stateRevision))) sharedState.stateRevision = 1;
 
 function sendJson(response, status, body) {
-  response.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  response.writeHead(status, { "Content-Type": "application/json" });
   response.end(JSON.stringify(body));
+}
+
+// Solo la pagina servita da questo server chiama gli endpoint di scrittura, quindi ogni
+// richiesta legittima e' same-origin. Il browser impone Origin e il JavaScript non puo'
+// falsificarlo: e' questo che blocca il sito estraneo aperto in un'altra scheda. Referer fa
+// da rete per i browser vecchi che su same-origin omettono Origin. Non protegge da un client
+// non-browser, che gli header se li scrive come vuole: per quello serve un login vero.
+// Se un giorno il server finisse dietro un reverse proxy, il proxy deve inoltrare l'Host
+// originale, altrimenti il confronto fallisce e va letto x-forwarded-host.
+function origineNonConsentita(request) {
+  if (CONSENTI_CHIAMATE_SENZA_ORIGINE) return false;
+  const atteso = request.headers.host;
+  if (!atteso) return true;
+  for (const intestazione of ["origin", "referer"]) {
+    const valore = request.headers[intestazione];
+    if (!valore) continue;
+    try {
+      return new URL(valore).host !== atteso;
+    } catch (error) {
+      return true;
+    }
+  }
+  return true;
 }
 
 function updateAuthorized(request) {
@@ -1134,8 +1160,12 @@ const PAGINE_PUBBLICHE = new Map([
 
 const server = http.createServer((request, response) => {
   if (request.method === "OPTIONS") {
-    response.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type" });
+    response.writeHead(204);
     return response.end();
+  }
+  if (request.method !== "GET" && origineNonConsentita(request)) {
+    console.warn(`Richiesta rifiutata: origine non consentita ${request.method} ${request.url} origin=${request.headers.origin || "-"} referer=${request.headers.referer || "-"} ua=${request.headers["user-agent"] || "-"}`);
+    return sendJson(response, 403, { ok: false, error: "Origine non consentita" });
   }
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
   if (request.url === "/api/table-locks" && request.method === "GET") {
@@ -1275,7 +1305,7 @@ const server = http.createServer((request, response) => {
           body
         });
         const text = await upstream.text();
-        response.writeHead(upstream.status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+        response.writeHead(upstream.status, { "Content-Type": "application/json" });
         response.end(text);
       } catch (error) {
         sendJson(response, 502, { error: "Aggiornamento stato HubRise non disponibile", detail: error.message });
@@ -1296,7 +1326,7 @@ const server = http.createServer((request, response) => {
           body
         });
         const text = await upstream.text();
-        response.writeHead(upstream.status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+        response.writeHead(upstream.status, { "Content-Type": "application/json" });
         response.end(text);
       } catch (error) {
         sendJson(response, 502, { error: "Registro remoto non disponibile", detail: error.message });
@@ -1950,7 +1980,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/events" && request.method === "GET") {
-    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*" });
+    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" });
     response.write("retry: 2000\n\n");
     clients.add(response);
     request.on("close", () => clients.delete(response));

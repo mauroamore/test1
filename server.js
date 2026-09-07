@@ -639,7 +639,7 @@ function handleDeliverooWebhook(request, response) {
         try { return JSON.parse(body || "{}"); } catch { return body; }
       })()
     };
-    fs.appendFileSync(DELIVEROO_WEBHOOK_LOG, `${JSON.stringify(entry)}\n`);
+    appendLog(DELIVEROO_WEBHOOK_LOG, `${JSON.stringify(entry)}\n`);
     sendJson(response, 200, { ok: true, received: true });
   });
 }
@@ -925,7 +925,7 @@ async function pollHubRiseOrders() {
     setHubRiseFeedStatus(true);
     persistAndBroadcast();
   } catch (error) {
-    fs.appendFileSync(HUBRISE_FEED_LOG, `${new Date().toISOString()} ${error.message}\n`);
+    appendLog(HUBRISE_FEED_LOG, `${new Date().toISOString()} ${error.message}\n`);
     setHubRiseFeedStatus(false, error.message);
     persistAndBroadcast();
   }
@@ -960,7 +960,7 @@ async function pushStateSnapshotOnce() {
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
   } catch (error) {
-    fs.appendFileSync(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} push_state ${error.message}\n`);
+    appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} push_state ${error.message}\n`);
   }
 }
 
@@ -1194,7 +1194,7 @@ async function pollExternalCommands() {
       try {
         command = JSON.parse(entry.command_json);
       } catch (error) {
-        fs.appendFileSync(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} comando illeggibile ${entry.client_command_id}: ${error.message}\n`);
+        appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} comando illeggibile ${entry.client_command_id}: ${error.message}\n`);
         appliedIds.push(entry.client_command_id);
         continue;
       }
@@ -1211,7 +1211,7 @@ async function pollExternalCommands() {
       if (!ackResponse.ok) throw new Error("HTTP " + ackResponse.status + " durante ack_commands");
     }
   } catch (error) {
-    fs.appendFileSync(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} pending_commands ${error.message}\n`);
+    appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} pending_commands ${error.message}\n`);
   }
 }
 
@@ -1764,7 +1764,7 @@ const server = http.createServer((request, response) => {
           ? payload
           : Buffer.from(String(payload), "utf8");
         const result = await printEscPosRaw(host, port, data);
-        fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} raw ${host}:${port} ${JSON.stringify(payload)}\n`);
+        appendLog(PRINT_LOG, `${new Date().toISOString()} raw ${host}:${port} ${JSON.stringify(payload)}\n`);
         sendJson(response, 200, result);
       } catch (error) {
         sendJson(response, 502, { ok: false, error: error.message });
@@ -2127,10 +2127,10 @@ const server = http.createServer((request, response) => {
         if (!Number.isInteger(port) || port < 1 || port > 65535) return sendJson(response, 400, { ok: false, error: "Porta non valida" });
         if (!payload) return sendJson(response, 400, { ok: false, error: "Contenuto di stampa vuoto" });
         const result = await printEscPosRaw(host, port, payload);
-        fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} raw ${host}:${port} ${JSON.stringify(input.job || "document") }\n`);
+        appendLog(PRINT_LOG, `${new Date().toISOString()} raw ${host}:${port} ${JSON.stringify(input.job || "document") }\n`);
         return sendJson(response, 200, result);
       } catch (error) {
-        fs.appendFileSync(PRINT_LOG, `${new Date().toISOString()} ERROR ${error.stack || error}\n`);
+        appendLog(PRINT_LOG, `${new Date().toISOString()} ERROR ${error.stack || error}\n`);
         return sendJson(response, 502, { ok: false, error: String(error.message || error) });
       }
     });

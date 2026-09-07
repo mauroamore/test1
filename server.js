@@ -1584,9 +1584,7 @@ const server = http.createServer((request, response) => {
   }
   const paymentIntentMatch = request.url.match(/^\/api\/orders\/([^/?]+)\/payment$/);
   if (paymentIntentMatch && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", () => {
+    readRequestBody(request).then(body => {
       try {
         const input = JSON.parse(body || "{}");
         const orderId = decodeURIComponent(paymentIntentMatch[1]);
@@ -1622,9 +1620,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/state" && request.method === "POST") {
-    let body = "";
-    request.on("data", chunk => body += chunk);
-    request.on("end", async () => {
+    readRequestBody(request).then(async body => {
       try {
         // Il browser invia sempre l'intero stato. Per deliveryOrders serve un merge, non una
         // sostituzione secca in nessuna delle due direzioni: gli ordini che il browser gia'
@@ -1727,7 +1723,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         sendJson(response, 400, { error: "Stato non valido" });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/pos/payment" && request.method === "POST") {
@@ -1774,7 +1770,7 @@ const server = http.createServer((request, response) => {
       } catch (error) {
         return sendJson(response, 502, { ok: false, simulated: false, error: error.message || String(error) });
       }
-    });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/pos/status" && request.method === "POST") {

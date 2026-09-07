@@ -118,9 +118,13 @@ let updateInProgress = false;
 let fiscalReceiptInProgress = false;
 let sigonellaPollInFlight = false;
 let statePushInFlight = false;
+let hubRisePollInFlight = false;
+let externalCommandPollInFlight = false;
+let lastPushedStateRevision = null;
 const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || "").split(",").map(origin => origin.trim()).filter(Boolean));
+const ALLOW_INSECURE_LOCAL_API = process.env.ALLOW_INSECURE_LOCAL_API === "1";
 
 function readRequestBody(request, maxBytes = MAX_REQUEST_BODY_BYTES) {
   return new Promise((resolve, reject) => {
@@ -168,8 +172,8 @@ function constantTimeKeyEquals(receivedValue, expectedValue) {
 }
 
 function mutationAuthorized(request, response) {
-  if (!LOCAL_API_KEY || ["GET", "HEAD", "OPTIONS"].includes(request.method)) return true;
-  if (response._corsOrigin) return true;
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return true;
+  if (!LOCAL_API_KEY) return ALLOW_INSECURE_LOCAL_API;
   return constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY);
 }
 
@@ -999,6 +1003,8 @@ function persistAndBroadcast(event = "state.updated", data = {}) {
 // viene solo loggato, il prossimo giro di polling riprova da solo.
 async function pollHubRiseOrders() {
   if (!HUBRISE_FEED_KEY) return;
+  if (hubRisePollInFlight) return;
+  hubRisePollInFlight = true;
   try {
     const response = await fetch(HUBRISE_FEED_URL, {
       method: "GET",
@@ -1022,6 +1028,8 @@ async function pollHubRiseOrders() {
     appendLog(HUBRISE_FEED_LOG, `${new Date().toISOString()} ${error.message}\n`);
     setHubRiseFeedStatus(false, error.message);
     persistAndBroadcast();
+  } finally {
+    hubRisePollInFlight = false;
   }
 }
 
@@ -1044,6 +1052,8 @@ function localNowString() {
 // leggere. Fallisce in silenzio come il polling HubRise: non deve mai bloccare l'uso locale.
 async function pushStateSnapshotOnce() {
   if (!RESTAURANT_SYNC_KEY || !sharedState) return;
+  const currentRevision = Number(sharedState.stateRevision || 0);
+  if (lastPushedStateRevision === currentRevision) return;
   try {
     const url = RESTAURANT_SYNC_URL + "?mode=push_state" +
       "&now=" + encodeURIComponent(localNowString());
@@ -1053,6 +1063,7 @@ async function pushStateSnapshotOnce() {
       body: JSON.stringify(stateForStorage(sharedState))
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
+    lastPushedStateRevision = currentRevision;
   } catch (error) {
     appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} push_state ${error.message}\n`);
   }
@@ -1274,6 +1285,8 @@ function applyExternalCommand(command) {
 // locale: un errore di rete si logga soltanto e si ritenta al giro successivo.
 async function pollExternalCommands() {
   if (!RESTAURANT_SYNC_KEY || !sharedState) return;
+  if (externalCommandPollInFlight) return;
+  externalCommandPollInFlight = true;
   try {
     const listUrl = RESTAURANT_SYNC_URL + "?mode=pending_commands";
     const listResponse = await fetch(listUrl, { method: "GET", headers: { "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY } });
@@ -1306,6 +1319,8 @@ async function pollExternalCommands() {
     }
   } catch (error) {
     appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} pending_commands ${error.message}\n`);
+  } finally {
+    externalCommandPollInFlight = false;
   }
 }
 

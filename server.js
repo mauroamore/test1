@@ -143,6 +143,14 @@ function mutationAuthorized(request, response) {
   return constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY);
 }
 
+const routeTable = new Map([
+  ["GET /api/state", (_request, response) => sendJson(response, 200, { state: sharedState })],
+  ["GET /api/version", (_request, response) => sendJson(response, 200, {
+    version: APP_VERSION,
+    packageVersion: require("./package.json").version
+  })]
+]);
+
 function logProcessFailure(kind, error) {
   const message = error && (error.stack || error.message) || String(error);
   appendLog(path.join(ROOT, "crash.log"), `${new Date().toISOString()} ${kind} ${message}\n`);
@@ -1237,6 +1245,9 @@ const server = http.createServer((request, response) => {
     });
     return response.end();
   }
+  const routeKey = `${request.method} ${request.url.split("?")[0]}`;
+  const routeHandler = routeTable.get(routeKey);
+  if (routeHandler) return routeHandler(request, response);
   if (!["GET", "HEAD"].includes(request.method)) {
     const declaredLength = Number(request.headers["content-length"] || 0);
     if (declaredLength > MAX_REQUEST_BODY_BYTES) {

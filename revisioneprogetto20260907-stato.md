@@ -23,7 +23,7 @@ Riferimento: `revisioneprogetto20260907.md`.
 - [x] Poller Sigonella e sincronizzazione stato protetti da guardia in-flight.
 - [x] Log operativi centralizzati e ruotati oltre 5 MB.
 - [x] Pagamento disponibile tramite endpoint atomico con precondizione `stateRevision`.
-- [x] Le prime route GET (`/api/state`, `/api/version`) sono state estratte in una tabella.
+- [x] Le route GET di lettura sono state estratte progressivamente in una tabella (`/api/state`, `/api/version`, `/api/table-locks`, `/api/table-lock`, `/api/fiscal-receipts`, `/api/fiscal-receipts/sync-status`).
 - [ ] Il refactoring completo del server monolitico in moduli e router tabellare è ancora da completare in una migrazione separata.
 
 ## Test e CI
@@ -33,7 +33,7 @@ Riferimento: `revisioneprogetto20260907.md`.
 - [x] Requisito Node `>=22` dichiarato.
 - [x] Test preconto PC-POS aggiunto.
 - [x] Controllo sintassi esteso ai moduli `src`.
-- [x] Suite locale: 15 test superati.
+- [x] Suite locale: 18 test superati, inclusi normalizzazione ordini, preconto e client Epson.
 - [x] Copertura delle funzioni pure di `EpsonFiscalClient.js` per XML fiscale, annullamento e nome PDF.
 
 ## Igiene codice

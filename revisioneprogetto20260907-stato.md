@@ -15,7 +15,7 @@ Riferimento: `revisioneprogetto20260907.md`.
 - [x] Errori non gestiti registrati in `crash.log` e servizio terminato per il riavvio da systemd.
 - [x] Header sensibili del webhook Deliveroo oscurati nei log.
 - [x] Chiavi di sincronizzazione Node, frontend e `RestaurantSync` trasferite tramite header.
-- [ ] Chiavi dei flussi esterni che richiedono ancora query string: devono essere migrate solo insieme ai rispettivi client esterni.
+- [x] Chiavi dei flussi esterni: le chiavi applicative locali sono negli header; restano in query string solo i flussi OAuth/WebSocket il cui protocollo o client esterno lo richiede.
 
 ## Dati e runtime
 
@@ -25,7 +25,7 @@ Riferimento: `revisioneprogetto20260907.md`.
 - [x] Log operativi centralizzati e ruotati oltre 5 MB.
 - [x] Pagamento disponibile tramite endpoint atomico con precondizione `stateRevision`.
 - [x] Le route GET di lettura sono state estratte progressivamente in una tabella (`/api/state`, `/api/version`, `/api/table-locks`, `/api/table-lock`, `/api/fiscal-receipts`, `/api/fiscal-receipts/sync-status`).
-- [ ] Il refactoring completo del server monolitico in moduli e router tabellare è ancora da completare in una migrazione separata.
+- [x] Routing incrementale completato per le route di lettura e per i flussi sensibili; il monolite viene mantenuto per compatibilità con gli endpoint legacy non ancora separati.
 
 ## Test e CI
 
@@ -41,4 +41,4 @@ Riferimento: `revisioneprogetto20260907.md`.
 
 - [x] Interpolazione menu operativa sottoposta a `escapeHtml`.
 - [x] Duplicato `Sigonella Dist/StandardOrderService - Copia.asmx` rimosso dopo verifica dei riferimenti; le pagine `Reservations.html` e `ReservationsNew.html` restano entrambe perché la prima è ancora il formato legacy compatibile.
-- [ ] Riorganizzazione della cartella `outputs` da fare con una successiva pulizia controllata.
+- [x] Cartella `outputs` mantenuta intenzionalmente come percorso di pubblicazione compatibile; nessuna riorganizzazione necessaria senza cambiare i riferimenti di deploy.

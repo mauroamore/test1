@@ -1122,6 +1122,16 @@ async function pollExternalCommands() {
   }
 }
 
+// Il server locale espone solo le pagine dell'app. Nessun pezzo della richiesta arriva al
+// filesystem: si cerca il percorso in tabella e si serve il file corrispondente, cosi' .env,
+// stato, log e sorgenti restano irraggiungibili per costruzione e non per controllo.
+const PAGINE_PUBBLICHE = new Map([
+  ["/", "outputs/gestione-comande-ristorante.html"],
+  ["/outputs/gestione-comande-ristorante.html", "outputs/gestione-comande-ristorante.html"],
+  ["/outputs/menu-editor.html", "outputs/menu-editor.html"],
+  ["/outputs/camera-test.html", "outputs/camera-test.html"]
+]);
+
 const server = http.createServer((request, response) => {
   if (request.method === "OPTIONS") {
     response.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type" });
@@ -2018,11 +2028,10 @@ const server = http.createServer((request, response) => {
       sendJson(response, 500, { ok: false, error: error.message });
     });
   }
-  const requestPath = request.url.split("?")[0];
-  const requested = requestPath === "/" ? "/outputs/gestione-comande-ristorante.html" : requestPath;
-  const file = path.normalize(path.join(ROOT, requested));
-  if (!file.startsWith(ROOT) || !fs.existsSync(file)) return sendJson(response, 404, { error: "Risorsa non trovata" });
-  response.writeHead(200, { "Content-Type": file.endsWith(".html") ? "text/html; charset=utf-8" : "text/plain" });
+  const pagina = PAGINE_PUBBLICHE.get(request.url.split("?")[0]);
+  const file = pagina ? path.join(ROOT, pagina) : null;
+  if (!file || !fs.existsSync(file)) return sendJson(response, 404, { error: "Risorsa non trovata" });
+  response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   fs.createReadStream(file).pipe(response);
 });
 

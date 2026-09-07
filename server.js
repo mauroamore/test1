@@ -160,6 +160,17 @@ const routeTable = new Map([
       locks[String(tableId)] = { status: "attivo", expiresAt: current.expiresAt };
     }
     return sendJson(response, 200, { locks });
+  }],
+  ["GET /api/table-lock", (request, response) => {
+    const tableId = new URL(request.url, "http://localhost").searchParams.get("tableId");
+    const current = tableId ? tableLocks.get(String(tableId)) : null;
+    const now = Date.now();
+    if (!current) return sendJson(response, 200, { locked: false, status: "libero" });
+    if (current.expiresAt <= now) {
+      current.status = "scaduto";
+      return sendJson(response, 200, { locked: false, status: "scaduto", expiresAt: current.expiresAt });
+    }
+    return sendJson(response, 200, { locked: true, status: "attivo", expiresAt: current.expiresAt });
   }]
 ]);
 
@@ -1279,18 +1290,6 @@ const server = http.createServer((request, response) => {
     });
   }
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: sharedState });
-  if (request.url.startsWith("/api/table-lock") && request.method === "GET") {
-    const query = new URL(request.url, "http://localhost").searchParams;
-    const tableId = query.get("tableId");
-    const current = tableId ? tableLocks.get(String(tableId)) : null;
-    const now = Date.now();
-    if (!current) return sendJson(response, 200, { locked: false, status: "libero" });
-    if (current.expiresAt <= now) {
-      current.status = "scaduto";
-      return sendJson(response, 200, { locked: false, status: "scaduto", expiresAt: current.expiresAt });
-    }
-    return sendJson(response, 200, { locked: true, status: "attivo", expiresAt: current.expiresAt });
-  }
   if (request.url === "/api/table-lock" && (request.method === "POST" || request.method === "DELETE")) {
     let body = "";
     request.on("data", chunk => body += chunk);

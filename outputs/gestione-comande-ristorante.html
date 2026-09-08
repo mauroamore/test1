@@ -4050,13 +4050,17 @@
         // Non applicare uno snapshot incompleto durante un aggiornamento realtime:
         // un client vecchio o una risposta intermedia non deve far lampeggiare o
         // cancellare tavoli gia' presenti sul dispositivo.
+        const currentById = new Map(currentTables.map(table => [String(table.id), table]));
         const incomingById = new Map(incomingTables.map(table => [String(table.id), table]));
-        const mergedTables = incomingTables.slice();
-        if (currentTables.length > incomingTables.length) {
-          currentTables.forEach(table => {
-            if (!incomingById.has(String(table.id))) mergedTables.push(table);
-          });
-        }
+        // Il backend puo' restituire la definizione minima {id}. Non cancellare
+        // nome/etichetta e gli altri attributi descrittivi gia' presenti sul client.
+        const mergedTables = incomingTables.map(table => ({
+          ...(currentById.get(String(table.id)) || {}),
+          ...table
+        }));
+        currentTables.forEach(table => {
+          if (!incomingById.has(String(table.id))) mergedTables.push(table);
+        });
         state.room = { ...structuredClone(configuredRoom), tables: structuredClone(mergedTables) };
         applyLocalRoomLayout();
         materializeConfiguredTables(state);

@@ -3283,6 +3283,12 @@
       return snapshot;
     }
 
+    function platformConfigForSync(source) {
+      const config = platformConfigFromState(source);
+      delete config.menu;
+      return config;
+    }
+
     function persistBrowserState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(turnStateFromState(state)));
       localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigFromState(state)));
@@ -3801,9 +3807,10 @@
       // Il menu e' un catalogo separato: non va rispedito a ogni modifica di
       // tavoli, comande o prenotazioni. Resta disponibile in localStorage e
       // viene aggiornato solo dal caricamento del menu.
-      const statePayload = { ...state };
-      delete statePayload.menu;
-      const body = { state: statePayload };
+      const body = {
+        state: turnStateFromState(state),
+        platformConfig: platformConfigForSync(state)
+      };
       if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
       if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
       return fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })

@@ -1200,19 +1200,6 @@
       flex-wrap: wrap;
     }
 
-    .table-config-debug {
-      margin: 12px 0 0;
-      max-height: 260px;
-      overflow: auto;
-      padding: 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: #f7f8fa;
-      color: #263238;
-      font: 12px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
-      white-space: pre-wrap;
-    }
-
     .room-size-controls {
       display: none;
       align-items: center;
@@ -2548,7 +2535,6 @@
           <label>Altezza <input id="tableHeight" type="number" readonly></label>
         </div>
         <div class="table-grid" id="tables"></div>
-        <pre id="tableConfigDebug" class="table-config-debug" aria-label="Configurazione tavoli"></pre>
       </div>
     </section>
 
@@ -3514,27 +3500,6 @@
         tableHeight: state.room.tableHeight
       }));
     }
-
-    function updateTableConfigDebug() {
-      const output = document.getElementById("tableConfigDebug");
-      if (!output) return;
-      const readLocalJson = key => {
-        try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (error) { return { error: error.message }; }
-      };
-      output.textContent = JSON.stringify({
-        memory: {
-          stateRoomTables: Array.isArray(state?.room?.tables) ? state.room.tables : [],
-          operationalTables: Array.isArray(state?.tables) ? state.tables : []
-        },
-        browserLocalStorage: {
-          platformConfig: readLocalJson(PLATFORM_CONFIG_STORAGE_KEY),
-          roomLayout: readLocalJson(ROOM_LAYOUT_STORAGE_KEY),
-          turnStateTables: readLocalJson(STORAGE_KEY)?.tables || []
-        }
-      }, null, 2);
-    }
-
-    setInterval(updateTableConfigDebug, 2000);
 
     let state = loadState();
     applyLocalRoomLayout();

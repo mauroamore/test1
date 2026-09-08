@@ -215,7 +215,10 @@ function handleFiscalReceiptHistory(request, response) {
 }
 
 const routeTable = new Map([
-  ["GET /api/state", (_request, response) => sendJson(response, 200, { state: stateForClient(sharedState) })],
+  ["GET /api/state", (_request, response) => sendJson(response, 200, {
+    state: stateForClient(sharedState),
+    platformConfig: platformConfigForClient(sharedState)
+  })],
   ["GET /api/version", (_request, response) => sendJson(response, 200, {
     version: APP_VERSION,
     packageVersion: require("./package.json").version
@@ -319,7 +322,18 @@ function stateForClient(state) {
   const snapshot = { ...state };
   delete snapshot.menu;
   delete snapshot.fiscalReceipts;
+  delete snapshot.room;
+  delete snapshot.settings;
+  delete snapshot.variations;
   return snapshot;
+}
+
+function platformConfigForClient(state) {
+  return {
+    room: state && state.room || {},
+    settings: state && state.settings || {},
+    variations: state && state.variations || {}
+  };
 }
 
 function configForStorage(state) {
@@ -1376,7 +1390,10 @@ const server = http.createServer((request, response) => {
   const routeKey = `${request.method} ${request.url.split("?")[0]}`;
   const routeHandler = routeTable.get(routeKey);
   if (routeHandler) return routeHandler(request, response);
-  if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, { state: stateForClient(sharedState) });
+  if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, {
+    state: stateForClient(sharedState),
+    platformConfig: platformConfigForClient(sharedState)
+  });
   if (request.url === "/api/table-lock" && (request.method === "POST" || request.method === "DELETE")) {
     readRequestBody(request).then(body => {
       try {

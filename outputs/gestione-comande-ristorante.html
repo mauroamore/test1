@@ -3845,6 +3845,9 @@
             ? currentOrder()
             : null;
           const loadedMenu = Array.isArray(state.menu) ? state.menu : [];
+          const incomingPlatformConfig = payload.platformConfig && typeof payload.platformConfig === "object"
+            ? payload.platformConfig
+            : {};
           // Use the reservation list included in the fresh server snapshot.
           // Keeping the previous local list here could resurrect cancelled or
           // closed reservations until the modal was reopened.
@@ -3854,7 +3857,12 @@
           const paymentOrderSnapshot = paymentOrderId != null
             ? findOrderById(paymentOrderId)
             : null;
-          state = payload.state;
+          state = {
+            ...payload.state,
+            ...(Object.keys(incomingPlatformConfig).length
+              ? incomingPlatformConfig
+              : platformConfigFromState(state))
+          };
           if (!Array.isArray(state.menu) || state.menu.length === 0) state.menu = loadedMenu;
           state.reservations = incomingReservations;
           if (paymentOrderSnapshot) {

@@ -2982,7 +2982,10 @@
         return pair;
       };
       const bytes = buffer => btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const requestPassword = () => new Promise((resolve, reject) => {
+      let passwordRequestInFlight = null;
+      const requestPassword = () => {
+        if (passwordRequestInFlight) return passwordRequestInFlight;
+        passwordRequestInFlight = new Promise((resolve, reject) => {
         const gate = document.getElementById("localLoginGate");
         const form = document.getElementById("localLoginForm");
         const input = document.getElementById("localLoginPassword");
@@ -3000,7 +3003,9 @@
           if (submit) { submit.disabled = true; submit.textContent = "Accesso in corso..."; }
           resolve(password);
         };
-      });
+        });
+        return passwordRequestInFlight.finally(() => { passwordRequestInFlight = null; });
+      };
       const auth = async () => {
         const pair = await getKeyPair();
         const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);

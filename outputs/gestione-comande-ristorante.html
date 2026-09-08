@@ -3235,8 +3235,7 @@
         categoryMonitors: { Drinks: "Bar", "White Wines": "Bar", "Red Wines": "Bar", "Rosé Wines": "Bar", "Sparkling Wines": "Bar", Spirits: "Bar" },
         categoryTurns: { Drinks: false, "White Wines": false, "Red Wines": false, "Rosé Wines": false, "Sparkling Wines": false, Spirits: false }
         ,printers: [],
-        precontoPrinter: "",
-        categories: []
+        precontoPrinter: ""
       },
       variations: structuredClone(defaultVariations),
       tables: Array.from({ length: 12 }, (_, index) => ({
@@ -3500,6 +3499,7 @@
 
     function normalizeSharedState() {
       if (!state || typeof state !== "object") state = structuredClone(initialState);
+      if (state.settings && typeof state.settings === "object") delete state.settings.categories;
       if (!Array.isArray(state.tables)) state.tables = structuredClone(initialState.tables);
       if (!Array.isArray(state.deliveryOrders)) state.deliveryOrders = [];
       if (!Array.isArray(state.reservations)) state.reservations = [];
@@ -3529,6 +3529,16 @@
         });
       });
       clearCoversFromFreeTables();
+    }
+
+    function menuCategoriesFor(menu) {
+      return [...new Set((Array.isArray(menu) ? menu : [])
+        .map(item => String(item?.category || "").trim())
+        .filter(Boolean))];
+    }
+
+    function menuCategories() {
+      return menuCategoriesFor(state?.menu);
     }
 
     function loadLocalOrderDraft(orderId, fallback) {
@@ -3611,7 +3621,7 @@
           if (!saved.settings.categoryMonitors) saved.settings.categoryMonitors = {};
           if (!saved.settings.categoryTurns) saved.settings.categoryTurns = {};
           if (!Array.isArray(saved.settings.printers)) saved.settings.printers = [];
-          if (!Array.isArray(saved.settings.categories) || !saved.settings.categories.length) saved.settings.categories = [...new Set(saved.menu.map(item => item.category).filter(Boolean))];
+          delete saved.settings.categories;
           if (!Array.isArray(saved.settings.monitors) || !saved.settings.monitors.length) {
             saved.settings.monitors = ["Bar", "Cucina", "Pizzeria", "Pasticceria"].map(name => ({
               name,
@@ -3647,7 +3657,7 @@
           // menu, o vecchi nomi come "Cucina"/"Pizzeria"/"Pasticceria" che qui non sono mai state
           // categorie reali, solo omonimi dei monitor): restano li' a confondere chi apre Setup,
           // scollegate da qualunque categoria che l'app mostra davvero.
-          const realCategories = new Set(saved.settings.categories);
+          const realCategories = new Set(menuCategoriesFor(saved.menu));
           Object.keys(saved.settings.categoryMonitors).forEach(category => {
             if (!realCategories.has(category)) delete saved.settings.categoryMonitors[category];
           });
@@ -5802,8 +5812,9 @@
       else state.selectedTable = order.id;
       // Ogni ingresso nella comanda riparte dalla prima categoria del menu,
       // senza ereditare la categoria lasciata aperta nell'ultima modifica.
-      const firstCategory = Array.isArray(state.settings.categories) && state.settings.categories.length
-        ? state.settings.categories[0]
+      const categories = menuCategories();
+      const firstCategory = categories.length
+        ? categories[0]
         : (Array.isArray(state.menu) && state.menu[0] && state.menu[0].category) || "Tutti";
       state.category = firstCategory;
       saveState();
@@ -6410,7 +6421,7 @@
       if (PALMARE_MODE) {
         // Il burger porta all'inizio della sezione, non filtra: tutti i piatti restano visibili
         // in un'unica lista continua, divisa per categoria.
-        (state.settings.categories || []).forEach(category => {
+        menuCategories().forEach(category => {
           const heading = document.createElement("div");
           heading.className = "menu-category-heading";
           heading.dataset.categoryHeading = category;
@@ -7024,7 +7035,7 @@
         const localKitchen = JSON.parse(localStorage.getItem("vorrei-kitchen-layout") || "null");
         if (localKitchen) Object.assign(state.settings, localKitchen);
       } catch {}
-      const categories = state.settings.categories || [];
+      const categories = menuCategories();
       const monitors = state.settings.monitors || [];
       monitors.forEach(monitor => {
         if (typeof monitor.mobile !== "boolean") monitor.mobile = monitor.name.toLowerCase().includes("bar");
@@ -7076,7 +7087,7 @@
     function openMonitorCategories(index) {
       const monitor = state.settings.monitors[index];
       if (!monitor) return;
-      const categories = state.settings.categories || [];
+      const categories = menuCategories();
       document.getElementById("monitorCategoriesList").innerHTML = categories.map(category => `<label class="checkbox-label"><input type="checkbox" data-category="${escapeHtml(category)}" ${monitorForCategory(category) === monitor.name ? "checked" : ""}> ${escapeHtml(category)}</label>`).join("") || `<div class="empty">Nessuna categoria sincronizzata.</div>`;
       document.getElementById("monitorCategoriesModal").dataset.monitorIndex = index;
       document.getElementById("monitorCategoriesModal").showModal();
@@ -7105,7 +7116,7 @@
       document.getElementById("fiscalPrinterOperatorInput").value = fiscalPrinter.operator || "1";
       document.getElementById("fiscalPrinterDepartmentInput").value = fiscalPrinter.defaultDepartment || "2";
       const categoryRoot = document.getElementById("setupCategoryList");
-      categoryRoot.innerHTML = (state.settings.categories || []).map(category => `<div class="setup-row"><strong>${escapeHtml(category)}</strong><span class="small">Sincronizzata dal menu online</span></div>`).join("") || `<div class="empty">Nessuna categoria disponibile.</div>`;
+      categoryRoot.innerHTML = menuCategories().map(category => `<div class="setup-row"><strong>${escapeHtml(category)}</strong><span class="small">Sincronizzata dal menu online</span></div>`).join("") || `<div class="empty">Nessuna categoria disponibile.</div>`;
       const printerRoot = document.getElementById("setupPrinterList");
         printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><select data-printer-field="protocol" title="Protocollo di stampa"><option value="escpos" ${printer.protocol !== "epson-pcpos" ? "selected" : ""}>ESC/POS</option><option value="epson-pcpos" ${printer.protocol === "epson-pcpos" ? "selected" : ""}>Epson PC-POS</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><label class="checkbox-label"><input class="printer-preview" type="checkbox" ${printer.preview !== false ? "checked" : ""}> Anteprima</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
       printerRoot.querySelectorAll(".setup-row").forEach(row => {
@@ -7148,8 +7159,8 @@
         })));
         if (!menu.length) return;
         state.menu = menu;
-        state.settings.categories = categories.map(category => category.name);
-        if (!state.settings.categories.includes(state.category)) state.category = state.settings.categories[0] || "";
+        const loadedCategories = menuCategories();
+        if (!loadedCategories.includes(state.category)) state.category = loadedCategories[0] || "";
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         saveState();
         render();
@@ -7625,7 +7636,7 @@
         tabs.innerHTML = `<button id="tabOne" data-action="back">← Back</button><button id="tabTwo" data-action="plus" class="${variationMode === "plus" ? "active" : ""}">+</button><button id="tabThree" data-action="minus" class="${variationMode === "minus" ? "active" : ""}">-</button>`;
         return;
       }
-      const categories = state.settings.categories || [];
+      const categories = menuCategories();
       if (categories.length && !categories.includes(state.category)) state.category = categories[0];
       const order = currentOrder();
       const categoryCounts = new Map();

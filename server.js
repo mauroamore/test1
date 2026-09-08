@@ -1765,18 +1765,6 @@ const server = http.createServer((request, response) => {
         // vanno comunque preservati, altrimenti un salvataggio del browser li cancellerebbe.
         const parsedBody = JSON.parse(body);
         const incomingState = parsedBody.state || parsedBody;
-        const incomingPlatformConfig = parsedBody.platformConfig;
-        if (incomingPlatformConfig && typeof incomingPlatformConfig === "object") {
-          if (incomingPlatformConfig.room && typeof incomingPlatformConfig.room === "object") {
-            incomingState.room = incomingPlatformConfig.room;
-          }
-          if (incomingPlatformConfig.settings && typeof incomingPlatformConfig.settings === "object") {
-            incomingState.settings = incomingPlatformConfig.settings;
-          }
-          if (incomingPlatformConfig.variations && typeof incomingPlatformConfig.variations === "object") {
-            incomingState.variations = incomingPlatformConfig.variations;
-          }
-        }
         const resetDeliveryOrders = parsedBody.resetDeliveryOrders === true;
         if (resetDeliveryOrders) {
           // Ritenta subito gli scontrini falliti prima di decidere se il reset e' sicuro.

@@ -3440,7 +3440,21 @@
 
     function persistBrowserState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(turnStateFromState(state)));
-      localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigFromState(state)));
+      const platformConfig = platformConfigFromState(state);
+      // Uno snapshot operativo puo' arrivare prima della configurazione piattaforma
+      // e non deve cancellare dal browser una configurazione condivisa gia' valida.
+      if (!Array.isArray(platformConfig.room?.tables) || !platformConfig.room.tables.length) {
+        try {
+          const previous = JSON.parse(localStorage.getItem(PLATFORM_CONFIG_STORAGE_KEY) || "null");
+          if (Array.isArray(previous?.room?.tables) && previous.room.tables.length) {
+            localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(previous));
+          } else {
+            localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfig));
+          }
+        } catch { localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfig)); }
+      } else {
+        localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfig));
+      }
       localStorage.setItem(BROWSER_UI_STORAGE_KEY, JSON.stringify(browserUiStateFromState(state)));
     }
 

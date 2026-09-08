@@ -217,7 +217,7 @@ function handleFiscalReceiptHistory(request, response) {
 const routeTable = new Map([
   ["GET /api/state", (_request, response) => sendJson(response, 200, {
     state: stateForClient(sharedState),
-    platformConfig: platformConfigForClient(sharedState)
+    stateRevision: Number(sharedState && sharedState.stateRevision || 0)
   })],
   ["GET /api/version", (_request, response) => sendJson(response, 200, {
     version: APP_VERSION,
@@ -1398,8 +1398,31 @@ const server = http.createServer((request, response) => {
   if (routeHandler) return routeHandler(request, response);
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, {
     state: stateForClient(sharedState),
-    platformConfig: platformConfigForClient(sharedState)
+    stateRevision: Number(sharedState && sharedState.stateRevision || 0)
   });
+  if (request.url === "/api/platform-config" && request.method === "GET") {
+    return sendJson(response, 200, { platformConfig: platformConfigForClient(sharedState) });
+  }
+  if (request.url === "/api/platform-config" && request.method === "POST") {
+    readRequestBody(request).then(body => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const incoming = parsed.platformConfig || parsed;
+        if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+          return sendJson(response, 400, { ok: false, error: "Configurazione piattaforma non valida" });
+        }
+        if (incoming.room && typeof incoming.room === "object") sharedState.room = incoming.room;
+        if (incoming.settings && typeof incoming.settings === "object") sharedState.settings = incoming.settings;
+        if (incoming.variations && typeof incoming.variations === "object") sharedState.variations = incoming.variations;
+        persistStateFiles();
+        broadcast();
+        return sendJson(response, 200, { ok: true });
+      } catch (error) {
+        return sendJson(response, 400, { ok: false, error: "Configurazione piattaforma non valida" });
+      }
+    }).catch(error => sendJson(response, 400, { ok: false, error: error.message }));
+    return;
+  }
   if (request.url === "/api/table-lock" && (request.method === "POST" || request.method === "DELETE")) {
     readRequestBody(request).then(body => {
       try {

@@ -3834,22 +3834,36 @@
       // Il menu e' un catalogo separato: non va rispedito a ogni modifica di
       // tavoli, comande o prenotazioni. Resta disponibile in localStorage e
       // viene aggiornato solo dal caricamento del menu.
-      const body = {
-        state: turnStateFromState(state),
-        platformConfig: platformConfigForSync(state)
-      };
+      const body = { state: turnStateFromState(state) };
       if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
       if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
-      return fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      const stateRequest = fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      fetch("/api/platform-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platformConfig: platformConfigForSync(state) }) }).catch(() => {});
+      return stateRequest
         .then(response => { if (response.status === 409) syncFromServer(); return response; })
         .catch(() => {});
     }
 
+    async function loadPlatformConfig() {
+      if (REMOTE_MODE) return null;
+      try {
+        const response = await fetch("/api/platform-config");
+        if (!response.ok) return null;
+        const payload = await response.json();
+        return payload.platformConfig && typeof payload.platformConfig === "object" ? payload.platformConfig : null;
+      } catch {
+        return null;
+      }
+    }
+
     async function syncFromServer() {
       try {
-        const response = await fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=state` : "/api/state", REMOTE_MODE
+        const [response, platformConfig] = await Promise.all([
+          fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=state` : "/api/state", REMOTE_MODE
           ? { headers: { "X-Restaurant-Sync-Key": REMOTE_KEY } }
-          : undefined);
+          : undefined),
+          loadPlatformConfig()
+        ]);
         if (!response.ok) {
           console.warn("Sincronizzazione remota HTTP", response.status);
           return;
@@ -3864,9 +3878,7 @@
             ? currentOrder()
             : null;
           const loadedMenu = Array.isArray(state.menu) ? state.menu : [];
-          const incomingPlatformConfig = payload.platformConfig && typeof payload.platformConfig === "object"
-            ? payload.platformConfig
-            : {};
+          const incomingPlatformConfig = platformConfig || {};
           // Use the reservation list included in the fresh server snapshot.
           // Keeping the previous local list here could resurrect cancelled or
           // closed reservations until the modal was reopened.

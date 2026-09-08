@@ -306,6 +306,9 @@ function stateForStorage(state) {
   delete snapshot.room;
   delete snapshot.settings;
   delete snapshot.variations;
+  delete snapshot.selectedTable;
+  delete snapshot.category;
+  delete snapshot.orderModal;
   if (Array.isArray(snapshot.tables)) {
     snapshot.tables = snapshot.tables.map(table => {
       const runtimeTable = { ...table };
@@ -325,6 +328,9 @@ function stateForClient(state) {
   delete snapshot.room;
   delete snapshot.settings;
   delete snapshot.variations;
+  delete snapshot.selectedTable;
+  delete snapshot.category;
+  delete snapshot.orderModal;
   return snapshot;
 }
 

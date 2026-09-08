@@ -3012,6 +3012,7 @@
     const money = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
     const STORAGE_KEY = "ristorante-comande-v1";
     const PLATFORM_CONFIG_STORAGE_KEY = "ristorante-platform-config-v1";
+    const BROWSER_UI_STORAGE_KEY = "ristorante-browser-ui-v1";
     const DRAFT_STORAGE_KEY = STORAGE_KEY + ":draft";
     const INSTANCE_LOCK_TOKEN = "lock-" + (window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2));
 
@@ -3275,6 +3276,9 @@
 
     function turnStateFromState(source) {
       const snapshot = structuredClone(source || {});
+      delete snapshot.selectedTable;
+      delete snapshot.category;
+      delete snapshot.orderModal;
       delete snapshot.menu;
       delete snapshot.room;
       delete snapshot.settings;
@@ -3291,6 +3295,14 @@
       return snapshot;
     }
 
+    function browserUiStateFromState(source) {
+      return {
+        selectedTable: source?.selectedTable ?? initialState.selectedTable,
+        category: source?.category || initialState.category,
+        orderModal: structuredClone(source?.orderModal || initialState.orderModal)
+      };
+    }
+
     function platformConfigForSync(source) {
       const config = platformConfigFromState(source);
       delete config.menu;
@@ -3300,6 +3312,7 @@
     function persistBrowserState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(turnStateFromState(state)));
       localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigFromState(state)));
+      localStorage.setItem(BROWSER_UI_STORAGE_KEY, JSON.stringify(browserUiStateFromState(state)));
     }
 
     let state = loadState();
@@ -3650,9 +3663,11 @@
       try {
         const savedTurn = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
         const savedPlatform = JSON.parse(localStorage.getItem(PLATFORM_CONFIG_STORAGE_KEY) || "null");
+        const savedBrowserUi = JSON.parse(localStorage.getItem(BROWSER_UI_STORAGE_KEY) || "null");
         const saved = {
           ...(savedPlatform && typeof savedPlatform === "object" ? savedPlatform : {}),
-          ...(savedTurn && typeof savedTurn === "object" ? savedTurn : {})
+          ...(savedTurn && typeof savedTurn === "object" ? savedTurn : {}),
+          ...(savedBrowserUi && typeof savedBrowserUi === "object" ? savedBrowserUi : {})
         };
         if (saved && saved.tables && saved.menu) {
           if (!saved.room) saved.room = structuredClone(DEFAULT_ROOM);
@@ -3861,7 +3876,8 @@
             ...payload.state,
             ...(Object.keys(incomingPlatformConfig).length
               ? incomingPlatformConfig
-              : platformConfigFromState(state))
+              : platformConfigFromState(state)),
+            ...browserUiStateFromState(state)
           };
           if (!Array.isArray(state.menu) || state.menu.length === 0) state.menu = loadedMenu;
           state.reservations = incomingReservations;
@@ -8417,6 +8433,9 @@
       clean.settings = structuredClone(previous.settings || clean.settings);
       clean.menu = Array.isArray(previous.menu) ? structuredClone(previous.menu) : clean.menu;
       clean.variations = structuredClone(previous.variations || clean.variations);
+      clean.selectedTable = previous.selectedTable ?? clean.selectedTable;
+      clean.category = previous.category || clean.category;
+      clean.orderModal = structuredClone(previous.orderModal || clean.orderModal);
       clean.tables = Array.isArray(previous.tables)
         ? previous.tables.map(createFreshTable)
         : clean.tables.map(createFreshTable);

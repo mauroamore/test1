@@ -6184,6 +6184,9 @@
 
     function renderTables() {
       if (PALMARE_MODE) return renderTableList();
+      // Lo stato del turno contiene solo i tavoli occupati; la lista completa
+      // da visualizzare arriva dalla configurazione condivisa della sala.
+      materializeConfiguredTables(state);
       const root = document.getElementById("tables");
       root.innerHTML = "";
       state.tables.forEach(table => {

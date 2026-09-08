@@ -2336,7 +2336,10 @@ const server = http.createServer((request, response) => {
   if (!fileName) return sendJson(response, 404, { error: "Risorsa non trovata" });
   const file = path.join(ROOT, fileName);
   if (!fs.existsSync(file)) return sendJson(response, 404, { error: "Risorsa non trovata" });
-  response.writeHead(200, { "Content-Type": file.endsWith(".html") ? "text/html; charset=utf-8" : "text/plain" });
+  response.writeHead(200, {
+    "Content-Type": file.endsWith(".html") ? "text/html; charset=utf-8" : "text/plain",
+    "Cache-Control": file.endsWith(".html") ? "no-store, no-cache, must-revalidate" : "no-cache"
+  });
   const stream = fs.createReadStream(file);
   stream.on("error", error => {
     appendLog(path.join(ROOT, "crash.log"), `${new Date().toISOString()} static ${fileName}: ${error.message}\n`);

@@ -3492,8 +3492,19 @@
     function updateTableConfigDebug() {
       const output = document.getElementById("tableConfigDebug");
       if (!output) return;
+      const readLocalJson = key => {
+        try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (error) { return { error: error.message }; }
+      };
       output.textContent = JSON.stringify({
-        room: { tables: Array.isArray(state?.room?.tables) ? state.room.tables : [] }
+        memory: {
+          stateRoomTables: Array.isArray(state?.room?.tables) ? state.room.tables : [],
+          operationalTables: Array.isArray(state?.tables) ? state.tables : []
+        },
+        browserLocalStorage: {
+          platformConfig: readLocalJson(PLATFORM_CONFIG_STORAGE_KEY),
+          roomLayout: readLocalJson(ROOM_LAYOUT_STORAGE_KEY),
+          turnStateTables: readLocalJson(STORAGE_KEY)?.tables || []
+        }
       }, null, 2);
     }
 

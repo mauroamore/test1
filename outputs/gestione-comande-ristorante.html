@@ -4066,10 +4066,19 @@
     }
 
     let lastPlatformConfigJson = null;
+    // Il polling dello stato operativo non deve ricostruire la configurazione
+    // piattaforma da uno snapshot che contiene solo i tavoli occupati.
+    let platformConfigCache = null;
+    let platformConfigReady = false;
 
     function applyPlatformConfig(config) {
       if (!config || typeof config !== "object") return;
-      lastPlatformConfigJson = JSON.stringify(config);
+      const incomingTables = Array.isArray(config.room?.tables) ? config.room.tables : [];
+      if (incomingTables.length) {
+        platformConfigCache = structuredClone(config);
+        lastPlatformConfigJson = JSON.stringify(platformConfigCache);
+        platformConfigReady = true;
+      }
       // La configurazione e' autorevole solo quando contiene la definizione
       // dei tavoli. Manteniamo il config locale soltanto durante la migrazione
       // da una versione precedente che restituiva room vuoto.
@@ -4129,6 +4138,11 @@
 
     async function syncFromServer() {
       try {
+        if (!platformConfigReady) {
+          const config = await loadPlatformConfig();
+          if (config) applyPlatformConfig(config);
+          if (!platformConfigReady) return;
+        }
         const response = await fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=state` : "/api/state", REMOTE_MODE
           ? { headers: { "X-Restaurant-Sync-Key": REMOTE_KEY } }
           : undefined);
@@ -4146,7 +4160,11 @@
             ? currentOrder()
             : null;
           const loadedMenu = Array.isArray(state.menu) ? state.menu : [];
-          const incomingPlatformConfig = {};
+          // Mantieni la configurazione piattaforma autorevole già caricata.
+          // `payload.state` contiene solo lo stato del turno e può contenere
+          // soltanto i tavoli occupati: non deve cancellare nomi e definizioni.
+          if (!platformConfigCache || !Array.isArray(platformConfigCache.room?.tables)) return;
+          const incomingPlatformConfig = structuredClone(platformConfigCache);
           // Use the reservation list included in the fresh server snapshot.
           // Keeping the previous local list here could resurrect cancelled or
           // closed reservations until the modal was reopened.
@@ -4158,9 +4176,7 @@
             : null;
           state = {
             ...payload.state,
-            ...(Object.keys(incomingPlatformConfig).length
-              ? incomingPlatformConfig
-              : platformConfigFromState(state)),
+            ...(Object.keys(incomingPlatformConfig).length ? incomingPlatformConfig : {}),
             ...browserUiStateFromState(state)
           };
           materializeConfiguredTables(state);

@@ -3077,6 +3077,7 @@
     const money = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
     const STORAGE_KEY = "ristorante-comande-v1";
     const PLATFORM_CONFIG_STORAGE_KEY = "ristorante-platform-config-v1";
+    const ROOM_LAYOUT_STORAGE_KEY = "ristorante-room-layout-v1";
     const BROWSER_UI_STORAGE_KEY = "ristorante-browser-ui-v1";
     const DRAFT_STORAGE_KEY = STORAGE_KEY + ":draft";
     const INSTANCE_LOCK_TOKEN = "lock-" + (window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -3331,6 +3332,12 @@
     };
 
     function platformConfigFromState(source) {
+      const room = structuredClone(source?.room || initialState.room);
+      // Dimensioni del canvas e dei tavoli sono layout del singolo dispositivo.
+      delete room.width;
+      delete room.height;
+      delete room.tableWidth;
+      delete room.tableHeight;
       const configuredTables = Array.isArray(source?.room?.tables)
         ? source.room.tables.map(table => {
           const definition = structuredClone(table);
@@ -3361,7 +3368,7 @@
         }) : []);
       return {
         menu: Array.isArray(source?.menu) ? structuredClone(source.menu) : [],
-        room: { ...structuredClone(source?.room || initialState.room), tables: configuredTables },
+        room: { ...room, tables: configuredTables },
         settings: structuredClone(source?.settings || initialState.settings),
         variations: structuredClone(source?.variations || initialState.variations)
       };
@@ -3425,7 +3432,27 @@
       localStorage.setItem(BROWSER_UI_STORAGE_KEY, JSON.stringify(browserUiStateFromState(state)));
     }
 
+    function applyLocalRoomLayout() {
+      try {
+        const layout = JSON.parse(localStorage.getItem(ROOM_LAYOUT_STORAGE_KEY) || "{}");
+        state.room.width = Number.isFinite(Number(layout.width)) ? Number(layout.width) : Number(state.room.width || initialState.room.width);
+        state.room.height = Number.isFinite(Number(layout.height)) ? Number(layout.height) : Number(state.room.height || initialState.room.height);
+        state.room.tableWidth = Number.isFinite(Number(layout.tableWidth)) ? Number(layout.tableWidth) : Number(state.room.tableWidth || initialState.room.tableWidth);
+        state.room.tableHeight = Number.isFinite(Number(layout.tableHeight)) ? Number(layout.tableHeight) : Number(state.room.tableHeight || initialState.room.tableHeight);
+      } catch {}
+    }
+
+    function persistLocalRoomLayout() {
+      localStorage.setItem(ROOM_LAYOUT_STORAGE_KEY, JSON.stringify({
+        width: state.room.width,
+        height: state.room.height,
+        tableWidth: state.room.tableWidth,
+        tableHeight: state.room.tableHeight
+      }));
+    }
+
     let state = loadState();
+    applyLocalRoomLayout();
     clearCoversFromFreeTables();
     let editRoom = false;
     let selectedRoomTableId = null;
@@ -3990,6 +4017,7 @@
       const configuredRoom = config.room && typeof config.room === "object" ? config.room : null;
       if (configuredRoom && Array.isArray(configuredRoom.tables) && configuredRoom.tables.length) {
         state.room = structuredClone(configuredRoom);
+        applyLocalRoomLayout();
         materializeConfiguredTables(state);
       }
       state.settings = structuredClone(config.settings || state.settings);
@@ -9050,7 +9078,7 @@
       if (!size) return;
       state.room.tableWidth = size.width;
       state.room.tableHeight = size.height;
-      savePlatformConfig();
+      persistLocalRoomLayout();
       saveState();
       renderTables();
       updateSelectedTableSizeControls();
@@ -9061,7 +9089,7 @@
     function updateRoomDimension(key, value) {
       const limits = key === "width" ? [640, 2200] : [360, 1400];
       state.room[key] = clamp(Number(value || DEFAULT_ROOM[key]), limits[0], limits[1]);
-      savePlatformConfig();
+      persistLocalRoomLayout();
       saveState();
       applyRoomSize();
     }

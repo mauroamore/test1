@@ -5285,9 +5285,9 @@
         const payload = await response.json();
         const raw = typeof payload.d === "string" ? JSON.parse(payload.d) : payload.d || payload;
         state.reservations = (Array.isArray(raw.objects) ? raw.objects : []).filter(isActiveReservation);
-        // In remote mode this page is read-only: never push a partial snapshot
-        // while applying reservation markers to the local render state.
-        if (applySeatedReservations() && !REMOTE_MODE) await saveState();
+        // Il refresh delle prenotazioni aggiorna solo la vista locale. Non deve
+        // salvare lo state operativo né provocare una rilettura automatica.
+        applySeatedReservations();
         renderTables();
       } catch (error) {}
     }

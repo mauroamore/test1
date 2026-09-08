@@ -4345,6 +4345,9 @@
           // esegue il recupero, evitando una seconda richiesta ravvicinata.
         };
       } catch (error) { setRealtimeStatus("SSE locale: errore", false); }
+      if (ENABLE_STATE_POLLING) {
+        setInterval(() => syncFromServer().then(() => refreshReservations()), 5000);
+      }
     }
 
     // In modalita' remota la selezione va tenuta separata da `state.selectedTable`: quel campo

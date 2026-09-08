@@ -9950,9 +9950,9 @@
           savePlatformConfig(true, true);
         }
       })
-      // Durante il test lo stato operativo non viene caricato automaticamente:
-      // all'apertura si legge solo la configurazione piattaforma.
-      .then(() => undefined)
+      // Carica lo stato operativo iniziale dopo la configurazione piattaforma.
+      // Il merge in syncFromServer mantiene separati layout e configurazione.
+      .then(() => syncFromServer({ force: true }))
       // Lo state contiene solo i tavoli occupati e non deve poter ripristinare
       // la vecchia configurazione locale (ad esempio i 12 tavoli iniziali).
       .then(() => loadPlatformConfig().then(applyPlatformConfig))

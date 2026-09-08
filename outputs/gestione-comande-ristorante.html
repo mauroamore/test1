@@ -4048,7 +4048,7 @@
       // risalvata insieme a ogni comanda: un browser aperto con una copia vecchia
       // potrebbe sovrascrivere le modifiche fatte da un altro dispositivo.
       return stateRequest
-        .then(response => { if (response.status === 409) syncFromServer(); return response; })
+        .then(response => { if (response.status === 409) syncFromServer({ force: true }); return response; })
         .catch(() => {});
     }
 
@@ -4136,8 +4136,9 @@
       }).catch(() => false);
     }
 
-    async function syncFromServer() {
+    async function syncFromServer({ force = false } = {}) {
       try {
+        if (!force && !ENABLE_STATE_POLLING) return;
         if (!platformConfigReady) {
           const config = await loadPlatformConfig();
           if (config) applyPlatformConfig(config);
@@ -9939,7 +9940,7 @@
           savePlatformConfig(true, true);
         }
       })
-      .then(() => syncFromServer())
+      .then(() => syncFromServer({ force: true }))
       // Lo state contiene solo i tavoli occupati e non deve poter ripristinare
       // la vecchia configurazione locale (ad esempio i 12 tavoli iniziali).
       .then(() => loadPlatformConfig().then(applyPlatformConfig))

@@ -10,7 +10,7 @@ L'applicazione separa tre livelli:
 
 ### Configurazione piattaforma
 
-Comprende sala, impostazioni, stampanti, POS, monitor, assegnazione delle categorie, sequenze e variazioni. Il menu è un catalogo separato, caricato tramite `/api/menu` e mantenuto in `menu-cache.json`.
+Comprende sala, definizione e layout dei tavoli, impostazioni, stampanti, POS, monitor, assegnazione delle categorie, sequenze e variazioni. Il menu è un catalogo separato, caricato tramite `/api/menu` e mantenuto in `menu-cache.json`.
 
 Nel browser è memorizzata in `ristorante-platform-config-v1`. Viene caricata all'apertura o al refresh con:
 
@@ -43,7 +43,15 @@ Questi dati non vengono inviati al server durante il polling.
 
 ### Stato del turno
 
-Comprende tavoli e comande, ordini delivery/pick-up, prenotazioni attive, pagamenti, stati operativi, storico del turno e revisioni necessarie alla concorrenza.
+Comprende solo i tavoli occupati e le relative comande, ordini delivery/pick-up, prenotazioni attive, pagamenti, stati operativi e revisioni necessarie alla concorrenza. La definizione dei tavoli liberi, comprese posizione e dimensioni, appartiene alla configurazione piattaforma. Non contiene una copia separata dello storico monitor.
+
+La cronologia delle comande segue il ciclo di vita del tavolo:
+
+1. Fino al pagamento le comande restano nello stato locale; il monitor le mostra o nasconde usando il flag `kitchenClosed` sulla comanda.
+2. Anche dopo che una comanda e' stata nascosta come completata, resta disponibile nello stato locale fino alla chiusura del tavolo.
+3. Quando l'operatore libera il tavolo, il client registra prima la comanda in `restaurant_freed_log` tramite `/api/log-freed`.
+4. Solo dopo una risposta HTTP positiva il client rimuove la comanda dallo stato operativo e sostituisce il tavolo con uno nuovo. Da quel momento la comanda risiede solo sul server remoto.
+5. Se la registrazione remota fallisce, il tavolo e la comanda restano locali e l'operatore riceve un errore.
 
 Nel browser usa `ristorante-comande-v1`; sul Node locale usa `ristorante-state.json`.
 

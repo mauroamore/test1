@@ -187,8 +187,12 @@ function localSessionAuthorized(request) {
 
 function mutationAuthorized(request, response) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return true;
-  if (!LOCAL_API_KEY) return ALLOW_INSECURE_LOCAL_API;
-  return constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY) || localSessionAuthorized(request);
+  // La sessione ottenuta con la password resta valida anche quando non e'
+  // configurata una LOCAL_API_KEY. Prima questo caso usciva subito con false:
+  // il login riusciva, ma la prima POST riceveva 401 e cancellava il token.
+  if (localSessionAuthorized(request)) return true;
+  if (LOCAL_API_KEY && constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY)) return true;
+  return !LOCAL_API_KEY && ALLOW_INSECURE_LOCAL_API;
 }
 
 function handleFiscalReceiptHistory(request, response) {
@@ -309,8 +313,9 @@ function stateForStorage(state) {
   delete snapshot.selectedTable;
   delete snapshot.category;
   delete snapshot.orderModal;
+  delete snapshot.history;
   if (Array.isArray(snapshot.tables)) {
-    snapshot.tables = snapshot.tables.map(table => {
+    snapshot.tables = snapshot.tables.filter(table => table.occupied || (Array.isArray(table.items) && table.items.length > 0) || table.kitchenClosed || table.paymentStatus || table.status !== "Nuova").map(table => {
       const runtimeTable = { ...table };
       delete runtimeTable.x;
       delete runtimeTable.y;
@@ -331,6 +336,10 @@ function stateForClient(state) {
   delete snapshot.selectedTable;
   delete snapshot.category;
   delete snapshot.orderModal;
+  delete snapshot.history;
+  if (Array.isArray(snapshot.tables)) {
+    snapshot.tables = snapshot.tables.filter(table => table.occupied || (Array.isArray(table.items) && table.items.length > 0) || table.kitchenClosed || table.paymentStatus || table.status !== "Nuova");
+  }
   return snapshot;
 }
 
@@ -361,6 +370,7 @@ const persistedState = readJsonFile(STATE_FILE);
 const persistedMenu = readJsonFile(MENU_CACHE_FILE);
 const persistedConfig = readJsonFile(CONFIG_FILE);
 let sharedState = persistedState ? migrateStateToHubRiseShape(persistedState) : null;
+if (sharedState) delete sharedState.history;
 let fiscalReceipts = readJsonFile(FISCAL_RECEIPTS_FILE, []);
 if (!Array.isArray(fiscalReceipts)) fiscalReceipts = [];
 let fiscalReceiptSync = readJsonFile(FISCAL_RECEIPT_SYNC_FILE, {});
@@ -1411,7 +1421,19 @@ const server = http.createServer((request, response) => {
         if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
           return sendJson(response, 400, { ok: false, error: "Configurazione piattaforma non valida" });
         }
-        if (incoming.room && typeof incoming.room === "object") sharedState.room = incoming.room;
+        if (incoming.room && typeof incoming.room === "object") {
+          const incomingRoom = { ...incoming.room };
+          const incomingTables = Array.isArray(incomingRoom.tables) ? incomingRoom.tables : null;
+          const currentTables = Array.isArray(sharedState.room?.tables) ? sharedState.room.tables : [];
+          if (incomingTables && parsed.replaceTableDefinitions !== true && currentTables.length > incomingTables.length) {
+            const byId = new Map(incomingTables.map(table => [String(table.id), table]));
+            currentTables.forEach(table => {
+              if (!byId.has(String(table.id))) byId.set(String(table.id), table);
+            });
+            incomingRoom.tables = [...byId.values()];
+          }
+          sharedState.room = incomingRoom;
+        }
         if (incoming.settings && typeof incoming.settings === "object") sharedState.settings = incoming.settings;
         if (incoming.variations && typeof incoming.variations === "object") sharedState.variations = incoming.variations;
         persistStateFiles();
@@ -1673,11 +1695,6 @@ const server = http.createServer((request, response) => {
         order.paidAt = paidAt;
         order.payment = input.payment;
         order.occupied = true;
-        const historyEntry = { ...(input.orderSnapshot || order), status: order.status, paymentStatus: order.paymentStatus, paidAt, payment: input.payment, closedAt: input.closedAt || paidAt };
-        if (!Array.isArray(sharedState.history)) sharedState.history = [];
-        const historyIndex = sharedState.history.findIndex(item => String(item.id) === orderId);
-        if (historyIndex >= 0) sharedState.history[historyIndex] = { ...sharedState.history[historyIndex], ...historyEntry };
-        else sharedState.history.unshift(historyEntry);
         sharedState.stateRevision = currentRevision + 1;
         persistStateFiles();
         broadcast();
@@ -1754,14 +1771,6 @@ const server = http.createServer((request, response) => {
               const index = collection.findIndex(order => String(order.id) === paymentOrderId);
               if (index >= 0) collection[index] = paidOrder;
             }
-            const incomingHistory = Array.isArray(incomingState.history) ? incomingState.history : [];
-            const paidHistory = incomingHistory.find(entry => String(entry.id) === paymentOrderId);
-            if (paidHistory) {
-              if (!Array.isArray(sharedState.history)) sharedState.history = [];
-              const historyIndex = sharedState.history.findIndex(entry => String(entry.id) === paymentOrderId);
-              if (historyIndex >= 0) sharedState.history[historyIndex] = paidHistory;
-              else sharedState.history.unshift(paidHistory);
-            }
             sharedState.stateRevision = currentRevision + 1;
             persistStateFiles();
             pushStateSnapshot().finally(() => {
@@ -1776,6 +1785,7 @@ const server = http.createServer((request, response) => {
         const previousDeliveryOrders = (sharedState && Array.isArray(sharedState.deliveryOrders)) ? sharedState.deliveryOrders : [];
         const previousFeedStatus = sharedState && sharedState.hubriseFeedStatus;
         const currentMenu = sharedState && sharedState.menu;
+        delete incomingState.history;
         sharedState = incomingState;
         if (!sharedState.menu && currentMenu) sharedState.menu = currentMenu;
         sharedState.stateRevision = Math.max(currentRevision, incomingRevision) + 1;

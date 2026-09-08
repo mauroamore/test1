@@ -2463,9 +2463,29 @@
       .table-meta { gap: 5px; font-size: 11px; }
       .table-time { font-size: 10px; }
     }
+    #localLoginGate { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: #f5f7f8; }
+    #localLoginGate[hidden] { display: none; }
+    #localLoginGate .login-panel { width: min(420px, calc(100vw - 32px)); padding: 28px; border: 1px solid #d8dee3; border-radius: 10px; background: #fff; box-shadow: 0 12px 40px rgba(16, 24, 40, .14); }
+    #localLoginGate h1 { margin: 0 0 8px; font-size: 24px; }
+    #localLoginGate p { margin: 0 0 20px; color: #667085; }
+    #localLoginGate label { display: grid; gap: 7px; font-weight: 600; }
+    #localLoginGate input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid #b9c2cc; border-radius: 6px; font: inherit; }
+    #localLoginGate button { margin-top: 16px; width: 100%; }
+    #localLoginGate .login-error { min-height: 20px; margin-top: 10px; color: #b42318; font-size: 13px; }
   </style>
 </head>
 <body>
+  <section id="localLoginGate" aria-labelledby="localLoginTitle">
+    <form class="login-panel" id="localLoginForm">
+      <h1 id="localLoginTitle">Accesso richiesto</h1>
+      <p>Autorizza questo dispositivo per accedere alla gestione comande.</p>
+      <label>Password dispositivo
+        <input id="localLoginPassword" type="password" autocomplete="current-password" required autofocus>
+      </label>
+      <button class="primary" type="submit">Accedi</button>
+      <div class="login-error" id="localLoginError" role="alert"></div>
+    </form>
+  </section>
   <div id="remoteStatusStrip" hidden></div>
   <header>
       <div class="topbar">
@@ -2492,8 +2512,10 @@
         <div class="room-tools">
           <span class="small" id="roomModeLabel">Seleziona un tavolo per aprire la comanda</span>
           <button class="ghost" id="editRoomBtn" title="Sposta tavoli">Modifica sala</button>
+          <button class="primary" id="saveSharedRoomConfigBtn" title="Salva tavoli e impostazioni sala sul server" hidden>Salva configurazione condivisa</button>
+          <button class="danger" id="removeTableBtn" title="Rimuovi il tavolo selezionato" hidden>Rimuovi tavolo</button>
           <button class="ghost" id="compactSetupBtn" title="Apri configurazione">Setup</button>
-          <button class="ghost" id="addTableBtn" title="Aggiungi tavolo">+</button>
+          <button class="ghost" id="addTableBtn" title="Aggiungi tavolo" hidden>+</button>
         </div>
       </div>
       <div class="panel-body stack">
@@ -2959,30 +2981,73 @@
         return pair;
       };
       const bytes = buffer => btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const requestPassword = () => new Promise((resolve, reject) => {
+        const gate = document.getElementById("localLoginGate");
+        const form = document.getElementById("localLoginForm");
+        const input = document.getElementById("localLoginPassword");
+        const error = document.getElementById("localLoginError");
+        if (!gate || !form || !input) return reject(new Error("Schermata di accesso non disponibile"));
+        gate.hidden = false;
+        error.textContent = "";
+        input.value = "";
+        input.focus();
+        form.onsubmit = event => {
+          event.preventDefault();
+          const password = input.value;
+          if (!password) return;
+          const submit = form.querySelector("button[type=submit]");
+          if (submit) { submit.disabled = true; submit.textContent = "Accesso in corso..."; }
+          resolve(password);
+        };
+      });
       const auth = async () => {
         const pair = await getKeyPair();
         const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
         let token = localStorage.getItem(tokenKey);
         if (!token) {
-          const password = window.prompt("Password autorizzazione dispositivo");
-          if (!password) throw new Error("Autorizzazione locale annullata");
+          const password = await requestPassword();
           const response = await originalFetch("/api/local-auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password, publicKey }) });
-          if (!response.ok) throw new Error("Password locale non valida");
+          if (!response.ok) {
+            document.getElementById("localLoginError").textContent = "Password non valida.";
+            localStorage.removeItem(tokenKey);
+            const submit = document.querySelector("#localLoginForm button[type=submit]");
+            if (submit) { submit.disabled = false; submit.textContent = "Accedi"; }
+            throw new Error("Password locale non valida");
+          }
           token = (await response.json()).token; localStorage.setItem(tokenKey, token);
+          // Sblocca subito la pagina dopo il login: non deve essere necessario
+          // un refresh per rendere visibile l'applicazione.
+          document.getElementById("localLoginGate")?.setAttribute("hidden", "");
         }
         return { token, pair };
+      };
+      window.ensureLocalAuth = async () => {
+        try {
+          await auth();
+          document.getElementById("localLoginGate")?.setAttribute("hidden", "");
+          return true;
+        } catch (error) {
+          document.getElementById("localLoginGate")?.removeAttribute("hidden");
+          const loginError = document.getElementById("localLoginError");
+          if (loginError && error && error.message) loginError.textContent = error.message;
+          const submit = document.querySelector("#localLoginForm button[type=submit]");
+          if (submit) { submit.disabled = false; submit.textContent = "Accedi"; }
+          throw error;
+        }
       };
       window.fetch = async (input, init = {}) => {
         const url = typeof input === "string" ? input : input.url;
         const method = String(init.method || (typeof input === "string" ? "GET" : input.method) || "GET").toUpperCase();
         if (!url.startsWith("/api/") || ["GET", "HEAD", "OPTIONS"].includes(method) || url === "/api/local-auth/login") return originalFetch(input, init);
-        const { token, pair } = await auth();
-        const timestamp = Date.now(); const payload = `${timestamp}.${method}.${url.split("?")[0]}`;
-        const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, pair.privateKey, new TextEncoder().encode(payload));
-        const headers = new Headers(init.headers || {}); headers.set("X-Local-Session", token); headers.set("X-Local-Timestamp", String(timestamp)); headers.set("X-Local-Signature", bytes(signature));
-        const response = await originalFetch(input, { ...init, headers });
-        if (response.status === 401) localStorage.removeItem(tokenKey);
-        return response;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const { token, pair } = await auth();
+          const timestamp = Date.now(); const payload = `${timestamp}.${method}.${url.split("?")[0]}`;
+          const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, pair.privateKey, new TextEncoder().encode(payload));
+          const headers = new Headers(init.headers || {}); headers.set("X-Local-Session", token); headers.set("X-Local-Timestamp", String(timestamp)); headers.set("X-Local-Signature", bytes(signature));
+          const response = await originalFetch(input, { ...init, headers });
+          if (response.status !== 401 || attempt === 1) return response;
+          localStorage.removeItem(tokenKey);
+        }
       };
     })();
     // structuredClone e' un global relativamente recente (Safari 15.4+/Chrome 98+): su un
@@ -3266,9 +3331,37 @@
     };
 
     function platformConfigFromState(source) {
+      const configuredTables = Array.isArray(source?.room?.tables)
+        ? source.room.tables.map(table => {
+          const definition = structuredClone(table);
+          // Le coordinate appartengono al dispositivo, non alla configurazione condivisa.
+          delete definition.x;
+          delete definition.y;
+          return definition;
+        })
+        : (Array.isArray(source?.tables) ? source.tables.map(table => {
+          const definition = { ...table };
+          delete definition.x;
+          delete definition.y;
+          delete definition.items;
+          delete definition.occupied;
+          delete definition.covers;
+          delete definition.notes;
+          delete definition.status;
+          delete definition.splitMode;
+          delete definition.selectedSplit;
+          delete definition.splitCount;
+          delete definition.splitCovers;
+          delete definition.splitLabels;
+          delete definition.paidSplits;
+          delete definition.activeCourse;
+          delete definition.courseSequence;
+          delete definition.dismissedCourses;
+          return definition;
+        }) : []);
       return {
         menu: Array.isArray(source?.menu) ? structuredClone(source.menu) : [],
-        room: structuredClone(source?.room || initialState.room),
+        room: { ...structuredClone(source?.room || initialState.room), tables: configuredTables },
         settings: structuredClone(source?.settings || initialState.settings),
         variations: structuredClone(source?.variations || initialState.variations)
       };
@@ -3285,7 +3378,7 @@
       delete snapshot.variations;
       delete snapshot.fiscalReceipts;
       if (Array.isArray(snapshot.tables)) {
-        snapshot.tables = snapshot.tables.map(table => {
+        snapshot.tables = snapshot.tables.filter(table => table.occupied || (Array.isArray(table.items) && table.items.length > 0) || table.kitchenClosed || table.paymentStatus || table.status !== "Nuova").map(table => {
           const operationalTable = { ...table };
           delete operationalTable.x;
           delete operationalTable.y;
@@ -3293,6 +3386,23 @@
         });
       }
       return snapshot;
+    }
+
+    function materializeConfiguredTables(source) {
+      const definitions = Array.isArray(source?.room?.tables) ? source.room.tables : [];
+      const operational = Array.isArray(source?.tables) ? source.tables : [];
+      if (!definitions.length) return;
+      const byId = new Map(operational.map(table => [String(table.id), table]));
+      source.tables = definitions.map(definition => {
+        const current = byId.get(String(definition.id));
+        return current ? { ...structuredClone(definition), ...current } : {
+          ...structuredClone(definition), occupied: false, covers: 0, notes: "", status: "Nuova",
+          splitMode: false, selectedSplit: "T", splitCount: 6, splitCovers: {}, splitLabels: {},
+          paidSplits: {}, activeCourse: 0, courseSequence: [1], dismissedCourses: [], items: []
+        };
+      });
+      operational.filter(table => !definitions.some(definition => String(definition.id) === String(table.id)))
+        .forEach(table => source.tables.push(table));
     }
 
     function browserUiStateFromState(source) {
@@ -3320,6 +3430,7 @@
     let editRoom = false;
     let selectedRoomTableId = null;
     let localTableLayouts = loadLocalTableLayouts();
+    let suppressTableClick = false;
 
     function loadLocalTableLayouts() {
       try { return JSON.parse(localStorage.getItem(TABLE_LAYOUT_STORAGE_KEY) || "{}"); } catch { return {}; }
@@ -3327,9 +3438,17 @@
 
     function getLocalTableLayout(table) {
       const saved = localTableLayouts[String(table.id)] || {};
+      const configuredIndex = Array.isArray(state.room?.tables)
+        ? state.room.tables.findIndex(item => String(item.id) === String(table.id))
+        : -1;
+      const index = configuredIndex >= 0
+        ? configuredIndex
+        : Math.max(0, state.tables.findIndex(item => String(item.id) === String(table.id)));
+      const defaultX = 5 + (index % 4) * 23;
+      const defaultY = 7 + Math.floor(index / 4) * 27;
       return {
-        x: Number(saved.x ?? table.x ?? 0),
-        y: Number(saved.y ?? table.y ?? 0),
+        x: Number(saved.x ?? defaultX * state.room.width / 100),
+        y: Number(saved.y ?? defaultY * state.room.height / 100),
         width: state.room.tableWidth,
         height: state.room.tableHeight
       };
@@ -3669,7 +3788,7 @@
           ...(savedTurn && typeof savedTurn === "object" ? savedTurn : {}),
           ...(savedBrowserUi && typeof savedBrowserUi === "object" ? savedBrowserUi : {})
         };
-        if (saved && saved.tables && saved.menu) {
+          if (saved && saved.tables && saved.menu) {
           if (!saved.room) saved.room = structuredClone(DEFAULT_ROOM);
           if (!saved.room.tableWidth) saved.room.tableWidth = DEFAULT_TABLE_WIDTH;
           if (!saved.room.tableHeight) saved.room.tableHeight = DEFAULT_TABLE_HEIGHT;
@@ -3728,6 +3847,7 @@
           // l'unica fonte di verita' - ricostruirlo da categoryTurns ad ogni caricamento rischiava di
           // ribaltare "Usa sequenze" in base a valori non allineati (vedi il bug in "Categorie" sotto).
           if (!saved.variations) saved.variations = structuredClone(defaultVariations);
+          materializeConfiguredTables(saved);
           if (!Array.isArray(saved.courseActivationOrder)) saved.courseActivationOrder = [];
           if (!Array.isArray(saved.variations.minus)) saved.variations.minus = structuredClone(defaultVariations.minus);
           if (!Array.isArray(saved.variations.plus)) saved.variations.plus = structuredClone(defaultVariations.plus);
@@ -3838,7 +3958,9 @@
       if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
       if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
       const stateRequest = fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      savePlatformConfig();
+      // La configurazione della piattaforma (tavoli, stampanti, monitor) non va
+      // risalvata insieme a ogni comanda: un browser aperto con una copia vecchia
+      // potrebbe sovrascrivere le modifiche fatte da un altro dispositivo.
       return stateRequest
         .then(response => { if (response.status === 409) syncFromServer(); return response; })
         .catch(() => {});
@@ -3862,7 +3984,14 @@
     function applyPlatformConfig(config) {
       if (!config || typeof config !== "object") return;
       lastPlatformConfigJson = JSON.stringify(config);
-      state.room = structuredClone(config.room || state.room);
+      // La configurazione e' autorevole solo quando contiene la definizione
+      // dei tavoli. Manteniamo il config locale soltanto durante la migrazione
+      // da una versione precedente che restituiva room vuoto.
+      const configuredRoom = config.room && typeof config.room === "object" ? config.room : null;
+      if (configuredRoom && Array.isArray(configuredRoom.tables) && configuredRoom.tables.length) {
+        state.room = structuredClone(configuredRoom);
+        materializeConfiguredTables(state);
+      }
       state.settings = structuredClone(config.settings || state.settings);
       state.variations = structuredClone(config.variations || state.variations);
       normalizeSharedState();
@@ -3870,17 +3999,17 @@
       render();
     }
 
-    function savePlatformConfig() {
-      if (REMOTE_MODE) return;
+    function savePlatformConfig(replaceTableDefinitions = false) {
+      if (REMOTE_MODE) return Promise.resolve(false);
       const config = platformConfigForSync(state);
       const serialized = JSON.stringify(config);
-      if (serialized === lastPlatformConfigJson) return;
+      if (serialized === lastPlatformConfigJson) return Promise.resolve(true);
       lastPlatformConfigJson = serialized;
-      fetch("/api/platform-config", {
+      return fetch("/api/platform-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platformConfig: config })
-      }).catch(() => {});
+        body: JSON.stringify({ platformConfig: config, replaceTableDefinitions })
+      }).then(response => response.ok).catch(() => false);
     }
 
     async function syncFromServer() {
@@ -3919,6 +4048,7 @@
               : platformConfigFromState(state)),
             ...browserUiStateFromState(state)
           };
+          materializeConfiguredTables(state);
           if (!Array.isArray(state.menu) || state.menu.length === 0) state.menu = loadedMenu;
           state.reservations = incomingReservations;
           if (paymentOrderSnapshot) {
@@ -4158,6 +4288,18 @@
       const normalizedId = String(id);
       return state.tables.find(table => String(table.id) === normalizedId) ||
         (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).find(order => String(order.id) === normalizedId || orderHashId(order) === normalizedId);
+    }
+
+    function ensureOperationalTable(tableId) {
+      const existing = state.tables.find(table => String(table.id) === String(tableId));
+      if (existing) return existing;
+      const definition = Array.isArray(state.room?.tables)
+        ? state.room.tables.find(table => String(table.id) === String(tableId))
+        : null;
+      if (!definition) return null;
+      const table = createFreshTable(definition);
+      state.tables.push(table);
+      return table;
     }
 
     function orderTicketLabel(order) {
@@ -4682,12 +4824,11 @@
     async function finalizePaidOrder() {
       const order = findOrderById(paymentOrderId);
       if (!order) return;
-      state.history.unshift({ ...structuredClone(order), closedAt: new Date().toISOString(), total: paymentDueCents(order) / 100, discount: paymentDiscount, discountType: paymentDiscountType, tip: paymentTip, payments: structuredClone(paymentRows) });
       const wasExternal = Boolean(order.source);
       const externalId = order.id;
       if (wasExternal) {
-        // Gli ordini esterni non restano in stato Pagato nella lista operativa:
-        // prima di rimuoverli salviamo la fotografia completa nello storico generale.
+        // Gli ordini esterni non restano nello stato operativo dopo il pagamento:
+        // la loro fotografia viene registrata sul server remoto.
         fetch("/api/log-freed", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -4721,13 +4862,6 @@
         payments: structuredClone(paymentRows)
       };
       order.occupied = true;
-      const latestHistory = state.history[0];
-      if (latestHistory && latestHistory.id === order.id) {
-        latestHistory.status = order.status;
-        latestHistory.paymentStatus = order.paymentStatus;
-        latestHistory.paidAt = order.paidAt;
-        latestHistory.payment = structuredClone(order.payment);
-      }
       await finishReservationForOrder(order);
       const paymentResponse = await fetch(`/api/orders/${encodeURIComponent(order.id)}/payment`, {
         method: "POST",
@@ -5724,6 +5858,11 @@
     function updateRoomMode() {
       document.body.classList.toggle("editing-room", editRoom);
       document.getElementById("editRoomBtn").textContent = editRoom ? "Fine modifica" : "Modifica sala";
+      const removeButton = document.getElementById("removeTableBtn");
+      removeButton.hidden = !editRoom;
+      removeButton.disabled = !selectedRoomTableId;
+      document.getElementById("addTableBtn").hidden = !editRoom;
+      document.getElementById("saveSharedRoomConfigBtn").hidden = !editRoom;
       document.getElementById("roomModeLabel").textContent = editRoom
         ? "Trascina i tavoli per ricreare la sala"
         : "Seleziona un tavolo per aprire la comanda";
@@ -5748,7 +5887,6 @@
 
     function startTableDrag(event, table, button) {
       if (!editRoom) return;
-      event.preventDefault();
       const room = document.getElementById("tables");
       const tableRect = button.getBoundingClientRect();
       dragState = {
@@ -5758,17 +5896,22 @@
         pointerId: event.pointerId,
         offsetX: event.clientX - tableRect.left,
         offsetY: event.clientY - tableRect.top,
-        moved: false
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        active: false
       };
-      button.classList.add("dragging");
-      button.setPointerCapture(event.pointerId);
     }
 
     function finishTableDrag() {
       if (!dragState) return;
+      const wasDragging = dragState.active;
+      if (wasDragging) suppressTableClick = true;
       dragState.element.classList.remove("dragging");
       dragState = null;
-      renderTables();
+      // Un click breve deve arrivare al relativo handler di selezione: ricreare
+      // subito il DOM qui lo annullerebbe prima dell'evento click.
+      if (wasDragging) renderTables();
     }
 
     function orderHashId(order) {
@@ -5847,6 +5990,7 @@
 
     async function openOrderModal(tableId, requestedView = null) {
       normalizeSharedState();
+      if (!REMOTE_MODE) ensureOperationalTable(tableId);
       if (PALMARE_MODE && !REMOTE_MODE) {
         const candidate = (state.tables || []).find(table => table.id === tableId);
         const candidateIsFree = candidate && !candidate.occupied && !(candidate.items || []).length;
@@ -5865,6 +6009,7 @@
       if (!(await acquireTableLock(tableId))) return;
       if (REMOTE_MODE) remoteSelectedOrderId = tableId; else state.selectedTable = tableId;
       const order = currentOrder();
+      if (!order) return;
       // Le bozze locali valgono solo per i tavoli: un ordine delivery deve sempre
       // aprirsi dalla copia condivisa, altrimenti una vecchia bozza puo' nascondere
       // le righe appena risolte dal server.
@@ -5990,9 +6135,14 @@
           ? `<strong>TV${table.id}${lockMark}</strong>`
           : `<span class="table-title"><strong>TV${table.id}${lockMark}</strong><span class="table-time">${enteredTime}</span></span><span class="table-meta"><span>Pax: ${Number(displayOrder.covers || 0)}</span><span>Seq: ${activeCourse}</span></span><span>${money.format(orderTotal(displayOrder))}</span>${paymentSummary(displayOrder) ? `<small>${escapeHtml(paymentSummary(displayOrder))}</small>` : ""}`;
         button.addEventListener("click", () => {
+          if (suppressTableClick) {
+            suppressTableClick = false;
+            return;
+          }
           if (editRoom) {
             selectedRoomTableId = table.id;
             updateSelectedTableSizeControls();
+            updateRoomMode();
             renderTables();
             return;
           }
@@ -6005,7 +6155,14 @@
         button.addEventListener("pointerdown", event => startTableDrag(event, table, button));
         button.addEventListener("pointermove", event => {
           if (!dragState || dragState.pointerId !== event.pointerId) return;
-          dragState.moved = true;
+          if (!dragState.active && Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) < 8) return;
+          if (!dragState.active) {
+            dragState.active = true;
+            dragState.moved = true;
+            event.preventDefault();
+            dragState.element.classList.add("dragging");
+            dragState.element.setPointerCapture(event.pointerId);
+          }
           moveTableFromPointer(event);
         });
         button.addEventListener("pointerup", finishTableDrag);
@@ -6954,16 +7111,13 @@
           items: monitorLines(table).filter(line => !(table.dismissedCourses || []).includes(courseNumber(line.course)))
         }))
         .filter(table => table.items.length && table.status !== "Servita" && !table.kitchenClosed);
-      const source = kitchenHistoryMode
-        ? state.history.map((order, historyIndex) => ({ order, historyIndex })).filter(entry => entry.order.kitchenClosed === true).map(({ order, historyIndex }) => {
-            // Lo storico deve restare indipendente dal monitor selezionato e dai
-            // sentQty correnti: mostra l'istantanea completa della chiusura.
-            const lines = compactMonitorLines((Array.isArray(order.items) ? order.items : [])
-              .map(line => ({ ...line, qty: Number(line.qty || line.sentQty || 0) }))
-              .filter(line => line.qty > 0));
-            return { ...order, lines, historyIndex };
-          }).filter(order => order.items.length)
-        : active;
+      const historyOrders = [...state.tables, ...deliveryOrdersSentToKitchen]
+        .filter(order => order.kitchenClosed === true)
+        .map(order => ({ ...order, items: compactMonitorLines((order.items || [])
+          .map(line => ({ ...line, qty: Number(line.qty || line.sentQty || 0) }))
+          .filter(line => line.qty > 0)) }))
+        .filter(order => order.items.length);
+      const source = kitchenHistoryMode ? historyOrders : active;
       document.getElementById("kitchenCount").textContent = kitchenHistoryMode ? `${source.length} comande chiuse` : `${active.length} comande attive`;
       const root = document.getElementById("tickets");
       const summaryRoot = document.getElementById("kitchenSummary");
@@ -6992,7 +7146,7 @@
               ${order.notes ? `<div class="small"><strong>Note:</strong> ${escapeHtml(order.notes)}</div>` : ""}
             </div>
           `;
-          ticket.querySelector(".kitchen-restore-order").addEventListener("click", () => restoreHistoryOrder(order.historyIndex));
+          ticket.querySelector(".kitchen-restore-order").addEventListener("click", () => restoreHistoryOrder(order.id));
           root.appendChild(ticket);
         });
         return;
@@ -7052,7 +7206,7 @@
         }
         ticket.querySelector(".kitchen-dismiss-course")?.addEventListener("click", () => requestCloseKitchenCourse(order.id, group.course));
         ticket.querySelector(".kitchen-close-order")?.addEventListener("click", () => requestCloseKitchenOrder(order.id));
-        ticket.querySelector(".kitchen-restore-order")?.addEventListener("click", () => restoreHistoryOrder(orderIndex));
+        ticket.querySelector(".kitchen-restore-order")?.addEventListener("click", () => restoreHistoryOrder(order.id));
         ticket.querySelectorAll(".kitchen-line").forEach(button => {
           let linePointerStart = null;
           let linePointerMoved = false;
@@ -7232,6 +7386,7 @@
       document.getElementById("fiscalPrinterDevidInput").value = fiscalPrinter.devid || "local_printer";
       document.getElementById("fiscalPrinterOperatorInput").value = fiscalPrinter.operator || "1";
       document.getElementById("fiscalPrinterDepartmentInput").value = fiscalPrinter.defaultDepartment || "2";
+      state.settings.printers = Array.isArray(state.settings.printers) ? state.settings.printers : [];
       const categoryRoot = document.getElementById("setupCategoryList");
       categoryRoot.innerHTML = menuCategories().map(category => `<div class="setup-row"><strong>${escapeHtml(category)}</strong><span class="small">Sincronizzata dal menu online</span></div>`).join("") || `<div class="empty">Nessuna categoria disponibile.</div>`;
       const printerRoot = document.getElementById("setupPrinterList");
@@ -7508,10 +7663,8 @@
         const turnCourses = [...new Set(currentLines.filter(line => lineUsesTurns(line)).map(line => courseNumber(line.course)))];
           if (currentLines.length > 0 && currentLines.every(line => line.kitchenStatus === "Completo") && turnCourses.every(value => currentOrder.dismissedCourses.includes(value))) {
             currentOrder.status = "Completato";
-            if (!Array.isArray(state.history)) state.history = [];
-          if (!state.history.some(entry => entry && entry.id === currentOrder.id && entry.kitchenClosed)) {
-            state.history.unshift({ ...structuredClone(currentOrder), kitchenClosed: true, closedAt: new Date().toISOString() });
-          }
+            currentOrder.kitchenClosed = true;
+            currentOrder.kitchenClosedAt = new Date().toISOString();
         }
         saveState();
         modal.close();
@@ -7543,13 +7696,8 @@
         const allCoursesClosed = turnCourses.length > 0 && turnCourses.every(course => order.dismissedCourses.includes(course));
         if (allLinesComplete && allCoursesClosed) {
           order.status = "Completato";
-          if (!state.history.some(entry => entry.id === order.id && entry.kitchenClosed)) {
-            state.history.unshift({
-              ...structuredClone(order),
-              kitchenClosed: true,
-              closedAt: new Date().toISOString()
-            });
-          }
+          order.kitchenClosed = true;
+          order.kitchenClosedAt = new Date().toISOString();
         }
         saveState();
         document.getElementById("confirmCloseModal").close();
@@ -7561,15 +7709,9 @@
         return;
       }
       order.kitchenClosed = true;
-      // La chiusura dalla cucina crea lo snapshot consultabile nello storico,
-      // senza rimuovere la comanda dalla cassa.
-      if (!state.history.some(entry => entry.id === order.id && entry.kitchenClosed)) {
-        state.history.unshift({
-          ...structuredClone(order),
-          kitchenClosed: true,
-          closedAt: new Date().toISOString()
-        });
-      }
+      // Lo storico del monitor e' il flag sulla comanda, non una copia separata.
+      order.kitchenClosed = true;
+      order.kitchenClosedAt = new Date().toISOString();
       saveState();
       document.getElementById("confirmCloseModal").close();
       pendingCloseTableId = null;
@@ -7604,13 +7746,9 @@
       const order = findOrderById(orderId)
         || (state.deliveryOrders || []).find(item => String(item.id) === String(orderId));
       if (!order) return;
-      // Conserva sempre una fotografia nello storico e usa un tombstone per
-      // non far ricomparire la comanda al successivo aggiornamento.
-      if (!(state.history || []).some(item => String(item.id) === String(orderId) && item.kitchenClosed)) {
-        state.history.unshift({ ...structuredClone(order), kitchenClosed: true, closedAt: new Date().toISOString() });
-      }
       if (order.source && isDeliveryCompleted(order)) order.deliveryDismissed = true;
-      else order.kitchenClosed = true;
+      order.kitchenClosed = true;
+      order.kitchenClosedAt = new Date().toISOString();
       saveState();
       document.getElementById("confirmCloseModal").close();
       pendingCloseTableId = null;
@@ -7625,14 +7763,16 @@
     function renderHistory() {
       const root = document.getElementById("historyList");
       root.innerHTML = "";
-      if (!state.history.length) {
+      const orders = [...state.tables, ...(Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [])]
+        .filter(order => order.kitchenClosed === true);
+      if (!orders.length) {
         root.innerHTML = `<div class="empty">Nessun ordine chiuso.</div>`;
         return;
       }
-      state.history.forEach(order => {
+      orders.forEach(order => {
         const item = document.createElement("div");
         item.className = "history-item";
-        const closedAt = order.closedAt ? new Date(order.closedAt).toLocaleString("it-IT") : "";
+        const closedAt = order.kitchenClosedAt ? new Date(order.kitchenClosedAt).toLocaleString("it-IT") : "";
         item.innerHTML = `<strong>Tavolo ${order.id}</strong><div class="small">${escapeHtml(closedAt)}</div><div>${order.items.map(line => `${line.qty} x ${escapeHtml(line.name)}${lineVariationHtml(line)}`).join("<br>")}</div>`;
         root.appendChild(item);
       });
@@ -7722,26 +7862,12 @@
       }
     }
 
-    function restoreHistoryOrder(historyIndex) {
+    function restoreHistoryOrder(orderId) {
       clearTimeout(historyReturnTimer);
-      const archived = state.history[historyIndex];
-      if (!archived) return;
-      const table = state.tables.find(item => item.id === archived.id);
-      if (!table) return;
-      table.items = structuredClone(archived.items || []);
-      table.notes = archived.notes || "";
-      table.covers = Number(archived.covers || 0);
-      table.status = "Nuova";
-      table.occupied = true;
-      table.splitMode = Boolean(archived.splitMode);
-      table.selectedSplit = archived.selectedSplit || "T";
-      table.splitCount = archived.splitCount || 6;
-      table.splitCovers = structuredClone(archived.splitCovers || {});
-      table.splitLabels = structuredClone(archived.splitLabels || {});
-      table.paidSplits = {};
-      table.activeCourse = activeCourseNumber(archived.activeCourse);
-      table.courseSequence = structuredClone(archived.courseSequence || [1]);
-      state.history.splice(historyIndex, 1);
+      const order = findOrderById(orderId);
+      if (!order) return;
+      order.kitchenClosed = false;
+      delete order.kitchenClosedAt;
       saveState();
       returnToKitchenMonitor();
       renderTables();
@@ -8732,18 +8858,26 @@
       if (localOrderDraftId && localOrderDraft) commitLocalOrderDraft();
       const order = currentOrder();
       if (!order) return;
-      // Non finisce nello storico locale, ma resta un evento registrato in modo permanente sul
-      // DB remoto (tabella restaurant_freed_log), per poterlo controllare da fuori se serve.
-      fetch("/api/log-freed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entity_type: order.source ? "pickup" : "table",
-          entity_id: String(order.id),
-          label: order.source ? (order.customerName || String(order.id)) : `Tavolo ${order.id}`,
-          payload: structuredClone(order)
-        })
-      }).catch(() => {});
+      // Prima rendiamo la comanda permanente sul server remoto. Se la registrazione
+      // fallisce, la conserviamo localmente per non perdere la possibilita' di operare.
+      try {
+        const freedResponse = await fetch("/api/log-freed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entity_type: order.source ? "pickup" : "table",
+            entity_id: String(order.id),
+            label: order.source ? (order.customerName || String(order.id)) : `Tavolo ${order.id}`,
+            payload: structuredClone(order)
+          })
+        });
+        if (!freedResponse.ok) {
+          throw new Error(`salvataggio remoto HTTP ${freedResponse.status}`);
+        }
+      } catch (error) {
+        window.alert(`Impossibile storicizzare la comanda sul server remoto: ${error.message}`);
+        return;
+      }
       // Una nuova apertura deve partire senza alcun dato transazionale ereditato.
       delete order.payment;
       delete order.paymentStatus;
@@ -8770,6 +8904,8 @@
           const tableIndex = state.tables.findIndex(table => Number(table.id) === tableId);
           if (tableIndex >= 0) state.tables[tableIndex] = createFreshTable(state.tables[tableIndex]);
         });
+        // Fino al pagamento la cronologia e' parte dello stato del turno. Dopo
+        // la liberazione il suo contenuto vive solo nel log remoto.
       }
       await saveState();
       render();
@@ -8777,33 +8913,25 @@
       document.getElementById("confirmFreeTableModal").close();
     }
 
-    document.getElementById("addTableBtn").addEventListener("click", () => {
+    document.getElementById("addTableBtn").addEventListener("click", async () => {
       if (REMOTE_MODE) return;
-      const nextId = Math.max(...state.tables.map(table => table.id)) + 1;
-      const index = state.tables.length;
-      state.tables.push({
+      if (!state.room || typeof state.room !== "object") state.room = structuredClone(DEFAULT_ROOM);
+      if (!Array.isArray(state.room.tables)) state.room.tables = [];
+      const knownIds = [...state.room.tables, ...(Array.isArray(state.tables) ? state.tables : [])]
+        .map(table => Number(table.id)).filter(Number.isFinite);
+      const nextId = (knownIds.length ? Math.max(...knownIds) : 0) + 1;
+      const index = state.room.tables.length;
+      const definition = {
         id: nextId,
         x: 5 + (index % 4) * 23,
-        y: 7 + Math.floor(index / 4) * 27,
-        occupied: false,
-        covers: 2,
-        notes: "",
-        status: "Nuova",
-        splitMode: false,
-        selectedSplit: "T",
-        splitCount: 6,
-        splitCovers: {},
-        splitLabels: {},
-        paidSplits: {},
-        activeCourse: 0,
-        courseSequence: [1],
-        dismissedCourses: [],
-        items: []
-      });
+        y: 7 + Math.floor(index / 4) * 27
+      };
+      state.room.tables.push(definition);
+      state.tables.push(createFreshTable(definition));
       state.selectedTable = nextId;
-      saveState();
+      await savePlatformConfig(true);
+      await saveState();
       render();
-      openOrderModal(nextId);
     });
 
     let pendingPickupOrderId = null;
@@ -8888,6 +9016,26 @@
       updateSelectedTableSizeControls();
     });
 
+    document.getElementById("removeTableBtn").addEventListener("click", async () => {
+      if (REMOTE_MODE || !editRoom || selectedRoomTableId == null) return;
+      const tableId = String(selectedRoomTableId);
+      const table = state.tables.find(item => String(item.id) === tableId);
+      if (table && (table.occupied || table.items?.length || table.paymentStatus)) {
+        window.alert("Non puoi rimuovere un tavolo occupato o con una comanda aperta.");
+        return;
+      }
+      if (!window.confirm(`Rimuovere definitivamente il tavolo ${tableId}?`)) return;
+      state.room.tables = (state.room.tables || []).filter(item => String(item.id) !== tableId);
+      state.tables = (state.tables || []).filter(item => String(item.id) !== tableId);
+      delete localTableLayouts[tableId];
+      localStorage.setItem(TABLE_LAYOUT_STORAGE_KEY, JSON.stringify(localTableLayouts));
+      selectedRoomTableId = null;
+      await savePlatformConfig(true);
+      await saveState();
+      updateRoomMode();
+      render();
+    });
+
     function updateSelectedTableSizeControls() {
       const width = document.getElementById("tableWidth");
       const height = document.getElementById("tableHeight");
@@ -8902,6 +9050,7 @@
       if (!size) return;
       state.room.tableWidth = size.width;
       state.room.tableHeight = size.height;
+      savePlatformConfig();
       saveState();
       renderTables();
       updateSelectedTableSizeControls();
@@ -8912,6 +9061,7 @@
     function updateRoomDimension(key, value) {
       const limits = key === "width" ? [640, 2200] : [360, 1400];
       state.room[key] = clamp(Number(value || DEFAULT_ROOM[key]), limits[0], limits[1]);
+      savePlatformConfig();
       saveState();
       applyRoomSize();
     }
@@ -8922,6 +9072,22 @@
 
     document.getElementById("roomHeight").addEventListener("input", event => {
       updateRoomDimension("height", event.target.value);
+    });
+
+    document.getElementById("saveSharedRoomConfigBtn").addEventListener("click", async () => {
+      if (REMOTE_MODE) return;
+      const button = document.getElementById("saveSharedRoomConfigBtn");
+      button.disabled = true;
+      try {
+        const saved = await savePlatformConfig(true);
+        if (!saved) throw new Error("salvataggio non riuscito");
+        button.textContent = "Configurazione salvata";
+        setTimeout(() => { button.textContent = "Salva configurazione condivisa"; }, 1600);
+      } catch (error) {
+        window.alert(`Configurazione non salvata: ${error.message}`);
+      } finally {
+        button.disabled = false;
+      }
     });
 
     document.getElementById("coverCharge").addEventListener("input", event => {
@@ -9611,6 +9777,7 @@
       if (version && info) version.textContent = "Versione: " + (info.packageVersion || "1.0.0") + " · build " + (info.version || "local");
     }).catch(() => {});
 
+    window.ensureLocalAuth().catch(() => {});
     render();
     listenForStateChanges();
     refreshReservations();
@@ -9620,7 +9787,14 @@
     // Prima recupera lo stato condiviso, poi aggiorna il menu: evita che una
     // risposta arrivata in ritardo sovrascriva le categorie appena scaricate.
     loadPlatformConfig()
-      .then(config => { if (config) applyPlatformConfig(config); })
+      .then(config => {
+        if (!config) return;
+        const missingTableConfig = !Array.isArray(config.room?.tables) || !config.room.tables.length;
+        applyPlatformConfig(config);
+        // Migrazione una tantum: le vecchie versioni tenevano la definizione
+        // insieme allo state. La copiamo nel config, poi lo state viene filtrato.
+        if (missingTableConfig && Array.isArray(state.tables) && state.tables.length) savePlatformConfig();
+      })
       .then(() => syncFromServer())
       .then(() => syncExternalMenu());
     window.addEventListener("hashchange", () => {

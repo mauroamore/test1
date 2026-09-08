@@ -4318,16 +4318,8 @@
                 return;
               }
               if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
-              if (["state.updated", "order.created", "order.updated", "order.deleted", "table.updated", "kitchen.status_changed"].includes(message.event)) {
-                syncFromServer().then(() => refreshReservations());
-              }
-              if (message.event === "reservation.updated") {
-                // ReservationsNew writes through the original reservations API;
-                // refresh that source immediately before applying table markers.
-                // Pull the room snapshot first; then overlay the authoritative
-                // reservation response so a stale snapshot cannot erase it.
-                syncFromServer().then(() => refreshReservations());
-              }
+              // Il realtime notifica l'aggiornamento; il solo timer di polling
+              // esegue il recupero, evitando una seconda richiesta ravvicinata.
             }
           });
           realtime.connect();
@@ -4349,8 +4341,8 @@
             return;
           }
           if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
-          if (message.event === "reservation.updated") syncFromServer().then(() => refreshReservations());
-          else syncFromServer();
+          // Il realtime notifica l'aggiornamento; il solo timer di polling
+          // esegue il recupero, evitando una seconda richiesta ravvicinata.
         };
       } catch (error) { setRealtimeStatus("SSE locale: errore", false); }
     }

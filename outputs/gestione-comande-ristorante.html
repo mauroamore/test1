@@ -3427,7 +3427,12 @@
     }
 
     function tableDisplayName(table) {
-      return String(table?.name || table?.label || `Tavolo ${table?.id ?? ""}`).trim();
+      const configured = Array.isArray(state?.room?.tables)
+        ? state.room.tables.find(item => String(item.id) === String(table?.id))
+        : null;
+      return String(
+        configured?.name || configured?.label || table?.name || table?.label || `Tavolo ${table?.id ?? ""}`
+      ).trim();
     }
 
     function browserUiStateFromState(source) {

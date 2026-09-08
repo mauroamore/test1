@@ -7577,7 +7577,6 @@
         const loadedCategories = menuCategories();
         if (!loadedCategories.includes(state.category)) state.category = loadedCategories[0] || "";
         persistBrowserState();
-        saveState();
         render();
       } catch (error) {
         // Offline: keep the last locally cached menu.

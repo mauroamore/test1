@@ -4240,6 +4240,8 @@
       } catch (error) { console.warn("Sincronizzazione remota non riuscita:", error); }
     }
 
+    const ENABLE_STATE_POLLING = false;
+
     function listenForStateChanges() {
       const setRealtimeStatus = (text, connected) => {
         const element = document.querySelector("#realtime-status");
@@ -4277,7 +4279,9 @@
           });
           realtime.connect();
         }
-        setInterval(() => syncFromServer().then(() => refreshReservations()), 5000);
+        if (ENABLE_STATE_POLLING) {
+          setInterval(() => syncFromServer().then(() => refreshReservations()), 5000);
+        }
         return;
       }
       try {

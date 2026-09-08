@@ -2982,6 +2982,7 @@
       const tokenKey = "local-api-session";
       const dbName = "gestione-comande-auth";
       const originalFetch = window.fetch.bind(window);
+      const sharedGetRequests = new Map();
       const openDb = () => new Promise((resolve, reject) => {
         const request = indexedDB.open(dbName, 1);
         request.onupgradeneeded = () => request.result.createObjectStore("keys");
@@ -3052,7 +3053,28 @@
       window.fetch = async (input, init = {}) => {
         const url = typeof input === "string" ? input : input.url;
         const method = String(init.method || (typeof input === "string" ? "GET" : input.method) || "GET").toUpperCase();
-        if (!url.startsWith("/api/") || ["GET", "HEAD", "OPTIONS"].includes(method) || url === "/api/local-auth/login") return originalFetch(input, init);
+        if (!url.startsWith("/api/") || ["HEAD", "OPTIONS"].includes(method) || url === "/api/local-auth/login") return originalFetch(input, init);
+        if (method === "GET" && ["/api/state", "/api/table-locks"].includes(url.split("?")[0])) {
+          const makeResponse = payload => new Response(payload.body.slice(0), {
+            status: payload.status,
+            statusText: payload.statusText,
+            headers: payload.headers
+          });
+          const shared = sharedGetRequests.get(url);
+          if (shared) return shared.then(makeResponse);
+          const request = originalFetch(input, init).then(async response => ({
+            status: response.status,
+            statusText: response.statusText,
+            headers: Array.from(response.headers.entries()),
+            body: await response.arrayBuffer()
+          }));
+          sharedGetRequests.set(url, request);
+          request.finally(() => setTimeout(() => {
+            if (sharedGetRequests.get(url) === request) sharedGetRequests.delete(url);
+          }, 750)).catch(() => {});
+          return request.then(makeResponse);
+        }
+        if (["GET"].includes(method)) return originalFetch(input, init);
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const { token, pair } = await auth();
           const timestamp = Date.now(); const payload = `${timestamp}.${method}.${url.split("?")[0]}`;
@@ -3635,10 +3657,16 @@
     let tableLockTimer = null;
     let tableLockLost = false;
     let tableLockGeneration = 0;
+    let visibleTableLocksInFlight = false;
+    let lastVisibleTableLocksFetchAt = 0;
     const visibleLockedTables = new Set();
 
     async function refreshVisibleTableLocks() {
       if (REMOTE_MODE || !Array.isArray(state.tables)) return;
+      const now = Date.now();
+      if (visibleTableLocksInFlight || now - lastVisibleTableLocksFetchAt < 750) return;
+      visibleTableLocksInFlight = true;
+      lastVisibleTableLocksFetchAt = now;
       try {
         const response = await fetch("/api/table-locks", { cache: "no-store" });
         if (!response.ok) throw new Error("Lock list unavailable");
@@ -3650,6 +3678,8 @@
       } catch {
         // In caso di indisponibilita' temporanea non manteniamo lock obsoleti.
         visibleLockedTables.clear();
+      } finally {
+        visibleTableLocksInFlight = false;
       }
       renderTables();
     }
@@ -4070,6 +4100,8 @@
     // piattaforma da uno snapshot che contiene solo i tavoli occupati.
     let platformConfigCache = null;
     let platformConfigReady = false;
+    let stateSyncInFlight = false;
+    let lastStateSyncStartedAt = 0;
 
     function applyPlatformConfig(config) {
       if (!config || typeof config !== "object") return;
@@ -4138,6 +4170,10 @@
     }
 
     async function syncFromServer({ force = false } = {}) {
+      const now = Date.now();
+      if (stateSyncInFlight || (!force && now - lastStateSyncStartedAt < 750)) return;
+      stateSyncInFlight = true;
+      lastStateSyncStartedAt = now;
       try {
         if (!force && !ENABLE_STATE_POLLING) return;
         if (!platformConfigReady) {
@@ -4246,7 +4282,11 @@
         } else {
           saveState();
         }
-      } catch (error) { console.warn("Sincronizzazione remota non riuscita:", error); }
+      } catch (error) {
+        console.warn("Sincronizzazione remota non riuscita:", error);
+      } finally {
+        stateSyncInFlight = false;
+      }
     }
 
     const ENABLE_STATE_POLLING = true;

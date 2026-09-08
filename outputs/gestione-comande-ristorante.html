@@ -9836,7 +9836,11 @@
         applyPlatformConfig(config);
         // Migrazione una tantum: le vecchie versioni tenevano la definizione
         // insieme allo state. La copiamo nel config, poi lo state viene filtrato.
-        if (missingTableConfig && Array.isArray(state.tables) && state.tables.length) savePlatformConfig();
+        // Bootstrap: se il repository remoto e' ancora vuoto, il primo browser
+        // locale con una configurazione valida deve pubblicarla esplicitamente.
+        if (missingTableConfig && Array.isArray(state.room?.tables) && state.room.tables.length) {
+          savePlatformConfig(true, true);
+        }
       })
       .then(() => syncFromServer())
       .then(() => syncExternalMenu());

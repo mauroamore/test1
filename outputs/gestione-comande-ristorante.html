@@ -3344,6 +3344,14 @@
           // Le coordinate appartengono al dispositivo, non alla configurazione condivisa.
           delete definition.x;
           delete definition.y;
+          delete definition.tho;
+          delete definition.sentCovers;
+          delete definition.coversEnteredAt;
+          delete definition.items;
+          delete definition.occupied;
+          delete definition.covers;
+          delete definition.status;
+          delete definition.paymentStatus;
           return definition;
         })
         : (Array.isArray(source?.tables) ? source.tables.map(table => {
@@ -3410,6 +3418,10 @@
       });
       operational.filter(table => !definitions.some(definition => String(definition.id) === String(table.id)))
         .forEach(table => source.tables.push(table));
+    }
+
+    function tableDisplayName(table) {
+      return String(table?.name || table?.label || `Tavolo ${table?.id ?? ""}`).trim();
     }
 
     function browserUiStateFromState(source) {
@@ -6173,10 +6185,10 @@
         const isFree = !displayOrder.occupied && !displayOrder.items.length;
         const enteredTime = displayOrder.coversEnteredAt ? new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(new Date(displayOrder.coversEnteredAt)) : "";
         button.innerHTML = owner && !isFree
-          ? `<strong>TV${table.id} · principale TV${owner.id}${lockMark}</strong>`
+          ? `<strong>${escapeHtml(tableDisplayName(table))} · principale ${escapeHtml(tableDisplayName(owner))}${lockMark}</strong>`
           : isFree
-          ? `<strong>TV${table.id}${lockMark}</strong>`
-          : `<span class="table-title"><strong>TV${table.id}${lockMark}</strong><span class="table-time">${enteredTime}</span></span><span class="table-meta"><span>Pax: ${Number(displayOrder.covers || 0)}</span><span>Seq: ${activeCourse}</span></span><span>${money.format(orderTotal(displayOrder))}</span>${paymentSummary(displayOrder) ? `<small>${escapeHtml(paymentSummary(displayOrder))}</small>` : ""}`;
+          ? `<strong>${escapeHtml(tableDisplayName(table))}${lockMark}</strong>`
+          : `<span class="table-title"><strong>${escapeHtml(tableDisplayName(table))}${lockMark}</strong><span class="table-time">${enteredTime}</span></span><span class="table-meta"><span>Pax: ${Number(displayOrder.covers || 0)}</span><span>Seq: ${activeCourse}</span></span><span>${money.format(orderTotal(displayOrder))}</span>${paymentSummary(displayOrder) ? `<small>${escapeHtml(paymentSummary(displayOrder))}</small>` : ""}`;
         button.addEventListener("click", () => {
           if (suppressTableClick) {
             suppressTableClick = false;

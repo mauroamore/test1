@@ -326,10 +326,7 @@ function configForStorage(state) {
   return {
     room: state.room || {},
     settings: state.settings || {},
-    variations: state.variations || {},
-    tableLayout: Array.isArray(state.tables)
-      ? state.tables.map(table => ({ id: table.id, x: table.x, y: table.y }))
-      : []
+    variations: state.variations || {}
   };
 }
 
@@ -536,16 +533,6 @@ if (sharedState && persistedConfig) {
   sharedState.room = persistedConfig.room || sharedState.room;
   sharedState.settings = persistedConfig.settings || sharedState.settings;
   sharedState.variations = persistedConfig.variations || sharedState.variations;
-  const layouts = new Map((persistedConfig.tableLayout || []).map(table => [String(table.id), table]));
-  if (Array.isArray(sharedState.tables)) {
-    sharedState.tables.forEach(table => {
-      const layout = layouts.get(String(table.id));
-      if (layout) {
-        table.x = layout.x;
-        table.y = layout.y;
-      }
-    });
-  }
 }
 if (sharedState && (!Array.isArray(sharedState.menu) || sharedState.menu.length === 0) && Array.isArray(persistedMenu) && persistedMenu.length > 0) {
   sharedState.menu = persistedMenu;
@@ -1676,16 +1663,6 @@ const server = http.createServer((request, response) => {
           }
           if (incomingPlatformConfig.variations && typeof incomingPlatformConfig.variations === "object") {
             incomingState.variations = incomingPlatformConfig.variations;
-          }
-          if (Array.isArray(incomingPlatformConfig.tableLayout) && Array.isArray(incomingState.tables)) {
-            const layouts = new Map(incomingPlatformConfig.tableLayout.map(table => [String(table.id), table]));
-            incomingState.tables.forEach(table => {
-              const layout = layouts.get(String(table.id));
-              if (layout) {
-                table.x = layout.x;
-                table.y = layout.y;
-              }
-            });
           }
         }
         const resetDeliveryOrders = parsedBody.resetDeliveryOrders === true;

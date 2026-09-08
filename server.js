@@ -344,18 +344,31 @@ function stateForClient(state) {
 }
 
 function platformConfigForClient(state) {
+  const room = { ...(state && state.room || {}) };
+  delete room.width;
+  delete room.height;
+  delete room.tableWidth;
+  delete room.tableHeight;
+  if (Array.isArray(room.tables)) {
+    room.tables = room.tables.map(table => {
+      const definition = { ...table };
+      ["x", "y", "tho", "sentCovers", "coversEnteredAt", "items", "occupied", "covers", "notes", "status", "paymentStatus", "paidAt", "payment", "splitMode", "selectedSplit", "splitCount", "splitCovers", "splitLabels", "paidSplits", "activeCourse", "courseSequence", "dismissedCourses"].forEach(key => delete definition[key]);
+      return definition;
+    });
+  }
   return {
-    room: state && state.room || {},
+    room,
     settings: state && state.settings || {},
     variations: state && state.variations || {}
   };
 }
 
 function configForStorage(state) {
+  const platform = platformConfigForClient(state);
   return {
-    room: state.room || {},
-    settings: state.settings || {},
-    variations: state.variations || {}
+    room: platform.room,
+    settings: platform.settings,
+    variations: platform.variations
   };
 }
 

@@ -360,7 +360,7 @@ function platformConfigForClient(state) {
   return {
     room,
     settings: state && state.settings || {},
-    variations: state && state.variations || {}
+    catalog: { variations: state && state.variations || {} }
   };
 }
 
@@ -369,7 +369,7 @@ function configForStorage(state) {
   return {
     room: platform.room,
     settings: platform.settings,
-    variations: platform.variations
+    catalog: platform.catalog
   };
 }
 
@@ -576,7 +576,7 @@ async function loadFiscalReceiptHistory(from, to) {
 if (sharedState && persistedConfig) {
   sharedState.room = persistedConfig.room || sharedState.room;
   sharedState.settings = persistedConfig.settings || sharedState.settings;
-  sharedState.variations = persistedConfig.variations || sharedState.variations;
+  sharedState.variations = persistedConfig.catalog?.variations || persistedConfig.variations || sharedState.variations;
 }
 if (sharedState && (!Array.isArray(sharedState.menu) || sharedState.menu.length === 0) && Array.isArray(persistedMenu) && persistedMenu.length > 0) {
   sharedState.menu = persistedMenu;
@@ -823,8 +823,9 @@ async function pullPlatformConfigFromRemote() {
   if (config.settings && typeof config.settings === "object" && Object.keys(config.settings).length) {
     sharedState.settings = { ...(sharedState.settings || {}), ...config.settings };
   }
-  if (config.variations && typeof config.variations === "object" && Object.keys(config.variations).length) {
-    sharedState.variations = { ...(sharedState.variations || {}), ...config.variations };
+  const incomingVariations = config.catalog?.variations || config.variations;
+  if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
+    sharedState.variations = { ...(sharedState.variations || {}), ...incomingVariations };
   }
   persistStateFiles();
   return true;
@@ -1499,8 +1500,9 @@ const server = http.createServer((request, response) => {
         if (incoming.settings && typeof incoming.settings === "object" && Object.keys(incoming.settings).length) {
           sharedState.settings = { ...(sharedState.settings || {}), ...incoming.settings };
         }
-        if (incoming.variations && typeof incoming.variations === "object" && Object.keys(incoming.variations).length) {
-          sharedState.variations = { ...(sharedState.variations || {}), ...incoming.variations };
+        const incomingVariations = incoming.catalog?.variations || incoming.variations;
+        if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
+          sharedState.variations = { ...(sharedState.variations || {}), ...incomingVariations };
         }
         persistStateFiles();
         pushPlatformConfigToRemote(platformConfigForClient(sharedState))

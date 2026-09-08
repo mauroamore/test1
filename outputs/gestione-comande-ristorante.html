@@ -3394,7 +3394,7 @@
         menu: Array.isArray(source?.menu) ? structuredClone(source.menu) : [],
         room: { ...room, tables: configuredTables },
         settings: structuredClone(source?.settings || initialState.settings),
-        variations: structuredClone(source?.variations || initialState.variations)
+        catalog: { variations: structuredClone(source?.variations || initialState.variations) }
       };
     }
 
@@ -4110,8 +4110,9 @@
       if (config.settings && typeof config.settings === "object" && Object.keys(config.settings).length) {
         state.settings = { ...(state.settings || {}), ...structuredClone(config.settings) };
       }
-      if (config.variations && typeof config.variations === "object" && Object.keys(config.variations).length) {
-        state.variations = { ...(state.variations || {}), ...structuredClone(config.variations) };
+      const incomingVariations = config.catalog?.variations || config.variations;
+      if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
+        state.variations = { ...(state.variations || {}), ...structuredClone(incomingVariations) };
       }
       persistPlatformConfig(state);
       normalizeSharedState();

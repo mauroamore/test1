@@ -3805,6 +3805,10 @@
             delete order.insertionCourse;
             order.activeCourse = activeCourseNumber(order.activeCourse);
           });
+          // Migra subito la vecchia chiave monolitica nelle tre memorie separate.
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(turnStateFromState(saved)));
+          localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigFromState(saved)));
+          localStorage.setItem(BROWSER_UI_STORAGE_KEY, JSON.stringify(browserUiStateFromState(saved)));
           return saved;
         }
       } catch {}

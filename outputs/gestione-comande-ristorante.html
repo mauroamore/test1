@@ -4318,8 +4318,12 @@
                 return;
               }
               if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
-              // Il realtime notifica l'aggiornamento; il solo timer di polling
-              // esegue il recupero, evitando una seconda richiesta ravvicinata.
+              if (["state.updated", "order.created", "order.updated", "order.deleted", "table.updated", "kitchen.status_changed"].includes(message.event)) {
+                syncFromServer().then(() => refreshReservations());
+              }
+              if (message.event === "reservation.updated") {
+                syncFromServer().then(() => refreshReservations());
+              }
             }
           });
           realtime.connect();
@@ -4341,8 +4345,8 @@
             return;
           }
           if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
-          // Il realtime notifica l'aggiornamento; il solo timer di polling
-          // esegue il recupero, evitando una seconda richiesta ravvicinata.
+          if (message.event === "reservation.updated") syncFromServer().then(() => refreshReservations());
+          else syncFromServer();
         };
       } catch (error) { setRealtimeStatus("SSE locale: errore", false); }
       if (ENABLE_STATE_POLLING) {

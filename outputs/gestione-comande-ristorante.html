@@ -9855,6 +9855,9 @@
         }
       })
       .then(() => syncFromServer())
+      // Lo state contiene solo i tavoli occupati e non deve poter ripristinare
+      // la vecchia configurazione locale (ad esempio i 12 tavoli iniziali).
+      .then(() => loadPlatformConfig().then(applyPlatformConfig))
       .then(() => syncExternalMenu());
     window.addEventListener("hashchange", () => {
       openKitchenFromHash();

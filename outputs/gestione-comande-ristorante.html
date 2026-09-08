@@ -3999,11 +3999,11 @@
       render();
     }
 
-    function savePlatformConfig(replaceTableDefinitions = false) {
+    function savePlatformConfig(replaceTableDefinitions = false, force = false) {
       if (REMOTE_MODE) return Promise.resolve(false);
       const config = platformConfigForSync(state);
       const serialized = JSON.stringify(config);
-      if (serialized === lastPlatformConfigJson) return Promise.resolve(true);
+      if (!force && serialized === lastPlatformConfigJson) return Promise.resolve(true);
       lastPlatformConfigJson = serialized;
       return fetch("/api/platform-config", {
         method: "POST",
@@ -9079,7 +9079,7 @@
       const button = document.getElementById("saveSharedRoomConfigBtn");
       button.disabled = true;
       try {
-        const saved = await savePlatformConfig(true);
+        const saved = await savePlatformConfig(true, true);
         if (!saved) throw new Error("salvataggio non riuscito");
         button.textContent = "Configurazione salvata";
         setTimeout(() => { button.textContent = "Salva configurazione condivisa"; }, 1600);

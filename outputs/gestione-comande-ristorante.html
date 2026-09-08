@@ -3269,7 +3269,10 @@
         menu: Array.isArray(source?.menu) ? structuredClone(source.menu) : [],
         room: structuredClone(source?.room || initialState.room),
         settings: structuredClone(source?.settings || initialState.settings),
-        variations: structuredClone(source?.variations || initialState.variations)
+        variations: structuredClone(source?.variations || initialState.variations),
+        tableLayout: Array.isArray(source?.tables)
+          ? source.tables.map(table => ({ id: table.id, x: table.x, y: table.y }))
+          : []
       };
     }
 
@@ -3280,6 +3283,14 @@
       delete snapshot.settings;
       delete snapshot.variations;
       delete snapshot.fiscalReceipts;
+      if (Array.isArray(snapshot.tables)) {
+        snapshot.tables = snapshot.tables.map(table => {
+          const operationalTable = { ...table };
+          delete operationalTable.x;
+          delete operationalTable.y;
+          return operationalTable;
+        });
+      }
       return snapshot;
     }
 

@@ -1677,6 +1677,16 @@ const server = http.createServer((request, response) => {
           if (incomingPlatformConfig.variations && typeof incomingPlatformConfig.variations === "object") {
             incomingState.variations = incomingPlatformConfig.variations;
           }
+          if (Array.isArray(incomingPlatformConfig.tableLayout) && Array.isArray(incomingState.tables)) {
+            const layouts = new Map(incomingPlatformConfig.tableLayout.map(table => [String(table.id), table]));
+            incomingState.tables.forEach(table => {
+              const layout = layouts.get(String(table.id));
+              if (layout) {
+                table.x = layout.x;
+                table.y = layout.y;
+              }
+            });
+          }
         }
         const resetDeliveryOrders = parsedBody.resetDeliveryOrders === true;
         if (resetDeliveryOrders) {

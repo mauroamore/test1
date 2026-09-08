@@ -677,7 +677,11 @@ function connectRealtimeBridge() {
         if (event.event && event.event !== "connected") {
           const data = event.payload || event.data || {};
           if (event.event === "pos.payment") processPosPaymentEvent(data).catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} pos.payment ${error.message}\n`));
-          else broadcastLocal(event.event, data);
+          else if (event.event === "platform-config.updated") {
+            pullPlatformConfigFromRemote()
+              .then(updated => { if (updated) broadcastLocal(event.event, data); })
+              .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} platform-config pull ${error.message}\n`));
+          } else broadcastLocal(event.event, data);
         }
       } catch (error) {
         appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} realtime bridge parse ${error.message}\n`);
@@ -783,6 +787,33 @@ function handleDeliverooWebhook(request, response) {
     ok: false,
     error: error.message
   }));
+}
+
+async function pullPlatformConfigFromRemote() {
+  if (!RESTAURANT_SYNC_KEY || !sharedState) return false;
+  const response = await fetch(`${RESTAURANT_SYNC_URL}?mode=platform-config`, {
+    headers: { "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY }
+  });
+  if (!response.ok) throw new Error(`platform-config remoto HTTP ${response.status}`);
+  const payload = await response.json();
+  const config = payload && payload.platformConfig;
+  if (!config || typeof config !== "object" || !Array.isArray(config.room?.tables) || !config.room.tables.length) return false;
+  sharedState.room = config.room;
+  sharedState.settings = config.settings || {};
+  sharedState.variations = config.variations || {};
+  persistStateFiles();
+  return true;
+}
+
+async function pushPlatformConfigToRemote(config) {
+  if (!RESTAURANT_SYNC_KEY || !config) return false;
+  const response = await fetch(`${RESTAURANT_SYNC_URL}?mode=platform-config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY },
+    body: JSON.stringify({ platformConfig: config })
+  });
+  if (!response.ok) throw new Error(`platform-config remoto HTTP ${response.status}`);
+  return true;
 }
 
 function handleReservationsProxy(request, response) {
@@ -1437,7 +1468,12 @@ const server = http.createServer((request, response) => {
         if (incoming.settings && typeof incoming.settings === "object") sharedState.settings = incoming.settings;
         if (incoming.variations && typeof incoming.variations === "object") sharedState.variations = incoming.variations;
         persistStateFiles();
-        broadcast("platform-config.updated");
+        pushPlatformConfigToRemote(platformConfigForClient(sharedState))
+          .then(() => broadcast("platform-config.updated"))
+          .catch(error => {
+            appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} platform-config push ${error.message}\n`);
+            broadcastLocal("platform-config.updated");
+          });
         return sendJson(response, 200, { ok: true });
       } catch (error) {
         return sendJson(response, 400, { ok: false, error: "Configurazione piattaforma non valida" });
@@ -2290,6 +2326,8 @@ const server = http.createServer((request, response) => {
 if (HOST) server.listen(PORT, HOST, () => console.log(`Ristorante disponibile su http://${HOST}:${PORT}`));
 else server.listen(PORT, () => console.log(`Ristorante disponibile su http://localhost:${PORT}`));
 
+pullPlatformConfigFromRemote()
+  .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} platform-config startup pull ${error.message}\n`));
 connectRealtimeBridge();
 
 syncPendingFiscalReceipts().catch(() => {});

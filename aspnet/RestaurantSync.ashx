@@ -46,6 +46,11 @@ public class RestaurantSync : IHttpHandler
                 case "state":
                     GetState(context);
                     return;
+                case "platform-config":
+                    if (context.Request.HttpMethod == "GET") GetPlatformConfig(context);
+                    else if (context.Request.HttpMethod == "POST") SavePlatformConfig(context);
+                    else { context.Response.StatusCode = 405; context.Response.Write("{\"error\":\"GET or POST required\"}"); }
+                    return;
                 case "push_state":
                     PushState(context);
                     return;
@@ -76,6 +81,52 @@ public class RestaurantSync : IHttpHandler
             context.Response.StatusCode = 500;
             context.Response.Write("{\"error\":\"internal_error\"}");
         }
+    }
+
+    private void GetPlatformConfig(HttpContext context)
+    {
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var command = new MySqlCommand("SELECT config_payload FROM restaurant_platform_config WHERE config_key = 'default' LIMIT 1", connection))
+        {
+            command.CommandTimeout = CommandTimeoutSeconds;
+            var value = command.ExecuteScalar();
+            var payload = value == null || value == DBNull.Value ? "{}" : value.ToString();
+            context.Response.Write("{\"platformConfig\":" + payload + "}");
+        }
+    }
+
+    private void SavePlatformConfig(HttpContext context)
+    {
+        if (!RequirePost(context)) return;
+        var body = ReadBody(context);
+        var parsed = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }
+            .Deserialize<Dictionary<string, object>>(body);
+        var payload = parsed != null && parsed.ContainsKey("platformConfig")
+            ? serializer.Serialize(parsed["platformConfig"])
+            : body;
+        new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }.DeserializeObject(payload);
+
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var update = new MySqlCommand(@"
+            UPDATE restaurant_platform_config
+            SET config_payload = CAST(@payload AS JSON), updated_at_utc = UTC_TIMESTAMP()
+            WHERE config_key = 'default'", connection))
+        {
+            update.CommandTimeout = CommandTimeoutSeconds;
+            update.Parameters.AddWithValue("@payload", payload);
+            if (update.ExecuteNonQuery() == 0)
+            {
+                using (var insert = new MySqlCommand(@"
+                    INSERT INTO restaurant_platform_config (config_key, config_payload, updated_at_utc)
+                    VALUES ('default', CAST(@payload AS JSON), UTC_TIMESTAMP())", connection))
+                {
+                    insert.CommandTimeout = CommandTimeoutSeconds;
+                    insert.Parameters.AddWithValue("@payload", payload);
+                    insert.ExecuteNonQuery();
+                }
+            }
+        }
+        context.Response.Write("{\"ok\":true}");
     }
 
     // GET ?mode=state - ultima istantanea (riga piu' recente = turno corrente), nella stessa forma

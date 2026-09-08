@@ -3978,7 +3978,14 @@
           });
           // Migra subito la vecchia chiave monolitica nelle tre memorie separate.
           localStorage.setItem(STORAGE_KEY, JSON.stringify(turnStateFromState(saved)));
-          localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigFromState(saved)));
+          // La migrazione legacy puo' inizializzare il config solo se non esiste
+          // gia' una configurazione piattaforma valida. Non deve sovrascriverla
+          // con lo snapshot operativo del vecchio state a ogni avvio.
+          let existingPlatformConfig = null;
+          try { existingPlatformConfig = JSON.parse(localStorage.getItem(PLATFORM_CONFIG_STORAGE_KEY) || "null"); } catch {}
+          if (!Array.isArray(existingPlatformConfig?.room?.tables) || !existingPlatformConfig.room.tables.length) {
+            localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigFromState(saved)));
+          }
           localStorage.setItem(BROWSER_UI_STORAGE_KEY, JSON.stringify(browserUiStateFromState(saved)));
           return saved;
         }

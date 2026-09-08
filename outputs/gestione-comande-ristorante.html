@@ -3352,6 +3352,7 @@
           delete definition.covers;
           delete definition.status;
           delete definition.paymentStatus;
+          if (!String(definition.name || definition.label || "").trim()) definition.name = `Tavolo ${definition.id}`;
           return definition;
         })
         : (Array.isArray(source?.tables) ? source.tables.map(table => {
@@ -3372,6 +3373,7 @@
           delete definition.activeCourse;
           delete definition.courseSequence;
           delete definition.dismissedCourses;
+          if (!String(definition.name || definition.label || "").trim()) definition.name = `Tavolo ${definition.id}`;
           return definition;
         }) : []);
       return {

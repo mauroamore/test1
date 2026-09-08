@@ -353,6 +353,7 @@ function platformConfigForClient(state) {
     room.tables = room.tables.map(table => {
       const definition = { ...table };
       ["x", "y", "tho", "sentCovers", "coversEnteredAt", "items", "occupied", "covers", "notes", "status", "paymentStatus", "paidAt", "payment", "splitMode", "selectedSplit", "splitCount", "splitCovers", "splitLabels", "paidSplits", "activeCourse", "courseSequence", "dismissedCourses"].forEach(key => delete definition[key]);
+      if (!String(definition.name || definition.label || "").trim()) definition.name = `Tavolo ${definition.id}`;
       return definition;
     });
   }

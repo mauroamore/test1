@@ -4071,8 +4071,12 @@
         applyLocalRoomLayout();
         materializeConfiguredTables(state);
       }
-      state.settings = structuredClone(config.settings || state.settings);
-      state.variations = structuredClone(config.variations || state.variations);
+      if (config.settings && typeof config.settings === "object" && Object.keys(config.settings).length) {
+        state.settings = { ...(state.settings || {}), ...structuredClone(config.settings) };
+      }
+      if (config.variations && typeof config.variations === "object" && Object.keys(config.variations).length) {
+        state.variations = { ...(state.variations || {}), ...structuredClone(config.variations) };
+      }
       normalizeSharedState();
       persistBrowserState();
       render();

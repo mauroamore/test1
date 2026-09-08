@@ -302,6 +302,7 @@ function stateForStorage(state) {
   delete snapshot.fiscalReceipts;
   delete snapshot.room;
   delete snapshot.settings;
+  delete snapshot.variations;
   if (Array.isArray(snapshot.tables)) {
     snapshot.tables = snapshot.tables.map(table => {
       const runtimeTable = { ...table };
@@ -325,6 +326,7 @@ function configForStorage(state) {
   return {
     room: state.room || {},
     settings: state.settings || {},
+    variations: state.variations || {},
     tableLayout: Array.isArray(state.tables)
       ? state.tables.map(table => ({ id: table.id, x: table.x, y: table.y }))
       : []
@@ -533,6 +535,7 @@ async function loadFiscalReceiptHistory(from, to) {
 if (sharedState && persistedConfig) {
   sharedState.room = persistedConfig.room || sharedState.room;
   sharedState.settings = persistedConfig.settings || sharedState.settings;
+  sharedState.variations = persistedConfig.variations || sharedState.variations;
   const layouts = new Map((persistedConfig.tableLayout || []).map(table => [String(table.id), table]));
   if (Array.isArray(sharedState.tables)) {
     sharedState.tables.forEach(table => {

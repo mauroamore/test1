@@ -812,9 +812,20 @@ async function pullPlatformConfigFromRemote() {
   const payload = await response.json();
   const config = payload && payload.platformConfig;
   if (!config || typeof config !== "object" || !Array.isArray(config.room?.tables) || !config.room.tables.length) return false;
-  sharedState.room = config.room;
-  sharedState.settings = config.settings || {};
-  sharedState.variations = config.variations || {};
+  const currentRoom = sharedState.room && typeof sharedState.room === "object" ? sharedState.room : {};
+  const currentTables = Array.isArray(currentRoom.tables) ? currentRoom.tables : [];
+  const currentById = new Map(currentTables.map(table => [String(table.id), table]));
+  const incomingTables = config.room.tables.map(table => ({
+    ...(currentById.get(String(table.id)) || {}),
+    ...table
+  }));
+  sharedState.room = { ...currentRoom, ...config.room, tables: incomingTables };
+  if (config.settings && typeof config.settings === "object" && Object.keys(config.settings).length) {
+    sharedState.settings = { ...(sharedState.settings || {}), ...config.settings };
+  }
+  if (config.variations && typeof config.variations === "object" && Object.keys(config.variations).length) {
+    sharedState.variations = { ...(sharedState.variations || {}), ...config.variations };
+  }
   persistStateFiles();
   return true;
 }
@@ -1485,8 +1496,12 @@ const server = http.createServer((request, response) => {
           }
           sharedState.room = incomingRoom;
         }
-        if (incoming.settings && typeof incoming.settings === "object") sharedState.settings = incoming.settings;
-        if (incoming.variations && typeof incoming.variations === "object") sharedState.variations = incoming.variations;
+        if (incoming.settings && typeof incoming.settings === "object" && Object.keys(incoming.settings).length) {
+          sharedState.settings = { ...(sharedState.settings || {}), ...incoming.settings };
+        }
+        if (incoming.variations && typeof incoming.variations === "object" && Object.keys(incoming.variations).length) {
+          sharedState.variations = { ...(sharedState.variations || {}), ...incoming.variations };
+        }
         persistStateFiles();
         pushPlatformConfigToRemote(platformConfigForClient(sharedState))
           .then(() => broadcast("platform-config.updated"))

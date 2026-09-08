@@ -4016,7 +4016,22 @@
       // da una versione precedente che restituiva room vuoto.
       const configuredRoom = config.room && typeof config.room === "object" ? config.room : null;
       if (configuredRoom && Array.isArray(configuredRoom.tables) && configuredRoom.tables.length) {
-        state.room = structuredClone(configuredRoom);
+        const currentRoom = state.room || {};
+        // Conserva il layout locale corrente prima di sostituire la parte condivisa.
+        persistLocalRoomLayout();
+        const currentTables = Array.isArray(currentRoom.tables) ? currentRoom.tables : [];
+        const incomingTables = configuredRoom.tables;
+        // Non applicare uno snapshot incompleto durante un aggiornamento realtime:
+        // un client vecchio o una risposta intermedia non deve far lampeggiare o
+        // cancellare tavoli gia' presenti sul dispositivo.
+        const incomingById = new Map(incomingTables.map(table => [String(table.id), table]));
+        const mergedTables = incomingTables.slice();
+        if (currentTables.length > incomingTables.length) {
+          currentTables.forEach(table => {
+            if (!incomingById.has(String(table.id))) mergedTables.push(table);
+          });
+        }
+        state.room = { ...structuredClone(configuredRoom), tables: structuredClone(mergedTables) };
         applyLocalRoomLayout();
         materializeConfiguredTables(state);
       }

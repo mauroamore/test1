@@ -4251,6 +4251,10 @@
         element.classList.toggle("connected", Boolean(connected));
         element.classList.toggle("error", !connected && /disconness|errore|non disponibile/i.test(text));
       };
+      if (!ENABLE_STATE_POLLING) {
+        setRealtimeStatus("Polling disattivato", false);
+        return;
+      }
       // L'istanza esterna non ha un server locale da cui ricevere SSE: interroga
       // periodicamente RestaurantSync.ashx invece (quasi in tempo reale, ogni ~5s).
       if (REMOTE_MODE) {

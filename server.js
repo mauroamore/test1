@@ -1455,7 +1455,13 @@ const server = http.createServer((request, response) => {
     stateRevision: Number(sharedState && sharedState.stateRevision || 0)
   });
   if (request.url === "/api/platform-config" && request.method === "GET") {
-    return sendJson(response, 200, { platformConfig: platformConfigForClient(sharedState) });
+    // La configurazione condivisa ha origine sul server remoto. Aggiorniamo la
+    // copia locale in occasione dell'apertura/refresh; in caso di rete assente
+    // manteniamo comunque disponibile l'ultima copia locale valida.
+    pullPlatformConfigFromRemote()
+      .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} platform-config GET pull ${error.message}\n`))
+      .finally(() => sendJson(response, 200, { platformConfig: platformConfigForClient(sharedState) }));
+    return;
   }
   if (request.url === "/api/platform-config" && request.method === "POST") {
     readRequestBody(request).then(body => {

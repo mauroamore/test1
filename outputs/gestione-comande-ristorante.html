@@ -4161,11 +4161,6 @@
             ? currentOrder()
             : null;
           const loadedMenu = Array.isArray(state.menu) ? state.menu : [];
-          // Mantieni la configurazione piattaforma autorevole già caricata.
-          // `payload.state` contiene solo lo stato del turno e può contenere
-          // soltanto i tavoli occupati: non deve cancellare nomi e definizioni.
-          if (!platformConfigCache || !Array.isArray(platformConfigCache.room?.tables)) return;
-          const incomingPlatformConfig = structuredClone(platformConfigCache);
           // Use the reservation list included in the fresh server snapshot.
           // Keeping the previous local list here could resurrect cancelled or
           // closed reservations until the modal was reopened.
@@ -4175,10 +4170,22 @@
           const paymentOrderSnapshot = paymentOrderId != null
             ? findOrderById(paymentOrderId)
             : null;
+          const preservedRoom = structuredClone(state.room);
+          const preservedSettings = structuredClone(state.settings);
+          const preservedVariations = structuredClone(state.variations);
+          const preservedMenu = structuredClone(state.menu);
+          const preservedBrowserUi = browserUiStateFromState(state);
+          // La risposta di /api/state contiene solo il turno. La config piattaforma
+          // e il catalogo restano quelli già caricati e non vengono ricostruiti dal
+          // payload operativo.
           state = {
+            ...state,
             ...payload.state,
-            ...(Object.keys(incomingPlatformConfig).length ? incomingPlatformConfig : {}),
-            ...browserUiStateFromState(state)
+            room: preservedRoom,
+            settings: preservedSettings,
+            variations: preservedVariations,
+            menu: preservedMenu,
+            ...preservedBrowserUi
           };
           materializeConfiguredTables(state);
           if (!Array.isArray(state.menu) || state.menu.length === 0) state.menu = loadedMenu;

@@ -3463,6 +3463,10 @@
       return config;
     }
 
+    function persistPlatformConfig(source = state) {
+      localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigForSync(source)));
+    }
+
     function persistBrowserState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(turnStateFromState(state)));
       // La configurazione piattaforma ha un ciclo di vita separato dallo stato
@@ -4100,6 +4104,7 @@
       if (config.variations && typeof config.variations === "object" && Object.keys(config.variations).length) {
         state.variations = { ...(state.variations || {}), ...structuredClone(config.variations) };
       }
+      persistPlatformConfig(state);
       normalizeSharedState();
       persistBrowserState();
       render();
@@ -4115,7 +4120,11 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platformConfig: config, replaceTableDefinitions })
-      }).then(response => response.ok).catch(() => false);
+      }).then(response => {
+        if (!response.ok) return false;
+        persistPlatformConfig(state);
+        return true;
+      }).catch(() => false);
     }
 
     async function syncFromServer() {

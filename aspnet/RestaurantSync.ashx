@@ -86,7 +86,7 @@ public class RestaurantSync : IHttpHandler
     private void GetPlatformConfig(HttpContext context)
     {
         using (var connection = HubRiseIntegration.OpenDatabase())
-        using (var command = new MySqlCommand("SELECT config_payload FROM restaurant_platform_config WHERE config_key = 'default' LIMIT 1", connection))
+        using (var command = new MySqlCommand("SELECT CAST(config_payload AS CHAR) FROM restaurant_platform_config WHERE config_key = 'default' LIMIT 1", connection))
         {
             command.CommandTimeout = CommandTimeoutSeconds;
             var value = command.ExecuteScalar();

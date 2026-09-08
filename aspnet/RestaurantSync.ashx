@@ -99,12 +99,13 @@ public class RestaurantSync : IHttpHandler
     {
         if (!RequirePost(context)) return;
         var body = ReadBody(context);
-        var parsed = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }
+        var json = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue };
+        var parsed = json
             .Deserialize<Dictionary<string, object>>(body);
         var payload = parsed != null && parsed.ContainsKey("platformConfig")
-            ? serializer.Serialize(parsed["platformConfig"])
+            ? json.Serialize(parsed["platformConfig"])
             : body;
-        new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }.DeserializeObject(payload);
+        json.DeserializeObject(payload);
 
         using (var connection = HubRiseIntegration.OpenDatabase())
         using (var update = new MySqlCommand(@"

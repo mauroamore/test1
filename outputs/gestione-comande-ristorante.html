@@ -3412,8 +3412,12 @@
       const byId = new Map(operational.map(table => [String(table.id), table]));
       source.tables = definitions.map(definition => {
         const current = byId.get(String(definition.id));
-        return current ? { ...structuredClone(definition), ...current } : {
-          ...structuredClone(definition), occupied: false, covers: 0, notes: "", status: "Nuova",
+        const sharedDefinition = structuredClone(definition);
+        if (!String(sharedDefinition.name || sharedDefinition.label || "").trim()) {
+          sharedDefinition.name = `Tavolo ${sharedDefinition.id}`;
+        }
+        return current ? { ...sharedDefinition, ...current, name: current.name || sharedDefinition.name } : {
+          ...sharedDefinition, occupied: false, covers: 0, notes: "", status: "Nuova",
           splitMode: false, selectedSplit: "T", splitCount: 6, splitCovers: {}, splitLabels: {},
           paidSplits: {}, activeCourse: 0, courseSequence: [1], dismissedCourses: [], items: []
         };

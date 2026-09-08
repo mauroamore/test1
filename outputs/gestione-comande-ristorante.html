@@ -3838,16 +3838,17 @@
       if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
       if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
       const stateRequest = fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      fetch("/api/platform-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platformConfig: platformConfigForSync(state) }) }).catch(() => {});
+      savePlatformConfig();
       return stateRequest
         .then(response => { if (response.status === 409) syncFromServer(); return response; })
         .catch(() => {});
     }
 
     async function loadPlatformConfig() {
-      if (REMOTE_MODE) return null;
       try {
-        const response = await fetch("/api/platform-config");
+        const response = await fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=platform-config` : "/api/platform-config", REMOTE_MODE
+          ? { headers: { "X-Restaurant-Sync-Key": REMOTE_KEY } }
+          : undefined);
         if (!response.ok) return null;
         const payload = await response.json();
         return payload.platformConfig && typeof payload.platformConfig === "object" ? payload.platformConfig : null;
@@ -3856,14 +3857,37 @@
       }
     }
 
+    let lastPlatformConfigJson = null;
+
+    function applyPlatformConfig(config) {
+      if (!config || typeof config !== "object") return;
+      lastPlatformConfigJson = JSON.stringify(config);
+      state.room = structuredClone(config.room || state.room);
+      state.settings = structuredClone(config.settings || state.settings);
+      state.variations = structuredClone(config.variations || state.variations);
+      normalizeSharedState();
+      persistBrowserState();
+      render();
+    }
+
+    function savePlatformConfig() {
+      if (REMOTE_MODE) return;
+      const config = platformConfigForSync(state);
+      const serialized = JSON.stringify(config);
+      if (serialized === lastPlatformConfigJson) return;
+      lastPlatformConfigJson = serialized;
+      fetch("/api/platform-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platformConfig: config })
+      }).catch(() => {});
+    }
+
     async function syncFromServer() {
       try {
-        const [response, platformConfig] = await Promise.all([
-          fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=state` : "/api/state", REMOTE_MODE
+        const response = await fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=state` : "/api/state", REMOTE_MODE
           ? { headers: { "X-Restaurant-Sync-Key": REMOTE_KEY } }
-          : undefined),
-          loadPlatformConfig()
-        ]);
+          : undefined);
         if (!response.ok) {
           console.warn("Sincronizzazione remota HTTP", response.status);
           return;
@@ -3878,7 +3902,7 @@
             ? currentOrder()
             : null;
           const loadedMenu = Array.isArray(state.menu) ? state.menu : [];
-          const incomingPlatformConfig = platformConfig || {};
+          const incomingPlatformConfig = {};
           // Use the reservation list included in the fresh server snapshot.
           // Keeping the previous local list here could resurrect cancelled or
           // closed reservations until the modal was reopened.
@@ -3973,6 +3997,10 @@
             key: REMOTE_KEY,
             onState: status => setRealtimeStatus(`Realtime: ${status}`, status === "connected"),
             onEvent: message => {
+              if (message.event === "platform-config.updated") {
+                loadPlatformConfig().then(applyPlatformConfig);
+                return;
+              }
               if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
               if (["state.updated", "order.created", "order.updated", "order.deleted", "table.updated", "kitchen.status_changed"].includes(message.event)) {
                 syncFromServer().then(() => refreshReservations());
@@ -3998,6 +4026,10 @@
         events.onmessage = event => {
           const message = JSON.parse(event.data);
           if (message.type !== "state-updated") return;
+          if (message.event === "platform-config.updated") {
+            loadPlatformConfig().then(applyPlatformConfig);
+            return;
+          }
           if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
           if (message.event === "reservation.updated") syncFromServer().then(() => refreshReservations());
           else syncFromServer();
@@ -9587,7 +9619,10 @@
     setInterval(refreshVisibleTableLocks, 5000);
     // Prima recupera lo stato condiviso, poi aggiorna il menu: evita che una
     // risposta arrivata in ritardo sovrascriva le categorie appena scaricate.
-    syncFromServer().then(() => syncExternalMenu());
+    loadPlatformConfig()
+      .then(config => { if (config) applyPlatformConfig(config); })
+      .then(() => syncFromServer())
+      .then(() => syncExternalMenu());
     window.addEventListener("hashchange", () => {
       openKitchenFromHash();
       openOrderFromHash();

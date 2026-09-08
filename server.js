@@ -1415,7 +1415,7 @@ const server = http.createServer((request, response) => {
         if (incoming.settings && typeof incoming.settings === "object") sharedState.settings = incoming.settings;
         if (incoming.variations && typeof incoming.variations === "object") sharedState.variations = incoming.variations;
         persistStateFiles();
-        broadcast();
+        broadcast("platform-config.updated");
         return sendJson(response, 200, { ok: true });
       } catch (error) {
         return sendJson(response, 400, { ok: false, error: "Configurazione piattaforma non valida" });

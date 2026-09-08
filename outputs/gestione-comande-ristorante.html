@@ -8662,6 +8662,8 @@
     function createFreshTable(table) {
       return {
         id: table.id,
+        name: table.name || table.label || `Tavolo ${table.id}`,
+        ...(table.label ? { label: table.label } : {}),
         x: table.x,
         y: table.y,
         occupied: false,

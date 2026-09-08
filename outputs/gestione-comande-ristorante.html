@@ -3011,6 +3011,7 @@
     }
     const money = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
     const STORAGE_KEY = "ristorante-comande-v1";
+    const PLATFORM_CONFIG_STORAGE_KEY = "ristorante-platform-config-v1";
     const DRAFT_STORAGE_KEY = STORAGE_KEY + ":draft";
     const INSTANCE_LOCK_TOKEN = "lock-" + (window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2));
 
@@ -3262,6 +3263,30 @@
       reservations: [],
       courseActivationOrder: []
     };
+
+    function platformConfigFromState(source) {
+      return {
+        menu: Array.isArray(source?.menu) ? structuredClone(source.menu) : [],
+        room: structuredClone(source?.room || initialState.room),
+        settings: structuredClone(source?.settings || initialState.settings),
+        variations: structuredClone(source?.variations || initialState.variations)
+      };
+    }
+
+    function turnStateFromState(source) {
+      const snapshot = structuredClone(source || {});
+      delete snapshot.menu;
+      delete snapshot.room;
+      delete snapshot.settings;
+      delete snapshot.variations;
+      delete snapshot.fiscalReceipts;
+      return snapshot;
+    }
+
+    function persistBrowserState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(turnStateFromState(state)));
+      localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigFromState(state)));
+    }
 
     let state = loadState();
     clearCoversFromFreeTables();
@@ -3609,7 +3634,12 @@
 
     function loadState() {
       try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        const savedTurn = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        const savedPlatform = JSON.parse(localStorage.getItem(PLATFORM_CONFIG_STORAGE_KEY) || "null");
+        const saved = {
+          ...(savedPlatform && typeof savedPlatform === "object" ? savedPlatform : {}),
+          ...(savedTurn && typeof savedTurn === "object" ? savedTurn : {})
+        };
         if (saved && saved.tables && saved.menu) {
           if (!saved.room) saved.room = structuredClone(DEFAULT_ROOM);
           if (!saved.room.tableWidth) saved.room.tableWidth = DEFAULT_TABLE_WIDTH;
@@ -3763,7 +3793,7 @@
         });
         order.tho.kitchen_closed = Boolean(order.kitchenClosed);
       });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      persistBrowserState();
       persistLocalOrderDraft();
       // L'istanza esterna non e' mai autorevole: non spinge mai lo stato intero, solo comandi
       // puntuali (vedi sendRemoteCommand) per le poche azioni concesse sui Pick-up manuali.
@@ -3848,7 +3878,7 @@
           // Anche lo snapshot principale può contenere riferimenti a prenotazioni
           // già concluse: ripulisci subito i tavoli, senza attendere il polling dedicato.
           applySeatedReservations();
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          persistBrowserState();
           // Una bozza aperta appartiene a questo dispositivo e non deve essere
           // sovrascritta dai refresh dello stato condiviso.
           if (localOrderDraftId && localOrderDraft) {
@@ -7161,7 +7191,7 @@
         state.menu = menu;
         const loadedCategories = menuCategories();
         if (!loadedCategories.includes(state.category)) state.category = loadedCategories[0] || "";
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        persistBrowserState();
         saveState();
         render();
       } catch (error) {

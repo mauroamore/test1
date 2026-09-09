@@ -7524,7 +7524,7 @@
         config.querySelector(".monitor-printer").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-access-key").addEventListener("change", event => {
           state.settings.monitors[index].accessKey = event.target.value.trim();
-          saveState();
+          saveMonitorConfig(index, config);
         });
       });
     }
@@ -7734,7 +7734,7 @@
       return state.settings.categoryMonitors?.[category] || "Cucina";
     }
 
-    function saveMonitorConfig(index, config) {
+    async function saveMonitorConfig(index, config) {
       // renderMonitorSetup() mostra il nome come testo semplice (<strong>), non piu' come
       // input rinominabile, e le categorie si assegnano solo dal modal "Categorie": leggere
       // ".monitor-name"/".monitor-category" qui falliva su elementi inesistenti, interrompendo
@@ -7746,6 +7746,7 @@
       monitor.mobile = config.querySelector(".monitor-mobile").checked;
       monitor.printer = config.querySelector(".monitor-printer").value;
       monitor.active = config.querySelector(".monitor-active").checked;
+      monitor.accessKey = config.querySelector(".monitor-access-key").value.trim();
       Object.keys(state.settings.categoryMonitors).forEach(category => {
         if (state.settings.categoryMonitors[category] === monitor.name) state.settings.categoryTurns[category] = monitor.turns;
       });
@@ -8041,6 +8042,7 @@
       if (!order) return;
       order.kitchenClosed = false;
       delete order.kitchenClosedAt;
+      await savePlatformConfig(false, true);
       saveState();
       returnToKitchenMonitor();
       renderTables();

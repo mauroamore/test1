@@ -2637,7 +2637,7 @@
   </dialog>
 
   <dialog id="monitorModal">
-    <form method="dialog" class="modal-card" id="monitorForm"><div class="modal-head"><h2>Nuovo monitor</h2><button class="icon-btn" value="cancel">×</button></div><label>Nome <input id="monitorNameInput" required placeholder="Es. Cucina calda"></label><label class="checkbox-label"><input id="monitorTurnsInput" type="checkbox" checked> Usa sequenze</label><label>Stampante di backup <select id="monitorPrinterInput"></select></label><label class="checkbox-label"><input id="monitorActiveInput" type="checkbox" checked> Monitor attivo</label><div class="row"><button class="ghost" value="cancel">Annulla</button><button class="primary" id="monitorSaveBtn" value="default" type="submit">Salva monitor</button></div></form>
+    <form method="dialog" class="modal-card" id="monitorForm"><div class="modal-head"><h2>Nuovo monitor</h2><button class="icon-btn" value="cancel">×</button></div><label>Nome <input id="monitorNameInput" required placeholder="Es. Cucina calda"></label><label>Chiave dispositivo <input id="monitorAccessKeyInput" required placeholder="Es. THAI-BAR-01-7K" autocomplete="off"></label><label class="checkbox-label"><input id="monitorTurnsInput" type="checkbox" checked> Usa sequenze</label><label>Stampante di backup <select id="monitorPrinterInput"></select></label><label class="checkbox-label"><input id="monitorActiveInput" type="checkbox" checked> Monitor attivo</label><div class="row"><button class="ghost" value="cancel">Annulla</button><button class="primary" id="monitorSaveBtn" value="default" type="submit">Salva monitor</button></div></form>
   </dialog>
   <dialog id="monitorCategoriesModal">
     <form method="dialog" class="modal-card" id="monitorCategoriesForm"><div class="modal-head"><h2>Categorie monitor</h2><button class="icon-btn" value="cancel">×</button></div><div class="stack" id="monitorCategoriesList"></div><div class="row"><button class="ghost" value="cancel">Annulla</button><button class="primary" id="monitorCategoriesSaveBtn" value="default" type="submit">Salva categorie</button></div></form>
@@ -3028,6 +3028,14 @@
         return { token, pair };
       };
       window.ensureLocalAuth = async () => {
+        if (MONITOR_KEY && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
+          const monitor = decodeURIComponent(window.location.hash.slice(9));
+          const response = await originalFetch(`/api/monitor-auth?monitor=${encodeURIComponent(monitor)}&key=${encodeURIComponent(MONITOR_KEY)}`);
+          if (response.ok) {
+            document.getElementById("localLoginGate")?.setAttribute("hidden", "");
+            return true;
+          }
+        }
         try {
           await auth();
           document.getElementById("localLoginGate")?.setAttribute("hidden", "");
@@ -3114,6 +3122,7 @@
     // che da una mutazione diretta di `state` (il locale resta l'unica fonte autorevole).
     const remoteParams = new URLSearchParams(location.search);
     const REMOTE_KEY = remoteParams.get("key") || "";
+    const MONITOR_KEY = remoteParams.get("monitorKey") || "";
     const DEVICE_SETUP_MODE = remoteParams.get("setup") === "1";
     const DEVICE_PROFILE_KEY = "vorrei-device-profile-v1";
     const COMPACT_ROOM_MODE_KEY = "vorrei-compact-room-mode-v1";
@@ -9564,6 +9573,7 @@
       const printerInput = document.getElementById("monitorPrinterInput");
       printerInput.innerHTML = [`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}">${escapeHtml(printer.name)}</option>`))].join("");
       document.getElementById("monitorNameInput").value = "";
+      document.getElementById("monitorAccessKeyInput").value = "";
       document.getElementById("monitorTurnsInput").checked = true;
       document.getElementById("monitorActiveInput").checked = true;
       document.getElementById("monitorModal").showModal();
@@ -9572,9 +9582,10 @@
     document.getElementById("monitorForm").addEventListener("submit", event => {
       event.preventDefault();
       const name = document.getElementById("monitorNameInput").value.trim();
+      const accessKey = document.getElementById("monitorAccessKeyInput").value.trim();
       state.settings.monitors ||= [];
-      if (!name || state.settings.monitors.some(monitor => monitor.name.toLowerCase() === name.toLowerCase())) return;
-      state.settings.monitors.push({ name, turns: document.getElementById("monitorTurnsInput").checked, printer: document.getElementById("monitorPrinterInput").value, active: document.getElementById("monitorActiveInput").checked, mobile: false });
+      if (!name || !accessKey || state.settings.monitors.some(monitor => monitor.name.toLowerCase() === name.toLowerCase())) return;
+      state.settings.monitors.push({ name, accessKey, turns: document.getElementById("monitorTurnsInput").checked, printer: document.getElementById("monitorPrinterInput").value, active: document.getElementById("monitorActiveInput").checked, mobile: false });
       saveState();
       document.getElementById("monitorModal").close();
       render();

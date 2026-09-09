@@ -1444,6 +1444,14 @@ const server = http.createServer((request, response) => {
       return sendJson(response, 200, { ok: true, token });
     }).catch(error => sendJson(response, 400, { ok: false, error: error.message }));
   }
+  if (request.method === "GET" && request.url.startsWith("/api/monitor-auth")) {
+    const url = new URL(request.url, "http://localhost");
+    const monitorName = String(url.searchParams.get("monitor") || "").trim().toLowerCase();
+    const accessKey = String(url.searchParams.get("key") || "");
+    const monitor = (sharedState.settings?.monitors || []).find(item => String(item.name || "").trim().toLowerCase() === monitorName);
+    if (!monitor || monitor.active === false || !monitor.accessKey || !constantTimeKeyEquals(accessKey, monitor.accessKey)) return sendJson(response, 401, { ok: false, error: "Chiave monitor non valida" });
+    return sendJson(response, 200, { ok: true, monitor: monitor.name });
+  }
   if (!mutationAuthorized(request, response)) {
     response.writeHead(401, { "Content-Type": "application/json" });
     return response.end(JSON.stringify({ ok: false, error: "Chiave API locale mancante o non valida" }));

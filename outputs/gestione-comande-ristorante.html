@@ -8028,6 +8028,10 @@
         selectedKitchenMonitor = monitorByHash || (state.settings.monitors?.[0]?.name || "Cucina");
         kitchenHistoryMode = false;
         document.body.classList.add("kitchen-mode");
+        if (monitorByHash && MONITOR_KEY && !DEVICE_SETUP_MODE) {
+          document.body.classList.add("monitor-only", "device-kitchen");
+          document.querySelector("main").hidden = true;
+        }
         document.getElementById("kitchenScreen").hidden = false;
         document.getElementById("kitchenToday").textContent = document.getElementById("today").textContent;
         document.getElementById("kitchenTitle").textContent = "Monitor";
@@ -9970,6 +9974,12 @@
         if (!config) return;
         const missingTableConfig = !Array.isArray(config.room?.tables) || !config.room.tables.length;
         applyPlatformConfig(config);
+        // Il monitor dedicato dipende dalla configurazione condivisa: riapriamo
+        // la rotta dopo aver caricato i monitor, altrimenti il primo render
+        // vede un elenco vuoto e resta nella pagina di login normale.
+        if (MONITOR_KEY && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
+          openKitchenFromHash();
+        }
         // Migrazione una tantum: le vecchie versioni tenevano la definizione
         // insieme allo state. La copiamo nel config, poi lo state viene filtrato.
         // Bootstrap: se il repository remoto e' ancora vuoto, il primo browser

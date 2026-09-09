@@ -7750,6 +7750,7 @@
       Object.keys(state.settings.categoryMonitors).forEach(category => {
         if (state.settings.categoryMonitors[category] === monitor.name) state.settings.categoryTurns[category] = monitor.turns;
       });
+      await savePlatformConfig(false, true);
       saveState();
       render();
     }
@@ -8042,7 +8043,6 @@
       if (!order) return;
       order.kitchenClosed = false;
       delete order.kitchenClosedAt;
-      await savePlatformConfig(false, true);
       saveState();
       returnToKitchenMonitor();
       renderTables();

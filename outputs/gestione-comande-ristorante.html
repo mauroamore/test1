@@ -4296,7 +4296,7 @@
                 loadPlatformConfig().then(applyPlatformConfig);
                 return;
               }
-              if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
+              if (monitorBellEnabled() && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
               if (["state.updated", "order.created", "order.updated", "order.deleted", "table.updated", "kitchen.status_changed"].includes(message.event)) {
                 syncFromServer().then(() => refreshReservations());
               }
@@ -4323,7 +4323,7 @@
             loadPlatformConfig().then(applyPlatformConfig);
             return;
           }
-          if (state.settings.kitchenBellEnabled !== false && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
+          if (monitorBellEnabled() && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
           if (message.event === "reservation.updated") syncFromServer().then(() => refreshReservations());
           else syncFromServer();
         };
@@ -6722,6 +6722,12 @@
       });
     }
 
+    function monitorBellEnabled() {
+      const monitorName = String(selectedKitchenMonitor || "").trim().toLowerCase();
+      const monitor = (state.settings.monitors || []).find(item => String(item.name || "").trim().toLowerCase() === monitorName);
+      return monitor ? monitor.bellEnabled !== false : state.settings.kitchenBellEnabled !== false;
+    }
+
     function playKitchenBell() {
       try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -7483,7 +7489,7 @@
       root.innerHTML = monitors.map((monitor, index) => { const layout = kitchenLayoutFor(monitor.name); return `
         <div class="monitor-config" data-monitor-index="${index}">
           <div class="monitor-config-head"><div class="monitor-config-title"><strong>${escapeHtml(monitor.name)}</strong><span class="monitor-config-subtitle">Configurazione del monitor e del dispositivo associato</span></div><div class="monitor-config-actions"><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div></div>
-          <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><label class="checkbox-label"><input class="kitchen-bell" type="checkbox" ${state.settings.kitchenBellEnabled !== false ? "checked" : ""}> Campanella nuove comande e sequenze</label></div></div>
+          <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><label class="checkbox-label"><input class="kitchen-bell" type="checkbox" ${monitor.bellEnabled !== false ? "checked" : ""}> Campanella nuove comande e sequenze</label></div></div>
           <div class="monitor-config-section"><h3>Assegnazione</h3><div class="monitor-config-routing"><label>Stampante collegata<select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select></label><span class="setup-section-note">Le categorie si gestiscono con il pulsante Categorie.</span></div></div>
           <div class="monitor-config-section"><h3>Accesso dispositivo</h3><div class="monitor-config-routing"><label>Chiave monitor<input class="monitor-access-key" type="text" autocomplete="off" value="${escapeHtml(monitor.accessKey || "")}" placeholder="Es. THAI-BAR-01-7K"></label><span class="setup-section-note">Usala nell'URL: ?monitorKey=CHIAVE#monitor-nome</span></div></div>
           <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label><label>Sfondo area <input type="color" class="kitchen-color-setting" data-layout-key="areaBackground" value="${layout.areaBackground}"></label><label>Sfondo comande <input type="color" class="kitchen-color-setting" data-layout-key="ticketBackground" value="${layout.ticketBackground}"></label><label>Testo comande <input type="color" class="kitchen-color-setting" data-layout-key="textColor" value="${layout.textColor}"></label></div></div>
@@ -7517,10 +7523,7 @@
         config.querySelector(".monitor-active").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-mobile").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-turns").addEventListener("change", () => saveMonitorConfig(index, config));
-        config.querySelector(".kitchen-bell").addEventListener("change", event => {
-          state.settings.kitchenBellEnabled = event.target.checked;
-          saveState();
-        });
+        config.querySelector(".kitchen-bell").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-printer").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-access-key").addEventListener("change", event => {
           state.settings.monitors[index].accessKey = event.target.value.trim();
@@ -7746,6 +7749,7 @@
       monitor.mobile = config.querySelector(".monitor-mobile").checked;
       monitor.printer = config.querySelector(".monitor-printer").value;
       monitor.active = config.querySelector(".monitor-active").checked;
+      monitor.bellEnabled = config.querySelector(".kitchen-bell").checked;
       monitor.accessKey = config.querySelector(".monitor-access-key").value.trim();
       Object.keys(state.settings.categoryMonitors).forEach(category => {
         if (state.settings.categoryMonitors[category] === monitor.name) state.settings.categoryTurns[category] = monitor.turns;

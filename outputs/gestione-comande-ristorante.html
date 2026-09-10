@@ -6023,8 +6023,16 @@
       // le dimensioni salvate della "sala" non hanno senso qui.
       if (PALMARE_MODE) return;
       const room = document.getElementById("tables");
+      const roomPanel = room.closest(".room-panel");
+      const panelWidth = state.room.width + 30;
       room.style.width = `${state.room.width}px`;
       room.style.height = `${state.room.height}px`;
+      // room.width e' la larghezza reale della piantina, non solo una larghezza
+      // interna: il pannello deve seguirla includendo bordo e padding.
+      if (roomPanel) {
+        roomPanel.style.width = `${panelWidth}px`;
+        roomPanel.style.minWidth = `${panelWidth}px`;
+      }
       document.getElementById("roomWidth").value = state.room.width;
       document.getElementById("roomHeight").value = state.room.height;
       document.getElementById("tableSizePreset").value = `${state.room.tableWidth}x${state.room.tableHeight}`;

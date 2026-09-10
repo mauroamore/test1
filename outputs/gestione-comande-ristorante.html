@@ -3029,8 +3029,9 @@
         return { token, pair };
       };
       const verifyMonitorAccess = async () => {
-        const monitorKey = String(MONITOR_KEY || "").trim();
-        if (!monitorKey || !/^#monitor-/i.test(window.location.hash) || DEVICE_SETUP_MODE) return false;
+        const urlParams = new URLSearchParams(window.location.search);
+        const monitorKey = String(urlParams.get("monitorKey") || "").trim();
+        if (!monitorKey || !/^#monitor-/i.test(window.location.hash) || urlParams.get("setup") === "1") return false;
         const monitor = decodeURIComponent(window.location.hash.slice(9)).trim();
           // I browser kiosk Android possono inizializzare rete e certificato con
           // qualche centinaio di millisecondi di ritardo. Non ripiegare subito
@@ -3082,7 +3083,7 @@
           button.textContent = "Verifica chiave monitor";
         }
       });
-      if (/^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
+      if (/^#monitor-/i.test(window.location.hash) && new URLSearchParams(window.location.search).get("setup") !== "1") {
         const monitorButton = document.getElementById("monitorLoginBtn");
         if (monitorButton) monitorButton.hidden = false;
       }

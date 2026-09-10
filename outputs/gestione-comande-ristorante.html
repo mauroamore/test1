@@ -2480,6 +2480,7 @@
     .room-size-controls { display: none; }
     .layout-modal-grid { display: grid; gap: 10px; }
     .layout-slider:has([data-layout-slider="panelHeight"]) { display: none; }
+    .layout-slider:has([data-layout-slider="roomWidth"]) { display: none; }
     .layout-modal-grid > label { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; align-items: center; }
     @media (max-width: 520px) {
       .layout-modal-grid > label { grid-template-columns: 1fr; gap: 4px; }
@@ -3272,8 +3273,8 @@
       document.documentElement.style.setProperty("--main-panel-height", autoHeight ? `${availableHeight}px` : `${layout.panelHeight}px`);
       // La larghezza impostata e' quella del canvas; la colonna deve contenere
       // anche il padding e il bordo del pannello sala.
-      const autoRoomWidth = localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0";
-      const roomCanvasWidth = autoRoomWidth ? calculatedRoomCanvasWidth() : Number(layout.roomWidth || 0);
+      const autoRoomWidth = true;
+      const roomCanvasWidth = calculatedRoomCanvasWidth();
       document.documentElement.style.setProperty("--room-column-width", roomCanvasWidth > 0 ? `${roomCanvasWidth + 30}px` : "1fr");
       document.documentElement.style.setProperty("--delivery-column-width", `${layout.deliveryWidth}px`);
       document.documentElement.style.setProperty("--order-column-width", `${layout.orderWidth}px`);
@@ -6110,8 +6111,7 @@
       if (PALMARE_MODE) return;
       const room = document.getElementById("tables");
       const roomPanel = room.closest(".room-panel");
-      const savedAutoWidth = localStorage.getItem(ROOM_WIDTH_AUTO_KEY);
-      const autoWidth = savedAutoWidth !== "0";
+      const autoWidth = true;
       if (autoWidth) {
         state.room.width = calculatedRoomCanvasWidth();
       }
@@ -6214,7 +6214,7 @@
     window.addEventListener("resize", () => {
       if (PALMARE_MODE) return;
       applyMainLayoutSettings();
-      if (localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0") applyRoomSize();
+      applyRoomSize();
       renderTables();
     });
 
@@ -9612,7 +9612,9 @@
       modal.querySelector('[data-room-output="roomHeight"]').textContent = `${state.room.height} px`;
       const autoRoomWidth = localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0";
       modal.querySelector("#modalAutoRoomWidth").checked = autoRoomWidth;
-      modal.querySelector("#modalRoomWidth").disabled = autoRoomWidth;
+      modal.querySelector("#modalAutoRoomWidth").checked = true;
+      modal.querySelector("#modalAutoRoomWidth").disabled = true;
+      modal.querySelector("#modalRoomWidth").disabled = true;
       document.getElementById("closeSetupBtn").click();
       modal.showModal();
     }

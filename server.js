@@ -310,6 +310,7 @@ function stateForStorage(state) {
   delete snapshot.room;
   delete snapshot.settings;
   delete snapshot.variations;
+  delete snapshot.reservations;
   delete snapshot.selectedTable;
   delete snapshot.category;
   delete snapshot.orderModal;
@@ -333,6 +334,7 @@ function stateForClient(state) {
   delete snapshot.room;
   delete snapshot.settings;
   delete snapshot.variations;
+  delete snapshot.reservations;
   delete snapshot.selectedTable;
   delete snapshot.category;
   delete snapshot.orderModal;

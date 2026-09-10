@@ -3577,6 +3577,7 @@
       delete snapshot.room;
       delete snapshot.settings;
       delete snapshot.variations;
+      delete snapshot.reservations;
       delete snapshot.fiscalReceipts;
       if (Array.isArray(snapshot.tables)) {
         snapshot.tables = snapshot.tables.filter(table => table.occupied || (Array.isArray(table.items) && table.items.length > 0) || table.kitchenClosed || table.paymentStatus || table.status !== "Nuova").map(table => {
@@ -4338,6 +4339,7 @@
           const preservedSettings = structuredClone(state.settings);
           const preservedVariations = structuredClone(state.variations);
           const preservedMenu = structuredClone(state.menu);
+          const preservedReservations = structuredClone(state.reservations);
           const preservedBrowserUi = browserUiStateFromState(state);
           // La risposta di /api/state contiene solo il turno. La config piattaforma
           // e il catalogo restano quelli già caricati e non vengono ricostruiti dal
@@ -4349,11 +4351,14 @@
             settings: preservedSettings,
             variations: preservedVariations,
             menu: preservedMenu,
+            reservations: preservedReservations,
             ...preservedBrowserUi
           };
           materializeConfiguredTables(state);
           if (!Array.isArray(state.menu) || state.menu.length === 0) state.menu = loadedMenu;
-          state.reservations = incomingReservations;
+          if (incomingReservations.length || !Array.isArray(preservedReservations) || preservedReservations.length === 0) {
+            state.reservations = incomingReservations;
+          }
           if (paymentOrderSnapshot) {
             const collections = [state.tables || [], state.deliveryOrders || []];
             for (const collection of collections) {
@@ -4389,7 +4394,8 @@
           mergeKitchenStatusesIntoLocalDraft();
           // Anche lo snapshot principale può contenere riferimenti a prenotazioni
           // già concluse: ripulisci subito i tavoli, senza attendere il polling dedicato.
-          applySeatedReservations();
+          const reservationsChanged = applySeatedReservations();
+          if (reservationsChanged) await saveState();
           persistBrowserState();
           // Una bozza aperta appartiene a questo dispositivo e non deve essere
           // sovrascritta dai refresh dello stato condiviso.
@@ -4456,7 +4462,7 @@
           realtime.connect();
         }
         if (ENABLE_STATE_POLLING) {
-          setInterval(() => syncFromServer().then(() => refreshReservations()), 5000);
+          setInterval(() => syncFromServer(), 5000);
         }
         return;
       }
@@ -4477,7 +4483,7 @@
         };
       } catch (error) { setRealtimeStatus("SSE locale: errore", false); }
       if (ENABLE_STATE_POLLING) {
-        setInterval(() => syncFromServer().then(() => refreshReservations()), 5000);
+        setInterval(() => syncFromServer(), 5000);
       }
     }
 
@@ -5459,9 +5465,11 @@
         const payload = await response.json();
         const raw = typeof payload.d === "string" ? JSON.parse(payload.d) : payload.d || payload;
         state.reservations = (Array.isArray(raw.objects) ? raw.objects : []).filter(isActiveReservation);
-        // Il refresh delle prenotazioni aggiorna solo la vista locale. Non deve
-        // salvare lo state operativo né provocare una rilettura automatica.
-        applySeatedReservations();
+        // Se una prenotazione seduta crea una comanda con i soli coperti,
+        // persisti subito il tavolo: altrimenti il polling successivo riceve
+        // lo snapshot precedente e lo ricrea da capo.
+        const stateChanged = applySeatedReservations();
+        if (stateChanged) await saveState();
         renderTables();
       } catch (error) {}
     }

@@ -249,11 +249,15 @@ public class RestaurantSync : IHttpHandler
         if (!RequirePost(context)) return;
         var body = ReadBody(context);
 
-        // Validazione minima: deve essere JSON valido, altrimenti non sovrascrivere l'istantanea
-        // buona con qualcosa di rotto.
-        new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(body);
+        // Validazione e normalizzazione: le prenotazioni arrivano esclusivamente da
+        // GetReservations e non devono mai entrare nello snapshot operativo remoto.
+        var serializer = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue };
+        var state = serializer.Deserialize<Dictionary<string, object>>(body);
+        if (state == null) throw new InvalidOperationException("Payload state non valido");
+        state.Remove("reservations");
         var localNow = ParseLocalNow(context.Request.QueryString["now"]);
-        var storedPayload = body;
+        var normalizedBody = serializer.Serialize(state);
+        var storedPayload = normalizedBody;
 
         using (var connection = HubRiseIntegration.OpenDatabase())
         {
@@ -267,7 +271,7 @@ public class RestaurantSync : IHttpHandler
                     connection))
                 {
                     update.CommandTimeout = CommandTimeoutSeconds;
-                    update.Parameters.AddWithValue("@payload", body);
+                    update.Parameters.AddWithValue("@payload", normalizedBody);
                     update.Parameters.AddWithValue("@id", latest.Id);
                     update.ExecuteNonQuery();
                 }
@@ -276,7 +280,7 @@ public class RestaurantSync : IHttpHandler
             {
                 // Turno cambiato: il nuovo snapshot conserva la configurazione, ma non eredita
                 // comande, pagamenti o storico del servizio precedente.
-                storedPayload = latest == null ? body : ResetOperationalPayload(body);
+                storedPayload = latest == null ? normalizedBody : ResetOperationalPayload(normalizedBody);
                 using (var insert = new MySqlCommand(@"
                     INSERT INTO restaurant_state_snapshot (turno_type_id, turno_start, state_payload, freed_log, updated_at_utc)
                     VALUES (@turnoTypeId, @turnoStart, @payload, '[]', UTC_TIMESTAMP())", connection))
@@ -634,6 +638,7 @@ public class RestaurantSync : IHttpHandler
         state["deliveryOrders"] = new object[0];
         state["courseActivationOrder"] = new object[0];
         state["selectedTable"] = null;
+        state.Remove("reservations");
         return serializer.Serialize(state);
     }
 

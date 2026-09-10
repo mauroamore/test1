@@ -2483,6 +2483,7 @@
         <input id="localLoginPassword" type="password" autocomplete="current-password" required autofocus>
       </label>
       <button class="primary" type="submit">Accedi</button>
+      <button class="ghost" id="monitorLoginBtn" type="button" hidden>Verifica chiave monitor</button>
       <div class="login-error" id="localLoginError" role="alert"></div>
     </form>
   </section>
@@ -3027,10 +3028,10 @@
         }
         return { token, pair };
       };
-      window.ensureLocalAuth = async () => {
+      const verifyMonitorAccess = async () => {
         const monitorKey = String(MONITOR_KEY || "").trim();
-        if (monitorKey && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
-          const monitor = decodeURIComponent(window.location.hash.slice(9)).trim();
+        if (!monitorKey || !/^#monitor-/i.test(window.location.hash) || DEVICE_SETUP_MODE) return false;
+        const monitor = decodeURIComponent(window.location.hash.slice(9)).trim();
           // I browser kiosk Android possono inizializzare rete e certificato con
           // qualche centinaio di millisecondi di ritardo. Non ripiegare subito
           // sulla password: ritenta la verifica della chiave del monitor.
@@ -3046,7 +3047,10 @@
             }
             if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 350));
           }
-        }
+        return false;
+      };
+      window.ensureLocalAuth = async () => {
+        if (await verifyMonitorAccess()) return true;
         try {
           await auth();
           document.getElementById("localLoginGate")?.setAttribute("hidden", "");
@@ -3060,6 +3064,21 @@
           throw error;
         }
       };
+      document.getElementById("monitorLoginBtn")?.addEventListener("click", async event => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.textContent = "Verifica in corso...";
+        const ok = await verifyMonitorAccess();
+        if (!ok) {
+          document.getElementById("localLoginError").textContent = "Chiave monitor non valida o monitor non raggiungibile.";
+          button.disabled = false;
+          button.textContent = "Verifica chiave monitor";
+        }
+      });
+      if (MONITOR_KEY && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
+        const monitorButton = document.getElementById("monitorLoginBtn");
+        if (monitorButton) monitorButton.hidden = false;
+      }
       window.fetch = async (input, init = {}) => {
         const url = typeof input === "string" ? input : input.url;
         const method = String(init.method || (typeof input === "string" ? "GET" : input.method) || "GET").toUpperCase();

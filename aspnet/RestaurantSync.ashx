@@ -51,6 +51,15 @@ public class RestaurantSync : IHttpHandler
                     else if (context.Request.HttpMethod == "POST") SavePlatformConfig(context);
                     else { context.Response.StatusCode = 405; context.Response.Write("{\"error\":\"GET or POST required\"}"); }
                     return;
+                case "device-settings-list":
+                    GetDeviceSettingsSnapshots(context);
+                    return;
+                case "device-settings-load":
+                    LoadDeviceSettingsSnapshot(context);
+                    return;
+                case "device-settings-save":
+                    SaveDeviceSettingsSnapshot(context);
+                    return;
                 case "push_state":
                     PushState(context);
                     return;
@@ -93,6 +102,67 @@ public class RestaurantSync : IHttpHandler
             var payload = value == null || value == DBNull.Value ? "{}" : value.ToString();
             context.Response.Write("{\"platformConfig\":" + payload + "}");
         }
+    }
+
+    private void GetDeviceSettingsSnapshots(HttpContext context)
+    {
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var command = new MySqlCommand("SELECT snapshot_name, updated_at_utc FROM restaurant_device_settings_snapshot ORDER BY snapshot_name", connection))
+        {
+            command.CommandTimeout = CommandTimeoutSeconds;
+            var rows = new List<Dictionary<string, object>>();
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read()) rows.Add(new Dictionary<string, object> {
+                    { "name", reader["snapshot_name"].ToString() },
+                    { "updatedAtUtc", Convert.ToDateTime(reader["updated_at_utc"]).ToString("o", CultureInfo.InvariantCulture) }
+                });
+            }
+            context.Response.Write(new JavaScriptSerializer().Serialize(new Dictionary<string, object> { { "snapshots", rows } }));
+        }
+    }
+
+    private void LoadDeviceSettingsSnapshot(HttpContext context)
+    {
+        var name = context.Request.QueryString["name"] ?? "";
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var command = new MySqlCommand("SELECT CAST(settings_payload AS CHAR) FROM restaurant_device_settings_snapshot WHERE snapshot_name = @name LIMIT 1", connection))
+        {
+            command.CommandTimeout = CommandTimeoutSeconds;
+            command.Parameters.AddWithValue("@name", name);
+            var value = command.ExecuteScalar();
+            if (value == null || value == DBNull.Value) { context.Response.StatusCode = 404; context.Response.Write("{\"error\":\"Snapshot non trovato\"}"); return; }
+            context.Response.Write("{\"name\":" + new JavaScriptSerializer().Serialize(name) + ",\"settings\":" + value.ToString() + "}");
+        }
+    }
+
+    private void SaveDeviceSettingsSnapshot(HttpContext context)
+    {
+        if (!RequirePost(context)) return;
+        var json = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue };
+        var parsed = json.Deserialize<Dictionary<string, object>>(ReadBody(context));
+        var name = parsed != null && parsed.ContainsKey("name") ? Convert.ToString(parsed["name"]).Trim() : "";
+        var overwrite = parsed != null && parsed.ContainsKey("overwrite") && Convert.ToBoolean(parsed["overwrite"]);
+        object settings;
+        if (String.IsNullOrWhiteSpace(name) || parsed == null || !parsed.TryGetValue("settings", out settings) || settings == null) { context.Response.StatusCode = 400; context.Response.Write("{\"error\":\"Nome e impostazioni sono obbligatori\"}"); return; }
+        var payload = json.Serialize(settings);
+        using (var connection = HubRiseIntegration.OpenDatabase())
+        using (var exists = new MySqlCommand("SELECT COUNT(*) FROM restaurant_device_settings_snapshot WHERE snapshot_name = @name", connection))
+        {
+            exists.CommandTimeout = CommandTimeoutSeconds;
+            exists.Parameters.AddWithValue("@name", name);
+            var found = Convert.ToInt32(exists.ExecuteScalar()) > 0;
+            if (found && !overwrite) { context.Response.StatusCode = 409; context.Response.Write("{\"error\":\"Snapshot gia esistente\"}"); return; }
+            if (found)
+            {
+                using (var update = new MySqlCommand("UPDATE restaurant_device_settings_snapshot SET settings_payload = CAST(@payload AS JSON), updated_at_utc = UTC_TIMESTAMP() WHERE snapshot_name = @name", connection)) { update.Parameters.AddWithValue("@name", name); update.Parameters.AddWithValue("@payload", payload); update.ExecuteNonQuery(); }
+            }
+            else
+            {
+                using (var insert = new MySqlCommand("INSERT INTO restaurant_device_settings_snapshot (snapshot_name, settings_payload, updated_at_utc) VALUES (@name, CAST(@payload AS JSON), UTC_TIMESTAMP())", connection)) { insert.Parameters.AddWithValue("@name", name); insert.Parameters.AddWithValue("@payload", payload); insert.ExecuteNonQuery(); }
+            }
+        }
+        context.Response.Write("{\"ok\":true}");
     }
 
     private void SavePlatformConfig(HttpContext context)

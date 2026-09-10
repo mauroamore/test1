@@ -1475,6 +1475,23 @@ const server = http.createServer((request, response) => {
     state: stateForClient(sharedState),
     stateRevision: Number(sharedState && sharedState.stateRevision || 0)
   });
+  if (request.url.startsWith("/api/device-settings-snapshots") && ["GET", "POST"].includes(request.method)) {
+    const localUrl = new URL(request.url, "http://localhost");
+    const mode = request.method === "POST" ? "device-settings-save" : (localUrl.searchParams.has("name") ? "device-settings-load" : "device-settings-list");
+    const remoteUrl = `${RESTAURANT_SYNC_URL}?mode=${mode}${localUrl.searchParams.has("name") ? `&name=${encodeURIComponent(localUrl.searchParams.get("name"))}` : ""}`;
+    const options = { method: request.method, headers: { "X-Restaurant-Sync-Key": RESTAURANT_SYNC_KEY } };
+    const sendUpstream = () => fetch(remoteUrl, options).then(async upstream => {
+      const body = await upstream.text();
+      response.writeHead(upstream.status, { "Content-Type": "application/json" });
+      response.end(body);
+    }).catch(error => sendJson(response, 502, { ok: false, error: error.message }));
+    if (request.method === "POST") {
+      options.headers["Content-Type"] = "application/json";
+      return readRequestBody(request).then(body => { options.body = body; return sendUpstream(); }).catch(error => sendJson(response, 400, { ok: false, error: error.message }));
+    }
+    sendUpstream();
+    return;
+  }
   if (request.url === "/api/platform-config" && request.method === "GET") {
     // La configurazione condivisa ha origine sul server remoto. Aggiorniamo la
     // copia locale in occasione dell'apertura/refresh; in caso di rete assente

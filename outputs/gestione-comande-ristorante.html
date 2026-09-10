@@ -3037,7 +3037,10 @@
           // sulla password: ritenta la verifica della chiave del monitor.
           for (let attempt = 0; attempt < 3; attempt += 1) {
             try {
-              const response = await originalFetch(`/api/monitor-auth?monitor=${encodeURIComponent(monitor)}&key=${encodeURIComponent(monitorKey)}`, { cache: "no-store" });
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 2500);
+              const response = await originalFetch(`/api/monitor-auth?monitor=${encodeURIComponent(monitor)}&key=${encodeURIComponent(monitorKey)}`, { cache: "no-store", signal: controller.signal });
+              clearTimeout(timeout);
               if (response.ok) {
                 document.getElementById("localLoginGate")?.setAttribute("hidden", "");
                 return true;
@@ -3068,9 +3071,13 @@
         const button = event.currentTarget;
         button.disabled = true;
         button.textContent = "Verifica in corso...";
-        const ok = await verifyMonitorAccess();
-        if (!ok) {
-          document.getElementById("localLoginError").textContent = "Chiave monitor non valida o monitor non raggiungibile.";
+        try {
+          const ok = await verifyMonitorAccess();
+          if (!ok) document.getElementById("localLoginError").textContent = "Chiave monitor non valida o monitor non raggiungibile.";
+          if (ok) return;
+        } catch (error) {
+          document.getElementById("localLoginError").textContent = error?.message || "Verifica monitor non riuscita.";
+        } finally {
           button.disabled = false;
           button.textContent = "Verifica chiave monitor";
         }

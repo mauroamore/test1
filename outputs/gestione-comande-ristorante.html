@@ -3075,7 +3075,7 @@
           button.textContent = "Verifica chiave monitor";
         }
       });
-      if (MONITOR_KEY && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
+      if (/^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
         const monitorButton = document.getElementById("monitorLoginBtn");
         if (monitorButton) monitorButton.hidden = false;
       }

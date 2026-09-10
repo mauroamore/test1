@@ -3186,11 +3186,13 @@
     const deliveryPanelVisible = () => localStorage.getItem(DELIVERY_PANEL_VISIBLE_KEY) !== "0";
     const orderPanelCollapsible = () => localStorage.getItem(ORDER_PANEL_COLLAPSIBLE_KEY) === "1";
     const mainLayoutDefaults = { panelHeight: 720, roomWidth: 0, deliveryWidth: 320, orderWidth: 360, fontSize: 16 };
-    const DEVICE_SNAPSHOT_KEYS = [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY];
+    // Valutata solo quando si salva lo snapshot: alcuni layout sono dichiarati
+    // più avanti nel file e non devono essere letti durante l'inizializzazione.
+    const deviceSnapshotKeys = () => [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY];
     let deviceSnapshotMode = "save";
     function collectDeviceSnapshot() {
       const settings = {};
-      DEVICE_SNAPSHOT_KEYS.forEach(key => { const value = localStorage.getItem(key); if (value !== null) settings[key] = value; });
+      deviceSnapshotKeys().forEach(key => { const value = localStorage.getItem(key); if (value !== null) settings[key] = value; });
       return { version: 1, settings };
     }
     async function loadDeviceSnapshotList() {

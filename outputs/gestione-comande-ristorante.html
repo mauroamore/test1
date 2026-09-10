@@ -145,6 +145,9 @@
     body.compact-room-mode.main-layout-customized .room-panel { height: var(--main-panel-height); min-height: 0; }
     body.compact-room-mode.main-layout-customized .room-panel > .panel-body { height: auto; flex: 1 1 auto; min-height: 0; overflow: auto; }
     body.compact-room-mode.main-layout-customized .delivery-panel { height: var(--main-panel-height); min-height: 0; }
+    body.compact-room-mode.main-layout-customized.delivery-panel-hidden main { grid-template-columns: minmax(0, 1fr); }
+    body.order-panel-collapsible main { grid-template-columns: minmax(0, 1fr) var(--delivery-column-width, 320px); }
+    body.order-panel-collapsible.delivery-panel-hidden main { grid-template-columns: minmax(0, 1fr); }
     .room-panel { align-self: start; }
     .room-panel .panel-body { overflow: auto; }
     body.palmare-mode main {

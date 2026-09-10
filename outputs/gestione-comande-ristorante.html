@@ -2474,6 +2474,15 @@
       .table-meta { gap: 5px; font-size: 11px; }
       .table-time { font-size: 10px; }
     }
+    /* Le dimensioni della sala si modificano dal modal di configurazione,
+       non nell'area operativa dei tavoli. */
+    .room-size-controls { display: none; }
+    .layout-modal-grid { display: grid; gap: 10px; }
+    .layout-modal-grid > label { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; align-items: center; }
+    @media (max-width: 520px) {
+      .layout-modal-grid > label { grid-template-columns: 1fr; gap: 4px; }
+      .layout-modal-grid input, .layout-modal-grid select { width: 100%; box-sizing: border-box; }
+    }
     #localLoginGate { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: #f5f7f8; }
     #localLoginGate[hidden] { display: none; }
     #localLoginGate .login-panel { width: min(420px, calc(100vw - 32px)); padding: 28px; border: 1px solid #d8dee3; border-radius: 10px; background: #fff; box-shadow: 0 12px 40px rgba(16, 24, 40, .14); }
@@ -2573,8 +2582,9 @@
 
   <section class="setup-screen" id="setupScreen" hidden>
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
-    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
+    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="general">Generale</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
     <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="general" hidden><div class="panel-header"><h2>Impostazioni generali</h2><span class="small">Valori condivisi dal ristorante</span></div><div class="panel-body stack"><label>Costo coperto (EUR) <input id="generalCoverChargeInput" type="number" min="0" max="50" step="0.1"></label><div class="setup-section-note">Il costo viene applicato ai coperti e compare nel preconto e nel conto.</div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Dimensioni prima pagina</h3><span class="setup-section-note">Le tre colonne mantengono la stessa altezza.</span><label>Altezza colonne (px) <input id="mainPanelHeightInput" type="number" min="360" max="1600" step="20"></label><label>Larghezza area tavoli (px) <input id="roomColumnWidthInput" type="number" min="640" max="2200" step="20"></label><label>Larghezza Delivery/Pick-up (px) <input id="deliveryColumnWidthInput" type="number" min="220" max="600" step="10"></label><label>Larghezza comanda (px) <input id="orderColumnWidthInput" type="number" min="260" max="700" step="10"></label><label>Dimensione carattere generale (px) <input id="mainFontSizeInput" type="number" min="12" max="22" step="1"></label></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div><div class="setup-device-view"><h3>Snapshot settaggi locali</h3><span class="setup-section-note">Salva o richiama layout e preferenze di questo dispositivo dal server remoto.</span><div class="row"><button class="ghost" id="saveDeviceSnapshotBtn" type="button">Salva settaggi</button><button class="ghost" id="loadDeviceSnapshotBtn" type="button">Carica settaggi</button></div></div></div></section>
     <dialog id="deviceSnapshotModal"><form method="dialog" class="modal-card"><div class="modal-head"><h2 id="deviceSnapshotTitle">Snapshot settaggi</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><div id="deviceSnapshotSaveView"><label>Nome snapshot<input id="deviceSnapshotName" type="text" maxlength="128" autocomplete="off"></label><div class="setup-section-note">Se il nome esiste, potrai confermare la sovrascrittura.</div></div><div id="deviceSnapshotLoadView" hidden><label>Settaggio da caricare<select id="deviceSnapshotSelect"></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Annulla</button><button class="primary" id="deviceSnapshotConfirmBtn" type="button">Conferma</button></div><div class="login-error" id="deviceSnapshotError" role="alert"></div></form></dialog>
     <section class="panel setup-tab-panel" data-setup-panel="monitors" hidden><div class="panel-header"><h2>Monitor</h2><button class="primary" id="addMonitorSetupBtn" type="button">Aggiungi monitor</button></div><div class="panel-body stack"><div class="monitor-setup" id="setupMonitorSetup"></div></div></section>
@@ -6102,6 +6112,8 @@
       document.getElementById("tableWidth").value = state.room.tableWidth;
       document.getElementById("tableHeight").value = state.room.tableHeight;
       document.getElementById("coverCharge").value = state.settings.coverCharge;
+      const generalCoverCharge = document.getElementById("generalCoverChargeInput");
+      if (generalCoverCharge) generalCoverCharge.value = Number(state.settings.coverCharge || 0).toFixed(2);
     }
 
     function applyOrderModalSize() {
@@ -9361,6 +9373,15 @@
 
     document.getElementById("tableSizePreset").addEventListener("change", event => updateTableDimension(event.target.value));
 
+    document.getElementById("generalCoverChargeInput")?.addEventListener("change", event => {
+      const value = Math.max(0, Math.min(50, Number(event.target.value) || 0));
+      event.target.value = value.toFixed(2);
+      document.getElementById("coverCharge").value = value;
+      state.settings.coverCharge = value;
+      saveState();
+      render();
+    });
+
     function updateRoomDimension(key, value) {
       const limits = key === "width" ? [640, 2200] : [360, 1400];
       state.room[key] = clamp(Number(value || DEFAULT_ROOM[key]), limits[0], limits[1]);
@@ -9530,7 +9551,7 @@
         modal = document.createElement("dialog");
         modal.id = "mainLayoutModal";
         modal.className = "modal";
-        modal.innerHTML = `<form method="dialog" class="modal-card"><div class="modal-head"><h2>Layout prima pagina</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><p class="setup-section-note">Modifica e osserva subito la sala dietro al modal.</p><div class="layout-slider"><label>Altezza colonne</label><input data-layout-slider="panelHeight" type="range" min="360" max="1600" step="20"><output data-layout-output="panelHeight"></output></div><div class="layout-slider"><label>Larghezza area tavoli</label><input data-layout-slider="roomWidth" type="range" min="0" max="2200" step="20"><output data-layout-output="roomWidth"></output></div><div class="layout-slider"><label>Larghezza Delivery/Pick-up</label><input data-layout-slider="deliveryWidth" type="range" min="220" max="600" step="10"><output data-layout-output="deliveryWidth"></output></div><div class="layout-slider"><label>Larghezza comanda</label><input data-layout-slider="orderWidth" type="range" min="260" max="700" step="10"><output data-layout-output="orderWidth"></output></div><div class="layout-slider"><label>Carattere generale</label><input data-layout-slider="fontSize" type="range" min="12" max="22" step="1"><output data-layout-output="fontSize"></output></div><div class="row"><button class="ghost" value="cancel" type="submit">Chiudi</button><button class="primary" id="mainLayoutModalApplyBtn" value="default" type="submit">Applica</button></div></form>`;
+        modal.innerHTML = `<form method="dialog" class="modal-card"><div class="modal-head"><h2>Layout prima pagina</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><p class="setup-section-note">Le impostazioni si adattano anche agli schermi a bassa risoluzione.</p><div class="layout-slider"><label>Altezza colonne</label><input data-layout-slider="panelHeight" type="range" min="360" max="1600" step="20"><output data-layout-output="panelHeight"></output></div><div class="layout-slider"><label>Larghezza area tavoli</label><input data-layout-slider="roomWidth" type="range" min="0" max="2200" step="20"><output data-layout-output="roomWidth"></output></div><div class="layout-slider"><label>Larghezza Delivery/Pick-up</label><input data-layout-slider="deliveryWidth" type="range" min="220" max="600" step="10"><output data-layout-output="deliveryWidth"></output></div><div class="layout-slider"><label>Larghezza comanda</label><input data-layout-slider="orderWidth" type="range" min="260" max="700" step="10"><output data-layout-output="orderWidth"></output></div><div class="layout-slider"><label>Carattere generale</label><input data-layout-slider="fontSize" type="range" min="12" max="22" step="1"><output data-layout-output="fontSize"></output></div><hr><h3>Dimensioni sala</h3><div class="layout-modal-grid"><label>Larghezza sala <input data-room-setting="roomWidth" id="modalRoomWidth" type="number" min="640" max="2200" step="20"></label><label>Altezza sala <input data-room-setting="roomHeight" id="modalRoomHeight" type="number" min="360" max="1400" step="20"></label><label>Dimensione tavoli <select data-room-setting="tableSizePreset" id="modalTableSizePreset"><option value="112x88">Piccoli (112 × 88)</option><option value="128x100">Medi (128 × 100)</option><option value="148x116">Standard (148 × 116)</option><option value="176x138">Grandi (176 × 138)</option></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Chiudi</button><button class="primary" id="mainLayoutModalApplyBtn" value="default" type="submit">Applica</button></div></form>`;
         document.body.appendChild(modal);
         modal.querySelectorAll("[data-layout-slider]").forEach(input => input.addEventListener("input", event => {
           const current = mainLayoutSettings();
@@ -9540,11 +9561,20 @@
           render();
           modal.querySelector(`[data-layout-output="${event.target.dataset.layoutSlider}"]`).textContent = event.target.value + " px";
         }));
+        modal.querySelectorAll("[data-room-setting]").forEach(input => input.addEventListener("input", event => {
+          const target = document.getElementById(event.target.dataset.roomSetting);
+          if (!target) return;
+          target.value = event.target.value;
+          target.dispatchEvent(new Event(event.target.dataset.roomSetting === "tableSizePreset" ? "change" : "input", { bubbles: true }));
+        }));
       }
       modal.querySelectorAll("[data-layout-slider]").forEach(input => {
         input.value = layout[input.dataset.layoutSlider];
         modal.querySelector(`[data-layout-output="${input.dataset.layoutSlider}"]`).textContent = input.value + " px";
       });
+      modal.querySelector("#modalRoomWidth").value = state.room.width;
+      modal.querySelector("#modalRoomHeight").value = state.room.height;
+      modal.querySelector("#modalTableSizePreset").value = `${state.room.tableWidth}x${state.room.tableHeight}`;
       document.getElementById("closeSetupBtn").click();
       modal.showModal();
     }
@@ -9568,6 +9598,7 @@
     document.getElementById("deliveryPanelVisibleInput").checked = deliveryPanelVisible();
     document.getElementById("orderPanelCollapsibleInput").checked = orderPanelCollapsible();
     document.getElementById("compactOrderTimeoutInput").value = compactOrderTimeout();
+    document.getElementById("generalCoverChargeInput").value = Number(state.settings.coverCharge || 0).toFixed(2);
     const mainLayout = mainLayoutSettings();
     document.getElementById("mainPanelHeightInput").value = mainLayout.panelHeight;
     document.getElementById("roomColumnWidthInput").value = mainLayout.roomWidth || "";

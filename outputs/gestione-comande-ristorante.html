@@ -3254,6 +3254,12 @@
     function mainLayoutSettings() {
       try { return { ...mainLayoutDefaults, ...JSON.parse(localStorage.getItem(MAIN_LAYOUT_KEY) || "{}")} } catch { return { ...mainLayoutDefaults }; }
     }
+    function calculatedRoomCanvasWidth() {
+      const layout = mainLayoutSettings();
+      const horizontalSpace = 40 + 36 + (deliveryPanelVisible() ? Number(layout.deliveryWidth || 320) : 0)
+        + (compactRoomMode() || orderPanelCollapsible() ? 0 : Number(layout.orderWidth || 360));
+      return clamp(window.innerWidth - horizontalSpace, 640, 2200);
+    }
     function applyMainLayoutSettings() {
       const layout = mainLayoutSettings();
       document.body.classList.add("main-layout-customized");
@@ -3265,7 +3271,9 @@
       document.documentElement.style.setProperty("--main-panel-height", autoHeight ? `${availableHeight}px` : `${layout.panelHeight}px`);
       // La larghezza impostata e' quella del canvas; la colonna deve contenere
       // anche il padding e il bordo del pannello sala.
-      document.documentElement.style.setProperty("--room-column-width", layout.roomWidth > 0 ? `${layout.roomWidth + 30}px` : "1fr");
+      const autoRoomWidth = localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0";
+      const roomCanvasWidth = autoRoomWidth ? calculatedRoomCanvasWidth() : Number(layout.roomWidth || 0);
+      document.documentElement.style.setProperty("--room-column-width", roomCanvasWidth > 0 ? `${roomCanvasWidth + 30}px` : "1fr");
       document.documentElement.style.setProperty("--delivery-column-width", `${layout.deliveryWidth}px`);
       document.documentElement.style.setProperty("--order-column-width", `${layout.orderWidth}px`);
       document.documentElement.style.setProperty("--main-font-size", `${layout.fontSize}px`);
@@ -6104,10 +6112,7 @@
       const savedAutoWidth = localStorage.getItem(ROOM_WIDTH_AUTO_KEY);
       const autoWidth = savedAutoWidth !== "0";
       if (autoWidth) {
-        const layout = mainLayoutSettings();
-        const horizontalSpace = 40 + 36 + (deliveryPanelVisible() ? Number(layout.deliveryWidth || 320) : 0)
-          + (compactRoomMode() || orderPanelCollapsible() ? 0 : Number(layout.orderWidth || 360));
-        state.room.width = clamp(window.innerWidth - horizontalSpace, 640, 2200);
+        state.room.width = calculatedRoomCanvasWidth();
       }
       const panelWidth = state.room.width + 30;
       room.style.width = `${state.room.width}px`;

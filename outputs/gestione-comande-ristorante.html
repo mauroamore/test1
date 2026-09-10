@@ -136,8 +136,15 @@
     body.main-layout-customized .room-panel { display: flex; flex-direction: column; min-height: 0; }
     body.main-layout-customized .room-panel > .panel-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
     body.compact-room-mode.main-layout-customized main { grid-template-rows: var(--main-panel-height); }
+    body.compact-room-mode.main-layout-customized main {
+      grid-template-columns: minmax(0, 1fr) minmax(220px, var(--delivery-column-width, 320px));
+      width: 100%;
+      box-sizing: border-box;
+      overflow-x: hidden;
+    }
     body.compact-room-mode.main-layout-customized .room-panel { height: var(--main-panel-height); min-height: 0; }
     body.compact-room-mode.main-layout-customized .room-panel > .panel-body { height: auto; flex: 1 1 auto; min-height: 0; overflow: auto; }
+    body.compact-room-mode.main-layout-customized .delivery-panel { height: var(--main-panel-height); min-height: 0; }
     .room-panel { align-self: start; }
     .room-panel .panel-body { overflow: auto; }
     body.palmare-mode main {

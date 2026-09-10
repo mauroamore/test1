@@ -3173,6 +3173,7 @@
     const STORAGE_KEY = "ristorante-comande-v1";
     const PLATFORM_CONFIG_STORAGE_KEY = "ristorante-platform-config-v1";
     const ROOM_LAYOUT_STORAGE_KEY = "ristorante-room-layout-v1";
+    const ROOM_WIDTH_AUTO_KEY = "vorrei-room-width-auto-v1";
     const BROWSER_UI_STORAGE_KEY = "ristorante-browser-ui-v1";
     const DRAFT_STORAGE_KEY = STORAGE_KEY + ":draft";
     const INSTANCE_LOCK_TOKEN = "lock-" + (window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -3198,7 +3199,7 @@
     const mainLayoutDefaults = { panelHeight: 720, roomWidth: 0, deliveryWidth: 320, orderWidth: 360, fontSize: 16 };
     // Valutata solo quando si salva lo snapshot: alcuni layout sono dichiarati
     // più avanti nel file e non devono essere letti durante l'inizializzazione.
-    const deviceSnapshotKeys = () => [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY];
+    const deviceSnapshotKeys = () => [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, ROOM_WIDTH_AUTO_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY];
     let deviceSnapshotMode = "save";
     function collectDeviceSnapshot() {
       const settings = {};
@@ -6097,6 +6098,14 @@
       if (PALMARE_MODE) return;
       const room = document.getElementById("tables");
       const roomPanel = room.closest(".room-panel");
+      const savedAutoWidth = localStorage.getItem(ROOM_WIDTH_AUTO_KEY);
+      const autoWidth = savedAutoWidth !== "0";
+      if (autoWidth) {
+        const layout = mainLayoutSettings();
+        const horizontalSpace = 40 + 36 + (deliveryPanelVisible() ? Number(layout.deliveryWidth || 320) : 0)
+          + (compactRoomMode() || orderPanelCollapsible() ? 0 : Number(layout.orderWidth || 360));
+        state.room.width = clamp(window.innerWidth - horizontalSpace, 640, 2200);
+      }
       const panelWidth = state.room.width + 30;
       room.style.width = `${state.room.width}px`;
       room.style.height = `${state.room.height}px`;
@@ -6192,6 +6201,13 @@
         active: false
       };
     }
+
+    window.addEventListener("resize", () => {
+      if (!PALMARE_MODE && localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0") {
+        applyRoomSize();
+        renderTables();
+      }
+    });
 
     function finishTableDrag() {
       if (!dragState) return;
@@ -9551,7 +9567,7 @@
         modal = document.createElement("dialog");
         modal.id = "mainLayoutModal";
         modal.className = "modal";
-        modal.innerHTML = `<form method="dialog" class="modal-card"><div class="modal-head"><h2>Layout prima pagina</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><p class="setup-section-note">Le impostazioni si adattano anche agli schermi a bassa risoluzione.</p><div class="layout-slider"><label>Altezza colonne</label><input data-layout-slider="panelHeight" type="range" min="360" max="1600" step="20"><output data-layout-output="panelHeight"></output></div><div class="layout-slider"><label>Larghezza area tavoli</label><input data-layout-slider="roomWidth" type="range" min="0" max="2200" step="20"><output data-layout-output="roomWidth"></output></div><div class="layout-slider"><label>Larghezza Delivery/Pick-up</label><input data-layout-slider="deliveryWidth" type="range" min="220" max="600" step="10"><output data-layout-output="deliveryWidth"></output></div><div class="layout-slider"><label>Larghezza comanda</label><input data-layout-slider="orderWidth" type="range" min="260" max="700" step="10"><output data-layout-output="orderWidth"></output></div><div class="layout-slider"><label>Carattere generale</label><input data-layout-slider="fontSize" type="range" min="12" max="22" step="1"><output data-layout-output="fontSize"></output></div><hr><h3>Dimensioni sala</h3><div class="layout-modal-grid"><label>Larghezza sala <input data-room-setting="roomWidth" id="modalRoomWidth" type="range" min="640" max="2200" step="20"><output data-room-output="roomWidth"></output></label><label>Altezza sala <input data-room-setting="roomHeight" id="modalRoomHeight" type="range" min="360" max="1400" step="20"><output data-room-output="roomHeight"></output></label><label>Dimensione tavoli <select data-room-setting="tableSizePreset" id="modalTableSizePreset"><option value="112x88">Piccoli (112 × 88)</option><option value="128x100">Medi (128 × 100)</option><option value="148x116">Standard (148 × 116)</option><option value="176x138">Grandi (176 × 138)</option></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Chiudi</button><button class="primary" id="mainLayoutModalApplyBtn" value="default" type="submit">Applica</button></div></form>`;
+        modal.innerHTML = `<form method="dialog" class="modal-card"><div class="modal-head"><h2>Layout prima pagina</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><p class="setup-section-note">Le impostazioni si adattano anche agli schermi a bassa risoluzione.</p><div class="layout-slider"><label>Altezza colonne</label><input data-layout-slider="panelHeight" type="range" min="360" max="1600" step="20"><output data-layout-output="panelHeight"></output></div><div class="layout-slider"><label>Larghezza area tavoli</label><input data-layout-slider="roomWidth" type="range" min="0" max="2200" step="20"><output data-layout-output="roomWidth"></output></div><div class="layout-slider"><label>Larghezza Delivery/Pick-up</label><input data-layout-slider="deliveryWidth" type="range" min="220" max="600" step="10"><output data-layout-output="deliveryWidth"></output></div><div class="layout-slider"><label>Larghezza comanda</label><input data-layout-slider="orderWidth" type="range" min="260" max="700" step="10"><output data-layout-output="orderWidth"></output></div><div class="layout-slider"><label>Carattere generale</label><input data-layout-slider="fontSize" type="range" min="12" max="22" step="1"><output data-layout-output="fontSize"></output></div><hr><h3>Dimensioni sala</h3><label class="checkbox-label"><input id="modalAutoRoomWidth" type="checkbox"> Adatta automaticamente la larghezza alla finestra</label><div class="layout-modal-grid"><label>Larghezza sala <input data-room-setting="roomWidth" id="modalRoomWidth" type="range" min="640" max="2200" step="20"><output data-room-output="roomWidth"></output></label><label>Altezza sala <input data-room-setting="roomHeight" id="modalRoomHeight" type="range" min="360" max="1400" step="20"><output data-room-output="roomHeight"></output></label><label>Dimensione tavoli <select data-room-setting="tableSizePreset" id="modalTableSizePreset"><option value="112x88">Piccoli (112 × 88)</option><option value="128x100">Medi (128 × 100)</option><option value="148x116">Standard (148 × 116)</option><option value="176x138">Grandi (176 × 138)</option></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Chiudi</button><button class="primary" id="mainLayoutModalApplyBtn" value="default" type="submit">Applica</button></div></form>`;
         document.body.appendChild(modal);
         modal.querySelectorAll("[data-layout-slider]").forEach(input => input.addEventListener("input", event => {
           const current = mainLayoutSettings();
@@ -9569,6 +9585,12 @@
           const output = modal.querySelector(`[data-room-output="${event.target.dataset.roomSetting}"]`);
           if (output) output.textContent = `${event.target.value} px`;
         }));
+        modal.querySelector("#modalAutoRoomWidth").addEventListener("change", event => {
+          localStorage.setItem(ROOM_WIDTH_AUTO_KEY, event.target.checked ? "1" : "0");
+          modal.querySelector("#modalRoomWidth").disabled = event.target.checked;
+          applyRoomSize();
+          renderTables();
+        });
       }
       modal.querySelectorAll("[data-layout-slider]").forEach(input => {
         input.value = layout[input.dataset.layoutSlider];
@@ -9579,6 +9601,9 @@
       modal.querySelector("#modalTableSizePreset").value = `${state.room.tableWidth}x${state.room.tableHeight}`;
       modal.querySelector('[data-room-output="roomWidth"]').textContent = `${state.room.width} px`;
       modal.querySelector('[data-room-output="roomHeight"]').textContent = `${state.room.height} px`;
+      const autoRoomWidth = localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0";
+      modal.querySelector("#modalAutoRoomWidth").checked = autoRoomWidth;
+      modal.querySelector("#modalRoomWidth").disabled = autoRoomWidth;
       document.getElementById("closeSetupBtn").click();
       modal.showModal();
     }

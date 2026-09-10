@@ -212,7 +212,13 @@
 
     /* Sala compatta per desktop con altezza/larghezza ridotte. La comanda resta
        accessibile senza sottrarre spazio alla piantina e si richiude da sola. */
-    body.compact-room-mode main { display: block; padding: 12px; }
+    body.compact-room-mode main {
+      display: grid;
+      grid-template-columns: max-content var(--delivery-column-width, 320px);
+      align-items: start;
+      overflow-x: auto;
+      padding: 12px;
+    }
     body.compact-room-mode > header { display: none; }
     body.compact-room-mode .room-panel { min-height: calc(100vh - 92px); }
     body.compact-room-mode .selected-order-panel {

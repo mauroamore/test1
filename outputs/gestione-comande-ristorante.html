@@ -3274,8 +3274,7 @@
       // La larghezza impostata e' quella del canvas; la colonna deve contenere
       // anche il padding e il bordo del pannello sala.
       const autoRoomWidth = true;
-      const roomCanvasWidth = calculatedRoomCanvasWidth();
-      document.documentElement.style.setProperty("--room-column-width", roomCanvasWidth > 0 ? `${roomCanvasWidth + 30}px` : "1fr");
+      document.documentElement.style.setProperty("--room-column-width", autoRoomWidth ? "1fr" : `${Number(layout.roomWidth || 0) + 30}px`);
       document.documentElement.style.setProperty("--delivery-column-width", `${layout.deliveryWidth}px`);
       document.documentElement.style.setProperty("--order-column-width", `${layout.orderWidth}px`);
       document.documentElement.style.setProperty("--main-font-size", `${layout.fontSize}px`);
@@ -6113,14 +6112,17 @@
       const roomPanel = room.closest(".room-panel");
       const autoWidth = true;
       if (autoWidth) {
-        state.room.width = calculatedRoomCanvasWidth();
+        roomPanel.style.width = "";
+        roomPanel.style.minWidth = "";
+        const availablePanelWidth = roomPanel.getBoundingClientRect().width;
+        state.room.width = clamp(availablePanelWidth - 30, 640, 2200);
       }
       const panelWidth = state.room.width + 30;
       room.style.width = `${state.room.width}px`;
       room.style.height = `${state.room.height}px`;
       // room.width e' la larghezza reale della piantina, non solo una larghezza
       // interna: il pannello deve seguirla includendo bordo e padding.
-      if (roomPanel) {
+      if (roomPanel && !autoWidth) {
         roomPanel.style.width = `${panelWidth}px`;
         roomPanel.style.minWidth = `${panelWidth}px`;
       }

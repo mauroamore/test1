@@ -3028,12 +3028,23 @@
         return { token, pair };
       };
       window.ensureLocalAuth = async () => {
-        if (MONITOR_KEY && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
-          const monitor = decodeURIComponent(window.location.hash.slice(9));
-          const response = await originalFetch(`/api/monitor-auth?monitor=${encodeURIComponent(monitor)}&key=${encodeURIComponent(MONITOR_KEY)}`);
-          if (response.ok) {
-            document.getElementById("localLoginGate")?.setAttribute("hidden", "");
-            return true;
+        const monitorKey = String(MONITOR_KEY || "").trim();
+        if (monitorKey && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
+          const monitor = decodeURIComponent(window.location.hash.slice(9)).trim();
+          // I browser kiosk Android possono inizializzare rete e certificato con
+          // qualche centinaio di millisecondi di ritardo. Non ripiegare subito
+          // sulla password: ritenta la verifica della chiave del monitor.
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              const response = await originalFetch(`/api/monitor-auth?monitor=${encodeURIComponent(monitor)}&key=${encodeURIComponent(monitorKey)}`, { cache: "no-store" });
+              if (response.ok) {
+                document.getElementById("localLoginGate")?.setAttribute("hidden", "");
+                return true;
+              }
+            } catch (error) {
+              if (attempt === 2) console.warn("Autenticazione monitor non disponibile", error);
+            }
+            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 350));
           }
         }
         try {

@@ -10013,6 +10013,13 @@
       // Lo state contiene solo i tavoli occupati e non deve poter ripristinare
       // la vecchia configurazione locale (ad esempio i 12 tavoli iniziali).
       .then(() => loadPlatformConfig().then(applyPlatformConfig))
+      // Su alcuni browser il primo controllo monitor parte prima che rete e
+      // configurazione siano pronte: ripetilo alla fine dell'avvio.
+      .then(() => {
+        if (MONITOR_KEY && /^#monitor-/i.test(window.location.hash) && !DEVICE_SETUP_MODE) {
+          return window.ensureLocalAuth().catch(() => {});
+        }
+      })
       .then(() => syncExternalMenu());
     window.addEventListener("hashchange", () => {
       openKitchenFromHash();

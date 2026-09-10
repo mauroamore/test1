@@ -3186,7 +3186,9 @@
       }
       document.body.classList.add("main-layout-customized");
       document.documentElement.style.setProperty("--main-panel-height", `${layout.panelHeight}px`);
-      document.documentElement.style.setProperty("--room-column-width", layout.roomWidth > 0 ? `${layout.roomWidth}px` : "1fr");
+      // La larghezza impostata e' quella del canvas; la colonna deve contenere
+      // anche il padding e il bordo del pannello sala.
+      document.documentElement.style.setProperty("--room-column-width", layout.roomWidth > 0 ? `${layout.roomWidth + 30}px` : "1fr");
       document.documentElement.style.setProperty("--delivery-column-width", `${layout.deliveryWidth}px`);
       document.documentElement.style.setProperty("--order-column-width", `${layout.orderWidth}px`);
       document.documentElement.style.setProperty("--main-font-size", `${layout.fontSize}px`);

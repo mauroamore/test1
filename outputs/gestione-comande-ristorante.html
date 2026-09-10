@@ -8213,7 +8213,19 @@
       return orderHasUnsentLines(order) || Number(order.covers || 0) !== Number(order.sentCovers || 0);
     }
 
-    function sendDeliveryOrderToKitchen(orderId) {
+    async function sendOrderToKitchen(order) {
+      if (!order || !Array.isArray(order.items)) return false;
+      // Il clone deve precedere markLinesSentToKitchen(): la routine di stampa
+      // calcola le quantita' nuove sottraendo sentQty.
+      const orderToPrint = structuredClone(order);
+      markLinesSentToKitchen(order);
+      order.status = "Preparazione";
+      if (!(await publishLocalOrderDraft(order))) return false;
+      await printOrderToConfiguredMonitors(orderToPrint);
+      return true;
+    }
+
+    async function sendDeliveryOrderToKitchen(orderId) {
       const order = (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).find(item => item.id === orderId);
       if (!order || !Array.isArray(order.items)) return;
       if (REMOTE_MODE) {
@@ -8221,9 +8233,7 @@
         return;
       }
       const confirmedTime = askConfirmedTimeIso(order);
-      markLinesSentToKitchen(order);
-      order.status = "Preparazione";
-      saveState();
+      if (!(await sendOrderToKitchen(order))) return;
       render();
       notifyHubRiseStatus(order, "accepted").then(() => notifyHubRiseStatus(order, "in_preparation", confirmedTime));
     }
@@ -8619,11 +8629,7 @@
       }
       if (!(await ensureTableLockForSend())) return;
       const confirmedTime = askConfirmedTimeIso(order);
-      const orderToPrint = structuredClone(order);
-      markLinesSentToKitchen(order);
-      order.status = "Preparazione";
-      if (!(await publishLocalOrderDraft(order))) return;
-      printOrderToConfiguredMonitors(orderToPrint);
+      if (!(await sendOrderToKitchen(order))) return;
       notifyHubRiseStatus(order, "accepted").then(() => notifyHubRiseStatus(order, "in_preparation", confirmedTime));
       closeOrderModal();
     });
@@ -9794,9 +9800,7 @@
       const order = currentOrder();
       if (!(await ensureTableLockForSend())) return;
       const confirmedTime = askConfirmedTimeIso(order);
-      markLinesSentToKitchen(order);
-      order.status = "Preparazione";
-      if (!(await publishLocalOrderDraft(order))) return;
+      if (!(await sendOrderToKitchen(order))) return;
       document.getElementById("unsentChangesModal").close();
       closeOrderModal();
       render();

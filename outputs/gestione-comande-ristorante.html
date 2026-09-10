@@ -2478,6 +2478,7 @@
        non nell'area operativa dei tavoli. */
     .room-size-controls { display: none; }
     .layout-modal-grid { display: grid; gap: 10px; }
+    .layout-slider:has([data-layout-slider="panelHeight"]) { display: none; }
     .layout-modal-grid > label { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; align-items: center; }
     @media (max-width: 520px) {
       .layout-modal-grid > label { grid-template-columns: 1fr; gap: 4px; }
@@ -3174,6 +3175,7 @@
     const PLATFORM_CONFIG_STORAGE_KEY = "ristorante-platform-config-v1";
     const ROOM_LAYOUT_STORAGE_KEY = "ristorante-room-layout-v1";
     const ROOM_WIDTH_AUTO_KEY = "vorrei-room-width-auto-v1";
+    const MAIN_HEIGHT_AUTO_KEY = "vorrei-main-height-auto-v1";
     const BROWSER_UI_STORAGE_KEY = "ristorante-browser-ui-v1";
     const DRAFT_STORAGE_KEY = STORAGE_KEY + ":draft";
     const INSTANCE_LOCK_TOKEN = "lock-" + (window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -3199,7 +3201,7 @@
     const mainLayoutDefaults = { panelHeight: 720, roomWidth: 0, deliveryWidth: 320, orderWidth: 360, fontSize: 16 };
     // Valutata solo quando si salva lo snapshot: alcuni layout sono dichiarati
     // più avanti nel file e non devono essere letti durante l'inizializzazione.
-    const deviceSnapshotKeys = () => [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, ROOM_WIDTH_AUTO_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY];
+    const deviceSnapshotKeys = () => [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, ROOM_WIDTH_AUTO_KEY, MAIN_HEIGHT_AUTO_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY];
     let deviceSnapshotMode = "save";
     function collectDeviceSnapshot() {
       const settings = {};
@@ -3254,12 +3256,9 @@
     }
     function applyMainLayoutSettings() {
       const layout = mainLayoutSettings();
-      if (!localStorage.getItem(MAIN_LAYOUT_KEY)) {
-        document.body.classList.remove("main-layout-customized");
-        return;
-      }
       document.body.classList.add("main-layout-customized");
-      document.documentElement.style.setProperty("--main-panel-height", `${layout.panelHeight}px`);
+      const autoHeight = localStorage.getItem(MAIN_HEIGHT_AUTO_KEY) !== "0";
+      document.documentElement.style.setProperty("--main-panel-height", autoHeight ? "calc(100dvh - 120px)" : `${layout.panelHeight}px`);
       // La larghezza impostata e' quella del canvas; la colonna deve contenere
       // anche il padding e il bordo del pannello sala.
       document.documentElement.style.setProperty("--room-column-width", layout.roomWidth > 0 ? `${layout.roomWidth + 30}px` : "1fr");

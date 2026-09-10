@@ -123,7 +123,7 @@
 
     main {
       display: grid;
-      grid-template-columns: minmax(0, var(--room-column-width, 1fr)) var(--delivery-column-width, 320px) var(--order-column-width, minmax(300px, 360px));
+      grid-template-columns: minmax(0, var(--room-column-width, 1fr)) minmax(0, var(--delivery-column-width, 320px)) minmax(0, var(--order-column-width, 360px));
       align-items: start;
       gap: 18px;
       padding: 20px;
@@ -132,6 +132,7 @@
     body.main-layout-customized main > .panel { height: var(--main-panel-height); min-height: 0; }
     body.main-layout-customized { font-size: var(--main-font-size); }
     body.delivery-panel-hidden main { grid-template-columns: minmax(0, var(--room-column-width, 1fr)) var(--order-column-width, minmax(300px, 360px)); }
+    .room-panel, .delivery-panel, .selected-order-panel { min-width: 0; }
     .room-panel { align-self: start; }
     .room-panel .panel-body { overflow: auto; }
     body.palmare-mode main {

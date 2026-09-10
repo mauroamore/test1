@@ -145,6 +145,11 @@
     body.compact-room-mode.main-layout-customized .room-panel { height: var(--main-panel-height); min-height: 0; }
     body.compact-room-mode.main-layout-customized .room-panel > .panel-body { height: auto; flex: 1 1 auto; min-height: 0; overflow: auto; }
     body.compact-room-mode.main-layout-customized .delivery-panel { height: var(--main-panel-height); min-height: 0; }
+    body.compact-room-mode main { grid-template-rows: var(--main-panel-height); }
+    body.compact-room-mode .room-panel,
+    body.compact-room-mode .delivery-panel { height: var(--main-panel-height) !important; min-height: 0 !important; max-height: var(--main-panel-height); }
+    body.compact-room-mode .room-panel { display: flex; flex-direction: column; }
+    body.compact-room-mode .room-panel > .panel-body { height: auto !important; flex: 1 1 auto; min-height: 0; overflow: auto; }
     body.compact-room-mode.main-layout-customized.delivery-panel-hidden main { grid-template-columns: minmax(0, 1fr); }
     body.order-panel-collapsible main { grid-template-columns: minmax(0, 1fr) var(--delivery-column-width, 320px); }
     body.order-panel-collapsible.delivery-panel-hidden main { grid-template-columns: minmax(0, 1fr); }
@@ -3281,7 +3286,7 @@
       const layout = mainLayoutSettings();
       document.body.classList.add("main-layout-customized");
       const autoHeight = localStorage.getItem(MAIN_HEIGHT_AUTO_KEY) !== "0";
-      const headerHeight = document.querySelector("body > header")?.getBoundingClientRect().height || 74;
+      const headerHeight = compactRoomMode() ? 0 : (document.querySelector("body > header")?.getBoundingClientRect().height || 74);
       const mainStyle = getComputedStyle(document.querySelector("main"));
       const mainVerticalPadding = (parseFloat(mainStyle.paddingTop) || 0) + (parseFloat(mainStyle.paddingBottom) || 0);
       const availableHeight = Math.max(320, window.innerHeight - headerHeight - mainVerticalPadding);

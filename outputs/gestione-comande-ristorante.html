@@ -6114,12 +6114,16 @@
       if (autoWidth) {
         roomPanel.style.width = "";
         roomPanel.style.minWidth = "";
-        const availablePanelWidth = roomPanel.getBoundingClientRect().width;
-        state.room.width = clamp(availablePanelWidth - 30, 640, 2200);
       }
-      const panelWidth = state.room.width + 30;
-      room.style.width = `${state.room.width}px`;
-      room.style.height = `${state.room.height}px`;
+      const panelBody = roomPanel?.querySelector(".panel-body");
+      const bodyStyle = panelBody ? getComputedStyle(panelBody) : null;
+      const availableWidth = panelBody ? panelBody.clientWidth - (parseFloat(bodyStyle.paddingLeft) || 0) - (parseFloat(bodyStyle.paddingRight) || 0) : 0;
+      const availableHeight = panelBody ? panelBody.clientHeight - (parseFloat(bodyStyle.paddingTop) || 0) - (parseFloat(bodyStyle.paddingBottom) || 0) : 0;
+      const canvasWidth = Math.max(Number(state.room.width || 0), availableWidth);
+      const canvasHeight = Math.max(Number(state.room.height || 0), availableHeight);
+      const panelWidth = canvasWidth + 30;
+      room.style.width = `${canvasWidth}px`;
+      room.style.height = `${canvasHeight}px`;
       // room.width e' la larghezza reale della piantina, non solo una larghezza
       // interna: il pannello deve seguirla includendo bordo e padding.
       if (roomPanel && !autoWidth) {
@@ -9616,7 +9620,7 @@
       modal.querySelector("#modalAutoRoomWidth").checked = autoRoomWidth;
       modal.querySelector("#modalAutoRoomWidth").checked = true;
       modal.querySelector("#modalAutoRoomWidth").disabled = true;
-      modal.querySelector("#modalRoomWidth").disabled = true;
+      modal.querySelector("#modalRoomWidth").disabled = false;
       document.getElementById("closeSetupBtn").click();
       modal.showModal();
     }

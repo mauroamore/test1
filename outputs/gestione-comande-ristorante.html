@@ -3258,7 +3258,11 @@
       const layout = mainLayoutSettings();
       document.body.classList.add("main-layout-customized");
       const autoHeight = localStorage.getItem(MAIN_HEIGHT_AUTO_KEY) !== "0";
-      document.documentElement.style.setProperty("--main-panel-height", autoHeight ? "calc(100dvh - 120px)" : `${layout.panelHeight}px`);
+      const headerHeight = document.querySelector("body > header")?.getBoundingClientRect().height || 74;
+      const mainStyle = getComputedStyle(document.querySelector("main"));
+      const mainVerticalPadding = (parseFloat(mainStyle.paddingTop) || 0) + (parseFloat(mainStyle.paddingBottom) || 0);
+      const availableHeight = Math.max(320, window.innerHeight - headerHeight - mainVerticalPadding);
+      document.documentElement.style.setProperty("--main-panel-height", autoHeight ? `${availableHeight}px` : `${layout.panelHeight}px`);
       // La larghezza impostata e' quella del canvas; la colonna deve contenere
       // anche il padding e il bordo del pannello sala.
       document.documentElement.style.setProperty("--room-column-width", layout.roomWidth > 0 ? `${layout.roomWidth + 30}px` : "1fr");
@@ -6202,10 +6206,10 @@
     }
 
     window.addEventListener("resize", () => {
-      if (!PALMARE_MODE && localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0") {
-        applyRoomSize();
-        renderTables();
-      }
+      if (PALMARE_MODE) return;
+      applyMainLayoutSettings();
+      if (localStorage.getItem(ROOM_WIDTH_AUTO_KEY) !== "0") applyRoomSize();
+      renderTables();
     });
 
     function finishTableDrag() {

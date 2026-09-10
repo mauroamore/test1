@@ -135,6 +135,9 @@
     .room-panel, .delivery-panel, .selected-order-panel { min-width: 0; }
     body.main-layout-customized .room-panel { display: flex; flex-direction: column; min-height: 0; }
     body.main-layout-customized .room-panel > .panel-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+    body.compact-room-mode.main-layout-customized main { grid-template-rows: var(--main-panel-height); }
+    body.compact-room-mode.main-layout-customized .room-panel { height: var(--main-panel-height); min-height: 0; }
+    body.compact-room-mode.main-layout-customized .room-panel > .panel-body { height: auto; flex: 1 1 auto; min-height: 0; overflow: auto; }
     .room-panel { align-self: start; }
     .room-panel .panel-body { overflow: auto; }
     body.palmare-mode main {
@@ -9668,6 +9671,7 @@
     document.getElementById("compactRoomModeInput").addEventListener("change", event => {
       localStorage.setItem(COMPACT_ROOM_MODE_KEY, event.target.checked ? "1" : "0");
       document.body.classList.toggle("compact-room-mode", event.target.checked);
+      applyMainLayoutSettings();
       document.getElementById("compactSetupBtn").hidden = !event.target.checked;
       document.getElementById("setupBtn").hidden = event.target.checked;
       if (!event.target.checked) hideCompactOrder();

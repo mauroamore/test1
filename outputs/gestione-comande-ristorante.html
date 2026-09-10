@@ -133,6 +133,8 @@
     body.main-layout-customized { font-size: var(--main-font-size); }
     body.delivery-panel-hidden main { grid-template-columns: minmax(0, var(--room-column-width, 1fr)) var(--order-column-width, minmax(300px, 360px)); }
     .room-panel, .delivery-panel, .selected-order-panel { min-width: 0; }
+    body.main-layout-customized .room-panel { display: flex; flex-direction: column; min-height: 0; }
+    body.main-layout-customized .room-panel > .panel-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
     .room-panel { align-self: start; }
     .room-panel .panel-body { overflow: auto; }
     body.palmare-mode main {

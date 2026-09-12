@@ -689,6 +689,7 @@
     .setup-tab-panel[hidden] { display: none; }
     .setup-grid { display: block; }
     .setup-list { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
+    .printer-list { overflow-x: auto; padding-bottom: 4px; }
     .setup-device-view { display: grid; gap: 12px; padding: 14px; border-top: 1px solid var(--line); }
     .setup-device-view h3 { margin: 0; }
     .setup-section-note { color: var(--muted); font-size: .88rem; }
@@ -697,7 +698,7 @@
     label:has(#mainPanelHeightInput), label:has(#roomColumnWidthInput), label:has(#deliveryColumnWidthInput), label:has(#orderColumnWidthInput), label:has(#mainFontSizeInput) { display: none; }
     @media (max-width: 700px) { .setup-screen { padding: 16px 12px 28px; } .setup-head { align-items: flex-start; flex-direction: column; } .setup-head > button { align-self: stretch; } .setup-tabs { margin-bottom: 12px; } }
     .setup-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 140px 100px auto; gap: 8px; align-items: center; }
-    .printer-row { grid-template-columns: minmax(110px, .8fr) minmax(120px, 1fr) 80px 70px auto minmax(90px, 1fr) auto; }
+    .printer-row { min-width: 1180px; grid-template-columns: minmax(130px, 1.1fr) minmax(150px, 1.2fr) 82px 70px 130px 100px 100px 92px minmax(120px, 1fr) 34px; }
     .monitor-config { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
     .monitor-config { display: grid; gap: 14px; padding: 16px; background: var(--panel); }
     .monitor-config-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
@@ -722,16 +723,12 @@
       .setup-grid { grid-template-columns: 1fr; }
       .monitor-config-routing { grid-template-columns: 1fr; }
       .monitor-local-layout { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
-      .printer-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .printer-row > :last-child { grid-column: 1 / -1; }
       .setup-row { grid-template-columns: minmax(0, 1fr) 120px auto; }
     }
     @media (max-width: 700px) {
       .setup-tab-panel > .panel-header .small { width: 100%; margin-left: 0; }
       .monitor-local-layout,
-      .printer-row,
       .setup-row { grid-template-columns: 1fr; }
-      .printer-row > :last-child { grid-column: auto; }
       .monitor-config-head { align-items: flex-start; flex-direction: column; }
       .monitor-config-actions { width: 100%; justify-content: flex-start; }
       .setup-device-view { padding: 12px 0; border-top: 0; }
@@ -2612,7 +2609,7 @@
     <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Dimensioni prima pagina</h3><span class="setup-section-note">Le tre colonne mantengono la stessa altezza.</span><label>Altezza colonne (px) <input id="mainPanelHeightInput" type="number" min="360" max="1600" step="20"></label><label>Larghezza area tavoli (px) <input id="roomColumnWidthInput" type="number" min="640" max="2200" step="20"></label><label>Larghezza Delivery/Pick-up (px) <input id="deliveryColumnWidthInput" type="number" min="220" max="600" step="10"></label><label>Larghezza comanda (px) <input id="orderColumnWidthInput" type="number" min="260" max="700" step="10"></label><label>Dimensione carattere generale (px) <input id="mainFontSizeInput" type="number" min="12" max="22" step="1"></label></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div><div class="setup-device-view"><h3>Snapshot settaggi locali</h3><span class="setup-section-note">Salva o richiama layout e preferenze di questo dispositivo dal server remoto.</span><div class="row"><button class="ghost" id="saveDeviceSnapshotBtn" type="button">Salva settaggi</button><button class="ghost" id="loadDeviceSnapshotBtn" type="button">Carica settaggi</button></div></div></div></section>
     <dialog id="deviceSnapshotModal"><form method="dialog" class="modal-card"><div class="modal-head"><h2 id="deviceSnapshotTitle">Snapshot settaggi</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><div id="deviceSnapshotSaveView"><label>Nome snapshot<input id="deviceSnapshotName" type="text" maxlength="128" autocomplete="off"></label><div class="setup-section-note">Se il nome esiste, potrai confermare la sovrascrittura.</div></div><div id="deviceSnapshotLoadView" hidden><label>Settaggio da caricare<select id="deviceSnapshotSelect"></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Annulla</button><button class="primary" id="deviceSnapshotConfirmBtn" type="button">Conferma</button></div><div class="login-error" id="deviceSnapshotError" role="alert"></div></form></dialog>
     <section class="panel setup-tab-panel" data-setup-panel="monitors" hidden><div class="panel-header"><h2>Monitor</h2><button class="primary" id="addMonitorSetupBtn" type="button">Aggiungi monitor</button></div><div class="panel-body stack"><div class="monitor-setup" id="setupMonitorSetup"></div></div></section>
-    <section class="panel setup-tab-panel" data-setup-panel="printers" hidden><div class="panel-header"><h2>Stampanti</h2><button class="primary" id="addPrinterBtn" type="button">Aggiungi stampante</button></div><div class="panel-body setup-list" id="setupPrinterList"></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="printers" hidden><div class="panel-header"><h2>Stampanti</h2><button class="primary" id="addPrinterBtn" type="button">Aggiungi stampante</button></div><div class="panel-body setup-list printer-list" id="setupPrinterList"></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="pos" hidden>
       <div class="panel-header"><h2>POS e cassa</h2></div>
       <div class="panel-body stack">
@@ -3201,6 +3198,7 @@
     const MAIN_HEIGHT_AUTO_KEY = "vorrei-main-height-auto-v1";
     const BROWSER_UI_STORAGE_KEY = "ristorante-browser-ui-v1";
     const DRAFT_STORAGE_KEY = STORAGE_KEY + ":draft";
+    const PRINTER_FAILURE_REPORTED_STORAGE_KEY = STORAGE_KEY + ":printer-failure-reported";
     const INSTANCE_LOCK_TOKEN = "lock-" + (window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2));
 
     // Istanza esterna (fuori dalla LAN del ristorante): sola lettura su tavoli/ordini HubRise,
@@ -3342,6 +3340,7 @@
     // (creazione + piatti + invio), invece di un comando per ogni piatto aggiunto durante la
     // composizione dell'ordine.
     const unsyncedRemoteOrders = new Set();
+    let localMonitorOperationQueue = Promise.resolve();
 
     function isRemoteEditableOrder(order) {
       return !REMOTE_MODE || Boolean(order && order.source === "manual");
@@ -3358,6 +3357,38 @@
         body: JSON.stringify(command)
       }).catch(() => {});
       return clientCommandId;
+    }
+
+    function sendLocalMonitorOperation(operation, payload) {
+      const run = async () => {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const response = await fetch("/api/operations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operation, payload: { ...payload, expectedRevision: Number(state.stateRevision || 0) } })
+          });
+          if (response.ok) {
+            // La UI contiene gia' l'aggiornamento ottimistico. Non ricaricare
+            // qui lo snapshot intermedio: una seconda operazione accodata
+            // potrebbe essere gia' visibile sul monitor.
+            try {
+              const result = await response.json();
+              if (Number.isFinite(Number(result.stateRevision))) state.stateRevision = Number(result.stateRevision);
+            } catch {}
+            return;
+          }
+          let detail = "";
+          try { detail = (await response.json()).error || ""; } catch {}
+          if (response.status === 409 && attempt === 0) {
+            await syncFromServer({ force: true });
+            continue;
+          }
+          throw new Error(detail || `Operazione monitor rifiutata (HTTP ${response.status})`);
+        }
+      };
+      const result = localMonitorOperationQueue.then(run, run);
+      localMonitorOperationQueue = result.catch(() => {});
+      return result;
     }
 
     // Manda in cucina un Pick-up da remoto. Se l'ordine non e' mai stato trasmesso (ancora in
@@ -3473,10 +3504,10 @@
         kitchenFontSize: 18,
         kitchenBellEnabled: true,
         monitors: [
-          { name: "Bar", turns: false, printer: "", active: true },
-          { name: "Cucina", turns: true, printer: "", active: true },
-          { name: "Pizzeria", turns: true, printer: "", active: true },
-          { name: "Pasticceria", turns: true, printer: "", active: true }
+          { name: "Bar", turns: false, statusMode: "completeOnly", printer: "", active: true },
+          { name: "Cucina", turns: true, statusMode: "preparingComplete", printer: "", active: true },
+          { name: "Pizzeria", turns: true, statusMode: "preparingComplete", printer: "", active: true },
+          { name: "Pasticceria", turns: true, statusMode: "preparingComplete", printer: "", active: true }
         ],
         // Le chiavi qui sono i valori restituiti da MenuService.asmx come nome categoria, cioe'
         // name_en (non name_it): per questo ristorante sono "Drinks"/"White Wines"/ecc., non
@@ -3785,6 +3816,7 @@
     let tableLockTimer = null;
     let tableLockLost = false;
     let tableLockGeneration = 0;
+    let tableLockReleaseInFlight = null;
     let visibleTableLocksInFlight = false;
     let lastVisibleTableLocksFetchAt = 0;
     const visibleLockedTables = new Set();
@@ -3814,6 +3846,12 @@
 
     async function acquireTableLock(tableId) {
       if (REMOTE_MODE) return true;
+      // La chiusura del modal rilascia il lock in modo asincrono. Una nuova
+      // apertura deve attendere quel DELETE, altrimenti POST e DELETE possono
+      // arrivare al server in ordine inverso.
+      if (tableLockReleaseInFlight && lockedTableId === null) {
+        await tableLockReleaseInFlight;
+      }
       if (lockedTableId !== null && String(lockedTableId) !== String(tableId)) {
         await releaseTableLock();
       }
@@ -3872,12 +3910,17 @@
       tableLockLeaseId = null;
       clearInterval(tableLockTimer);
       tableLockTimer = null;
-      return fetch("/api/table-lock", {
+      const releaseRequest = fetch("/api/table-lock", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tableId, token: INSTANCE_LOCK_TOKEN }),
         keepalive: true
       }).catch(() => {});
+      tableLockReleaseInFlight = releaseRequest;
+      releaseRequest.finally(() => {
+        if (tableLockReleaseInFlight === releaseRequest) tableLockReleaseInFlight = null;
+      });
+      return releaseRequest;
     }
     window.addEventListener("beforeunload", releaseTableLock);
     let localOrderDraft = null;
@@ -3999,6 +4042,14 @@
         if (latestResponse.ok) {
           const latestPayload = await latestResponse.json();
           const latestState = latestPayload.state;
+          // Il salvataggio della bozza puo' essere rimasto in coda mentre il
+          // modal veniva chiuso/riaperto. Prima del POST riallineiamo la
+          // revisione locale a quella realmente letta dal server, altrimenti
+          // una bozza valida viene rifiutata come obsoleta (HTTP 409).
+          const latestRevision = Number(latestPayload.stateRevision ?? latestState?.stateRevision);
+          if (Number.isFinite(latestRevision) && latestRevision >= 0) {
+            state.stateRevision = latestRevision;
+          }
           const latestOrder = [...(Array.isArray(latestState?.tables) ? latestState.tables : []), ...(Array.isArray(latestState?.deliveryOrders) ? latestState.deliveryOrders : [])]
             .find(item => String(item.id) === String(orderId));
           if (latestOrder && localOrderDraftBaseRevision && kitchenRevision(latestOrder) !== localOrderDraftBaseRevision) {
@@ -4013,7 +4064,40 @@
         }
       } catch {}
       commitLocalOrderDraft();
-      const response = await saveState({ lockTableId: orderId });
+      // Un Pick-up manuale non e' un tavolo: dopo la chiusura del modal il
+      // relativo lock puo' essere gia' stato rilasciato. Il lock applicativo
+      // resta necessario solo per le comande dei tavoli.
+      const response = await fetch("/api/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "commit_order", payload: {
+          order,
+          baseOrderRevision: backupBaseRevision,
+          lockToken: order.source ? null : INSTANCE_LOCK_TOKEN,
+          lockId: order.source ? null : tableLockLeaseId
+        }})
+      }).then(async response => {
+        if (response.ok) {
+          try {
+            const payload = await response.clone().json();
+            if (payload.state) {
+              const preservedPlatform = {
+                room: structuredClone(state.room),
+                settings: structuredClone(state.settings),
+                variations: structuredClone(state.variations),
+                menu: structuredClone(state.menu),
+                reservations: structuredClone(state.reservations),
+                orderModal: structuredClone(state.orderModal)
+              };
+              state = { ...state, ...payload.state, ...preservedPlatform };
+              materializeConfiguredTables(state);
+            }
+            if (Number.isFinite(Number(payload.stateRevision))) state.stateRevision = Number(payload.stateRevision);
+            normalizeSharedState();
+          } catch {}
+        }
+        return response;
+      }).catch(() => null);
       if (!response || !response.ok) {
         localOrderDraftId = orderId;
         localOrderDraft = backup;
@@ -4052,12 +4136,13 @@
             saved.settings.monitors = ["Bar", "Cucina", "Pizzeria", "Pasticceria"].map(name => ({
               name,
               turns: name !== "Bar",
+              statusMode: name.toLowerCase().includes("bar") ? "completeOnly" : "preparingComplete",
               printer: ""
             }));
           }
           saved.settings.monitors = saved.settings.monitors
             .filter(monitor => monitor && String(monitor.name || "").trim())
-            .map(monitor => ({ name: String(monitor.name).trim(), turns: monitor.turns !== false, printer: monitor.printer || "", active: monitor.active !== false }));
+            .map(monitor => ({ name: String(monitor.name).trim(), turns: monitor.turns !== false, statusMode: monitor.statusMode === "completeOnly" ? "completeOnly" : "preparingComplete", printer: monitor.printer || "", active: monitor.active !== false }));
           // Vini/Spumanti/Liquori sono arrivati con l'importazione del CSV: senza una voce qui,
           // monitorForLine() li farebbe cadere sul monitor "Cucina" (usa sequenze) di default,
           // finendo scaglionati in sequenza come un antipasto invece che trattati come il bar.
@@ -4179,6 +4264,8 @@
       return structuredClone(initialState);
     }
 
+    let stateSaveQueue = Promise.resolve();
+
     function saveState(options = {}) {
       normalizeSharedState();
       [...state.tables, ...state.deliveryOrders].forEach(order => {
@@ -4198,16 +4285,26 @@
       // Il menu e' un catalogo separato: non va rispedito a ogni modifica di
       // tavoli, comande o prenotazioni. Resta disponibile in localStorage e
       // viene aggiornato solo dal caricamento del menu.
-      const body = { state: turnStateFromState(state) };
-      if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
-      if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
-      const stateRequest = fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      // La configurazione della piattaforma (tavoli, stampanti, monitor) non va
-      // risalvata insieme a ogni comanda: un browser aperto con una copia vecchia
-      // potrebbe sovrascrivere le modifiche fatte da un altro dispositivo.
-      return stateRequest
-        .then(response => { if (response.status === 409) syncFromServer({ force: true }); return response; })
-        .catch(() => {});
+      // Le modifiche alla bozza possono arrivare ravvicinate (aggiunta piatto,
+      // chiusura e riapertura del modal, invio). Serializziamo i POST: ogni
+      // richiesta successiva viene costruita dopo aver ricevuto la revisione
+      // assegnata dal server alla precedente.
+      stateSaveQueue = stateSaveQueue.catch(() => {}).then(async () => {
+        const body = { state: turnStateFromState(state) };
+        if (options.resetDeliveryOrders) body.resetDeliveryOrders = true;
+        if (options.lockTableId) body.tableLock = { tableId: options.lockTableId, token: INSTANCE_LOCK_TOKEN, lockId: tableLockLeaseId };
+        const response = await fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (response.ok) {
+          try {
+            const payload = await response.clone().json();
+            if (Number.isFinite(Number(payload.stateRevision))) state.stateRevision = Number(payload.stateRevision);
+          } catch {}
+        } else if (response.status === 409) {
+          syncFromServer({ force: true });
+        }
+        return response;
+      });
+      return stateSaveQueue.catch(() => {});
     }
 
     async function loadPlatformConfig() {
@@ -4299,6 +4396,10 @@
 
     async function syncFromServer({ force = false } = {}) {
       const now = Date.now();
+      // Il polling e gli eventi realtime aggiornano solo la lista sottostante.
+      // Mentre la comanda e' aperta il suo contenuto appartiene all'operatore:
+      // rimandiamo la sincronizzazione alla chiusura del modal.
+      if (!force && document.getElementById("orderModal")?.open) return;
       if (stateSyncInFlight || (!force && now - lastStateSyncStartedAt < 750)) return;
       stateSyncInFlight = true;
       lastStateSyncStartedAt = now;
@@ -4335,6 +4436,14 @@
           const paymentOrderSnapshot = paymentOrderId != null
             ? findOrderById(paymentOrderId)
             : null;
+          const localPickupDrafts = Array.isArray(state.deliveryOrders)
+            ? state.deliveryOrders
+              .filter(order => order && order.source === "manual" && (
+                String(order.id) === String(pendingPickupOrderId || "") ||
+                unsyncedRemoteOrders.has(order.id)
+              ))
+              .map(order => structuredClone(order))
+            : [];
           const preservedRoom = structuredClone(state.room);
           const preservedSettings = structuredClone(state.settings);
           const preservedVariations = structuredClone(state.variations);
@@ -4354,6 +4463,14 @@
             reservations: preservedReservations,
             ...preservedBrowserUi
           };
+          if (localPickupDrafts.length) {
+            const incomingDeliveryOrders = Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [];
+            const incomingIds = new Set(incomingDeliveryOrders.map(order => String(order.id)));
+            state.deliveryOrders = [
+              ...incomingDeliveryOrders,
+              ...localPickupDrafts.filter(order => !incomingIds.has(String(order.id)))
+            ];
+          }
           materializeConfiguredTables(state);
           if (!Array.isArray(state.menu) || state.menu.length === 0) state.menu = loadedMenu;
           if (incomingReservations.length || !Array.isArray(preservedReservations) || preservedReservations.length === 0) {
@@ -4392,10 +4509,8 @@
             }
           }
           mergeKitchenStatusesIntoLocalDraft();
-          // Anche lo snapshot principale può contenere riferimenti a prenotazioni
-          // già concluse: ripulisci subito i tavoli, senza attendere il polling dedicato.
-          const reservationsChanged = applySeatedReservations();
-          if (reservationsChanged) await saveState();
+          // I tavoli vengono materializzati e riconciliati dal server locale.
+          // Il client visualizza soltanto lo snapshot ricevuto.
           persistBrowserState();
           // Una bozza aperta appartiene a questo dispositivo e non deve essere
           // sovrascritta dai refresh dello stato condiviso.
@@ -5449,29 +5564,10 @@
     }
 
     async function refreshReservations() {
-      try {
-        const reservationsUrl = REMOTE_MODE
-          ? "/ReservationsProxy.ashx?method=GetReservations"
-          : "/api/reservations?method=GetReservations";
-        const response = await fetch(reservationsUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: new Date().toISOString().slice(0, 10) })
-        });
-        if (!response.ok) {
-          console.warn("Aggiornamento prenotazioni HTTP", response.status);
-          return;
-        }
-        const payload = await response.json();
-        const raw = typeof payload.d === "string" ? JSON.parse(payload.d) : payload.d || payload;
-        state.reservations = (Array.isArray(raw.objects) ? raw.objects : []).filter(isActiveReservation);
-        // Se una prenotazione seduta crea una comanda con i soli coperti,
-        // persisti subito il tavolo: altrimenti il polling successivo riceve
-        // lo snapshot precedente e lo ricrea da capo.
-        const stateChanged = applySeatedReservations();
-        if (stateChanged) await saveState();
-        renderTables();
-      } catch (error) {}
+      // Le prenotazioni e i tavoli operativi arrivano insieme dallo snapshot
+      // del server locale. Non interrogare piu' direttamente il remoto e non
+      // ricostruire tavoli nel browser.
+      renderTables();
     }
 
     async function createWalkinReservation(table) {
@@ -5492,10 +5588,6 @@
           try { tableIds = Array.isArray(reservation.tableIds) ? reservation.tableIds : JSON.parse(reservation.notes || "[]"); } catch { tableIds = []; }
           return reservation.status === "seated" && tableIds.map(Number).includes(Number(table.id));
         });
-        if (walkin) {
-          applyReservationPayload(table, walkin);
-          table.tho.seated_reservation_id = walkin.id || walkin.reservationId || "";
-        }
         return walkin || null;
       } catch (error) {
         console.warn("Creazione walk-in non riuscita:", error);
@@ -5554,6 +5646,11 @@
     }
 
     function applySeatedReservations() {
+      // La riconciliazione e' responsabilita' del server locale. Manteniamo
+      // il nome per compatibilita' con vecchi riferimenti, ma non modifichiamo
+      // piu' lo stato operativo nel browser.
+      return false;
+      /* istanbul ignore next */
       let changed = false;
       const activeReservationIds = new Set((state.reservations || [])
         .filter(isActiveReservation)
@@ -5564,20 +5661,21 @@
       state.tables.forEach(table => {
         const reservationId = table.tho?.reservation_id || table.tho?.seated_reservation_id;
         if (!reservationId || activeReservationIds.has(String(reservationId))) return;
-        if (!(table.items || []).length) {
+        const hasOperationalOrder = Boolean((table.items || []).length || Number(table.sentCovers || 0) > 0);
+        if (!hasOperationalOrder) {
           table.occupied = false;
           table.covers = 0;
           table.coversEnteredAt = null;
           table.sentCovers = 0;
           table.status = "Nuova";
         }
-        delete table.customer;
         if (table.tho) {
           delete table.tho.reservation_id;
           delete table.tho.seated_reservation_id;
           delete table.tho.reservation_start;
           delete table.tho.reservation_status;
         }
+        if (!hasOperationalOrder) delete table.customer;
         changed = true;
       });
       const seatedAssignments = new Set();
@@ -6122,15 +6220,12 @@
         const previousLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === previousCourse);
         if (!previousLines.length || !previousLines.every(line => line.kitchenStatus === "Completo")) return;
       }
-      order.activeCourse = normalized;
-      pendingCourseActivations.set(String(order.id), normalized);
-      if (!Array.isArray(order.courseSequence)) order.courseSequence = [];
-      order.courseSequence = order.courseSequence.filter(value => courseNumber(value) !== normalized);
-      order.courseSequence.push(normalized);
-      if (!Array.isArray(state.courseActivationOrder)) state.courseActivationOrder = [];
-      const key = `${order.id}:${normalized}`;
-      state.courseActivationOrder = state.courseActivationOrder.filter(value => value !== key);
-      state.courseActivationOrder.push(key);
+      if (REMOTE_MODE) {
+        if (isRemoteEditableOrder(order)) sendRemoteCommand("activateCourse", { orderId: order.id, course: normalized });
+        return;
+      }
+      sendLocalMonitorOperation("monitor_activate_course", { orderId: order.id, course: normalized })
+        .catch(error => alert(`Attivazione sequenza non riuscita: ${error.message}`));
     }
 
     function applyRoomSize() {
@@ -6148,8 +6243,12 @@
       const bodyStyle = panelBody ? getComputedStyle(panelBody) : null;
       const availableWidth = panelBody ? panelBody.clientWidth - (parseFloat(bodyStyle.paddingLeft) || 0) - (parseFloat(bodyStyle.paddingRight) || 0) : 0;
       const availableHeight = panelBody ? panelBody.clientHeight - (parseFloat(bodyStyle.paddingTop) || 0) - (parseFloat(bodyStyle.paddingBottom) || 0) : 0;
-      const canvasWidth = Math.max(Number(state.room.width || 0), availableWidth);
-      const canvasHeight = Math.max(Number(state.room.height || 0), availableHeight);
+      const canvasWidth = autoWidth
+        ? Math.max(0, Math.floor(availableWidth))
+        : Math.max(Number(state.room.width || 0), availableWidth);
+      const canvasHeight = autoWidth
+        ? Math.max(0, Math.floor(availableHeight))
+        : Math.max(Number(state.room.height || 0), availableHeight);
       const panelWidth = canvasWidth + 30;
       room.style.width = `${canvasWidth}px`;
       room.style.height = `${canvasHeight}px`;
@@ -6183,6 +6282,7 @@
       }
       const width = clamp(savedWidth, Math.min(880, window.innerWidth - 24), window.innerWidth - 24);
       const height = clamp(savedHeight, Math.min(620, window.innerHeight - 24), window.innerHeight - 24);
+      if (!state.orderModal || typeof state.orderModal !== "object") state.orderModal = {};
       state.orderModal.width = width;
       state.orderModal.height = height;
       modal.style.width = `${width}px`;
@@ -6193,6 +6293,7 @@
       if (PALMARE_MODE) return;
       const modal = document.getElementById("orderModal");
       if (!modal.open) return;
+      if (!state.orderModal || typeof state.orderModal !== "object") state.orderModal = {};
       state.orderModal.width = Math.round(modal.offsetWidth);
       state.orderModal.height = Math.round(modal.offsetHeight);
       saveState();
@@ -6965,6 +7066,7 @@
 
     function renderMenu() {
       const root = document.getElementById("menu");
+      if (!Array.isArray(state.menu)) state.menu = [];
       root.innerHTML = "";
       document.getElementById("menuSearchBar").hidden = menuMode === "variations";
       renderTabs();
@@ -7589,15 +7691,26 @@
             const lines = (originalOrder?.items || []).filter(item => item.key === button.dataset.lineKey && (lineUsesTurns(item) ? courseNumber(item.course) : 1) === courseNumber(group.course) && monitorForLine(item) === selectedKitchenMonitor);
             if (!lines.length) return;
             if (REMOTE_MODE) {
-              if (isRemoteEditableOrder(originalOrder)) sendRemoteCommand("cycleLineStatus", { orderId: originalOrder.id, lineKey: button.dataset.lineKey });
+              if (isRemoteEditableOrder(originalOrder)) sendRemoteCommand("cycleLineStatus", { orderId: originalOrder.id, lineKey: button.dataset.lineKey, statusMode: monitorStatusMode(selectedKitchenMonitor) });
               return;
             }
-            const currentStatus = lines.every(item => item.kitchenStatus === "Completo") ? "Completo" : lines.some(item => item.kitchenStatus === "In preparazione") ? "In preparazione" : "Da preparare";
-            const nextStatus = currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione";
-            lines.forEach(line => line.kitchenStatus = nextStatus);
-            markExternalOrderReady(originalOrder);
-            saveState();
-            renderKitchen();
+            const statusMode = monitorStatusMode(selectedKitchenMonitor);
+            const currentStatus = lines.every(item => item.kitchenStatus === "Completo")
+              ? "Completo"
+              : lines.some(item => item.kitchenStatus === "In preparazione") ? "In preparazione" : "Da preparare";
+            const nextStatus = statusMode === "completeOnly"
+              ? (currentStatus === "Completo" ? "Da preparare" : "Completo")
+              : (currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione");
+            lines.forEach(item => { item.kitchenStatus = nextStatus; });
+            button.classList.toggle("in-preparazione", nextStatus === "In preparazione");
+            button.classList.toggle("completo", nextStatus === "Completo");
+            button.dataset.optimisticStatus = nextStatus;
+            requestAnimationFrame(() => renderKitchen());
+            sendLocalMonitorOperation("monitor_cycle_line", { orderId: originalOrder.id, lineKey: button.dataset.lineKey, statusMode })
+              .catch(async error => {
+                await syncFromServer({ force: true });
+                alert(`Aggiornamento monitor non riuscito: ${error.message}`);
+              });
           });
         });
         root.appendChild(ticket);
@@ -7673,7 +7786,7 @@
       root.innerHTML = monitors.map((monitor, index) => { const layout = kitchenLayoutFor(monitor.name); return `
         <div class="monitor-config" data-monitor-index="${index}">
           <div class="monitor-config-head"><div class="monitor-config-title"><strong>${escapeHtml(monitor.name)}</strong><span class="monitor-config-subtitle">Configurazione del monitor e del dispositivo associato</span></div><div class="monitor-config-actions"><button class="ghost monitor-layout-btn" type="button">Layout</button><button class="ghost monitor-categories-btn" type="button">Categorie</button><button class="ghost monitor-save" type="button">Salva</button><button class="ghost monitor-remove" type="button" title="Elimina monitor">×</button></div></div>
-          <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><label class="checkbox-label"><input class="kitchen-bell" type="checkbox" ${monitor.bellEnabled !== false ? "checked" : ""}> Campanella nuove comande e sequenze</label></div></div>
+          <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><label class="checkbox-label"><input class="monitor-complete-only" type="checkbox" ${monitor.statusMode === "completeOnly" ? "checked" : ""}> Solo pulsante completato</label><label class="checkbox-label"><input class="kitchen-bell" type="checkbox" ${monitor.bellEnabled !== false ? "checked" : ""}> Campanella nuove comande e sequenze</label></div></div>
           <div class="monitor-config-section"><h3>Assegnazione</h3><div class="monitor-config-routing"><label>Stampante collegata<select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select></label><span class="setup-section-note">Le categorie si gestiscono con il pulsante Categorie.</span></div></div>
           <div class="monitor-config-section"><h3>Accesso dispositivo</h3><div class="monitor-config-routing"><label>Chiave monitor<input class="monitor-access-key" type="text" autocomplete="off" value="${escapeHtml(monitor.accessKey || "")}" placeholder="Es. THAI-BAR-01-7K"></label><span class="setup-section-note">Usala nell'URL: ?monitorKey=CHIAVE#monitor-nome</span></div></div>
           <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label><label>Sfondo area <input type="color" class="kitchen-color-setting" data-layout-key="areaBackground" value="${layout.areaBackground}"></label><label>Sfondo comande <input type="color" class="kitchen-color-setting" data-layout-key="ticketBackground" value="${layout.ticketBackground}"></label><label>Testo comande <input type="color" class="kitchen-color-setting" data-layout-key="textColor" value="${layout.textColor}"></label></div></div>
@@ -7707,6 +7820,7 @@
         config.querySelector(".monitor-active").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-mobile").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-turns").addEventListener("change", () => saveMonitorConfig(index, config));
+        config.querySelector(".monitor-complete-only").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".kitchen-bell").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-printer").addEventListener("change", () => saveMonitorConfig(index, config));
         config.querySelector(".monitor-access-key").addEventListener("change", event => {
@@ -7767,12 +7881,19 @@
         let response;
         let payload;
         try {
-          response = await fetch("/MenuService.asmx/GetMenu");
-          const xml = new DOMParser().parseFromString(await response.text(), "text/xml");
-          const value = xml.querySelector("string")?.textContent;
-          if (!value) throw new Error("Risposta menu vuota");
-          payload = JSON.parse(value);
+          if (!REMOTE_MODE) {
+            response = await fetch("/api/menu");
+            if (!response.ok) throw new Error(`Menu locale HTTP ${response.status}`);
+            payload = await response.json();
+          } else {
+            response = await fetch("/MenuService.asmx/GetMenu");
+            const xml = new DOMParser().parseFromString(await response.text(), "text/xml");
+            const value = xml.querySelector("string")?.textContent;
+            if (!value) throw new Error("Risposta menu vuota");
+            payload = JSON.parse(value);
+          }
         } catch (error) {
+          if (!REMOTE_MODE) throw error;
           response = await fetch("/api/menu");
           if (!response.ok) return;
           payload = await response.json();
@@ -7841,9 +7962,25 @@
         const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n${text}\n\n`;
         try {
           const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "order", printer, payload }) });
-          if (!response.ok) console.warn("Stampa ordine non riuscita", await response.text());
-        } catch (error) { console.warn("Stampa ordine non riuscita", error); }
+          if (!response.ok) {
+            const detail = await response.text();
+            reportPrinterFailureOnce(detail || `HTTP ${response.status}`);
+          }
+        } catch (error) { reportPrinterFailureOnce(error?.message || error); }
       }
+    }
+
+    function monitorStatusMode(monitorName) {
+      const monitor = (state.settings.monitors || []).find(item => item.name === monitorName);
+      return monitor?.statusMode === "completeOnly" ? "completeOnly" : "preparingComplete";
+    }
+
+    function reportPrinterFailureOnce(detail) {
+      const message = `Stampa ordine non riuscita: ${detail}`;
+      console.warn(message);
+      if (localStorage.getItem(PRINTER_FAILURE_REPORTED_STORAGE_KEY) === "1") return;
+      localStorage.setItem(PRINTER_FAILURE_REPORTED_STORAGE_KEY, "1");
+      window.alert(message);
     }
 
     async function simulatePrinterTest(printer, row) {
@@ -7930,6 +8067,7 @@
       const monitor = state.settings.monitors[index];
       if (!monitor) return;
       monitor.turns = config.querySelector(".monitor-turns").checked;
+      monitor.statusMode = config.querySelector(".monitor-complete-only").checked ? "completeOnly" : "preparingComplete";
       monitor.mobile = config.querySelector(".monitor-mobile").checked;
       monitor.printer = config.querySelector(".monitor-printer").value;
       monitor.active = config.querySelector(".monitor-active").checked;
@@ -8405,7 +8543,11 @@
       markLinesSentToKitchen(order);
       order.status = "Preparazione";
       if (!(await publishLocalOrderDraft(order))) return false;
-      await printOrderToConfiguredMonitors(orderToPrint);
+      // La stampa sui monitor non deve ritardare la chiusura della comanda:
+      // una stampante offline puo' impiegare diversi secondi prima del timeout.
+      printOrderToConfiguredMonitors(orderToPrint).catch(error => {
+        console.warn("Stampa ordine in background non riuscita", error);
+      });
       return true;
     }
 
@@ -9360,7 +9502,7 @@
       render();
     });
 
-    document.getElementById("pickupConfirmBtn").addEventListener("click", () => {
+    document.getElementById("pickupConfirmBtn").addEventListener("click", async () => {
       const name = document.getElementById("pickupCustomerNameInput").value.trim();
       if (!name) {
         alert("Inserisci un nome cliente.");
@@ -9372,7 +9514,7 @@
         order.pickupTime = document.getElementById("pickupAsapInput").checked
           ? "Subito"
           : (document.getElementById("pickupTimeInput").value || "Subito");
-        saveState();
+        await saveState();
         // Niente comando qui: da remoto l'ordine resta solo un'anteprima locale finche' non
         // viene mandato in cucina (vedi sendPickupOrderRemote), per non trasmettere nulla
         // mentre e' ancora in fase di composizione.
@@ -9831,7 +9973,7 @@
       const accessKey = document.getElementById("monitorAccessKeyInput").value.trim();
       state.settings.monitors ||= [];
       if (!name || !accessKey || state.settings.monitors.some(monitor => monitor.name.toLowerCase() === name.toLowerCase())) return;
-      state.settings.monitors.push({ name, accessKey, turns: document.getElementById("monitorTurnsInput").checked, printer: document.getElementById("monitorPrinterInput").value, active: document.getElementById("monitorActiveInput").checked, mobile: false });
+      state.settings.monitors.push({ name, accessKey, turns: document.getElementById("monitorTurnsInput").checked, statusMode: name.toLowerCase().includes("bar") ? "completeOnly" : "preparingComplete", printer: document.getElementById("monitorPrinterInput").value, active: document.getElementById("monitorActiveInput").checked, mobile: false });
       saveState();
       document.getElementById("monitorModal").close();
       render();
@@ -10076,6 +10218,7 @@
         return;
       }
       state = createCleanOperationalState(state);
+      localStorage.removeItem(PRINTER_FAILURE_REPORTED_STORAGE_KEY);
       clearLocalOrderDraft();
       paymentRows = [];
       paymentOrderId = null;
@@ -10187,6 +10330,15 @@
     applyMainLayoutSettings();
     if (compactRoomMode()) document.body.classList.add("compact-room-mode");
     if (orderPanelCollapsible()) document.body.classList.add("order-panel-collapsible");
+    let roomLayoutResizeFrame = 0;
+    window.addEventListener("resize", () => {
+      if (roomLayoutResizeFrame) cancelAnimationFrame(roomLayoutResizeFrame);
+      roomLayoutResizeFrame = requestAnimationFrame(() => {
+        roomLayoutResizeFrame = 0;
+        applyMainLayoutSettings();
+        applyRoomSize();
+      });
+    });
 
     fetch("/api/version", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(info => {
       const version = document.getElementById("app-version");

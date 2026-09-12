@@ -78,6 +78,7 @@ const HUBRISE_POLL_INTERVAL_MS = Number(process.env.HUBRISE_POLL_INTERVAL_MS || 
 // Keep this aligned with the published Sigonella admin dashboard.
 const SIGONELLA_ORDERS_URL = process.env.SIGONELLA_ORDERS_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/GetOrders`;
 const SIGONELLA_ORDERS_INTERVAL_MS = Number(process.env.SIGONELLA_ORDERS_INTERVAL_MS || 10000);
+const RESERVATIONS_POLL_INTERVAL_MS = Number(process.env.RESERVATIONS_POLL_INTERVAL_MS || 10000);
 const SIGONELLA_ORDERS_LOG = path.join(ROOT, "sigonella-orders.log");
 const SIGONELLA_MENU_URL = process.env.SIGONELLA_MENU_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/GetMenu`;
 const SIGONELLA_UPDATE_ORDER_URL = process.env.SIGONELLA_UPDATE_ORDER_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/UpdateConfirmedOrder`;
@@ -122,6 +123,7 @@ let sigonellaPollInFlight = false;
 let statePushInFlight = false;
 let hubRisePollInFlight = false;
 let externalCommandPollInFlight = false;
+let reservationsPollInFlight = false;
 let lastPushedStateRevision = null;
 const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
@@ -310,7 +312,6 @@ function stateForStorage(state) {
   delete snapshot.room;
   delete snapshot.settings;
   delete snapshot.variations;
-  delete snapshot.reservations;
   delete snapshot.selectedTable;
   delete snapshot.category;
   delete snapshot.orderModal;
@@ -334,7 +335,6 @@ function stateForClient(state) {
   delete snapshot.room;
   delete snapshot.settings;
   delete snapshot.variations;
-  delete snapshot.reservations;
   delete snapshot.selectedTable;
   delete snapshot.category;
   delete snapshot.orderModal;
@@ -693,7 +693,9 @@ function connectRealtimeBridge() {
         if (event.event && event.event !== "connected") {
           const data = event.payload || event.data || {};
           if (event.event === "pos.payment") processPosPaymentEvent(data).catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} pos.payment ${error.message}\n`));
-          else if (event.event === "platform-config.updated") {
+          else if (event.event === "reservation.updated") {
+            pollReservations().then(() => broadcastLocal(event.event, data)).catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} reservation realtime ${error.message}\n`));
+          } else if (event.event === "platform-config.updated") {
             pullPlatformConfigFromRemote()
               .then(updated => { if (updated) broadcastLocal(event.event, data); })
               .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} platform-config pull ${error.message}\n`));
@@ -844,6 +846,131 @@ async function pushPlatformConfigToRemote(config) {
   return true;
 }
 
+function reservationIdentity(reservation) {
+  return String(reservation && (reservation.id || reservation.reservationId) || "");
+}
+
+function reservationTableIds(reservation) {
+  if (!reservation) return [];
+  if (Array.isArray(reservation.tableIds)) return reservation.tableIds.map(Number).filter(Number.isFinite);
+  try {
+    const parsed = reservation.notes == null || reservation.notes === "" ? [] : JSON.parse(reservation.notes);
+    return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isFinite) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function createOperationalTable(tableId) {
+  const definition = (sharedState.room?.tables || []).find(item => Number(item.id) === Number(tableId));
+  return {
+    ...(definition || {}), id: Number(tableId), occupied: false, covers: 0,
+    coversEnteredAt: null, sentCovers: 0, items: [], linkedTables: [],
+    status: "Nuova", tho: { table_id: Number(tableId) }
+  };
+}
+
+function reconcileReservationOnLocalState(reservation) {
+  if (!reservation || !sharedState) return false;
+  if (!Array.isArray(sharedState.reservations)) sharedState.reservations = [];
+  const id = reservationIdentity(reservation);
+  if (!id) return false;
+  const index = sharedState.reservations.findIndex(item => reservationIdentity(item) === id);
+  if (index >= 0) sharedState.reservations[index] = structuredClone(reservation);
+  else sharedState.reservations.push(structuredClone(reservation));
+  let changed = index < 0;
+  const ids = reservationTableIds(reservation);
+  const seated = reservation.status === "seated";
+  if (!Array.isArray(sharedState.tables)) sharedState.tables = [];
+  for (const tableId of ids) {
+    let table = sharedState.tables.find(item => Number(item.id) === tableId);
+    if (!table && seated) {
+      table = createOperationalTable(tableId);
+      sharedState.tables.push(table);
+      changed = true;
+    }
+    if (!table) continue;
+    const currentId = String(table.tho?.reservation_id || table.tho?.seated_reservation_id || "");
+    if (seated) {
+      if (currentId && currentId !== id) continue;
+      const before = JSON.stringify({ occupied: table.occupied, covers: table.covers, coversEnteredAt: table.coversEnteredAt, tho: table.tho });
+      table.occupied = true;
+      table.covers = Number(reservation.covers || reservation.num || table.covers || 0);
+      table.coversEnteredAt = table.coversEnteredAt || new Date().toISOString();
+      table.tho = { ...(table.tho || {}), table_id: tableId, reservation_id: id,
+        seated_reservation_id: id, reservation_start: reservation.date || null,
+        reservation_status: "seated", covers: table.covers };
+      changed = JSON.stringify({ occupied: table.occupied, covers: table.covers, coversEnteredAt: table.coversEnteredAt, tho: table.tho }) !== before || changed;
+    } else if (currentId === id) {
+      delete table.tho.reservation_id;
+      delete table.tho.seated_reservation_id;
+      delete table.tho.reservation_start;
+      delete table.tho.reservation_status;
+      if (!(table.items || []).length && Number(table.sentCovers || 0) === 0) {
+        table.occupied = false; table.covers = 0; table.coversEnteredAt = null; table.status = "Nuova";
+      }
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+async function pollReservationsOnce() {
+  const response = await fetch(`${REMOTE_BASE_URL}/Sigonella.aspx/GetReservations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json" },
+    body: JSON.stringify({ data: new Date().toISOString().slice(0, 10) })
+  });
+  if (!response.ok) throw new Error(`GetReservations HTTP ${response.status}`);
+  const envelope = JSON.parse(await response.text());
+  const payload = typeof envelope.d === "string" ? JSON.parse(envelope.d) : envelope.d || envelope;
+  const reservations = Array.isArray(payload.objects) ? payload.objects : [];
+  if (!sharedState) return;
+  if (!Array.isArray(sharedState.tables)) sharedState.tables = [];
+  if (!Array.isArray(sharedState.reservations)) sharedState.reservations = [];
+  const seatedAssignments = new Set();
+  reservations.filter(item => item.status === "seated").forEach(item => {
+    const id = reservationIdentity(item);
+    reservationTableIds(item).forEach(tableId => seatedAssignments.add(`${id}:${tableId}`));
+  });
+  let changed = JSON.stringify(sharedState.reservations) !== JSON.stringify(reservations);
+  sharedState.tables.forEach(table => {
+    const id = String(table.tho?.reservation_id || table.tho?.seated_reservation_id || "");
+    if (!id || seatedAssignments.has(`${id}:${Number(table.id)}`)) return;
+    delete table.tho.reservation_id;
+    delete table.tho.seated_reservation_id;
+    delete table.tho.reservation_start;
+    delete table.tho.reservation_status;
+    if (!(table.items || []).length && Number(table.sentCovers || 0) === 0) {
+      table.occupied = false;
+      table.covers = 0;
+      table.coversEnteredAt = null;
+      table.status = "Nuova";
+      delete table.customer;
+    }
+    changed = true;
+  });
+  sharedState.reservations = reservations.map(item => structuredClone(item));
+  reservations.filter(item => item.status === "seated").forEach(item => {
+    changed = reconcileReservationOnLocalState(item) || changed;
+  });
+  if (!changed) return;
+  sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
+  persistStateFiles();
+  await pushStateSnapshot().catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} reservations state push ${error.message}\n`));
+  // Non ripubblicare l'evento ricevuto dal realtime: il bridge potrebbe
+  // riascoltare il proprio evento e creare un ciclo.
+  broadcastLocal("reservation.updated", { method: "GetReservations" });
+}
+
+async function pollReservations() {
+  if (reservationsPollInFlight) return;
+  reservationsPollInFlight = true;
+  try { await pollReservationsOnce(); }
+  catch (error) { appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} reservations poll ${error.message}\n`); }
+  finally { reservationsPollInFlight = false; }
+}
+
 function handleReservationsProxy(request, response) {
   const method = new URL(request.url, "http://localhost").searchParams.get("method");
   const allowed = new Set(["GetReservations", "UpdateReservation", "InsertWalkin"]);
@@ -857,6 +984,31 @@ function handleReservationsProxy(request, response) {
       });
       const text = await upstream.text();
       if (upstream.ok && method !== "GetReservations") {
+        let localChanged = false;
+        if (method === "UpdateReservation") {
+          try {
+            const input = JSON.parse(body || "{}");
+            const reservation = typeof input.s === "string" ? JSON.parse(input.s) : input.s;
+            localChanged = reconcileReservationOnLocalState(reservation);
+          } catch (error) {
+            appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} reservation local reconcile ${error.message}\n`);
+          }
+        } else if (method === "InsertWalkin") {
+          try {
+            const parsed = JSON.parse(text);
+            const payload = typeof parsed.d === "string" ? JSON.parse(parsed.d) : parsed.d || parsed;
+            for (const reservation of (Array.isArray(payload.objects) ? payload.objects : [])) {
+              localChanged = reconcileReservationOnLocalState(reservation) || localChanged;
+            }
+          } catch (error) {
+            appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} walkin local reconcile ${error.message}\n`);
+          }
+        }
+        if (localChanged) {
+          sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
+          persistStateFiles();
+          await pushStateSnapshot().catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} reservation state push ${error.message}\n`));
+        }
         broadcast("reservation.updated", { method });
       }
       response.writeHead(upstream.status, { "Content-Type": "application/json; charset=utf-8" });
@@ -1293,15 +1445,19 @@ function applyExternalCommand(command) {
         const tho = table.tho || {};
         const matchesReservation = String(tho.reservation_id || tho.seated_reservation_id || "") === reservationId;
         if (!matchesReservation && tableIds.indexOf(Number(table.id)) < 0) return;
-        table.items = [];
-        table.occupied = false;
+        table.tho = { ...tho };
+        delete table.tho.reservation_id;
+        delete table.tho.seated_reservation_id;
+        delete table.tho.reservation_start;
+        delete table.tho.reservation_status;
+        // La prenotazione puo essere stata associata per errore a un tavolo
+        // gia operativo: in quel caso la correzione non deve cancellare la
+        // comanda appartenente al cliente gia seduto.
+        if ((table.items || []).length || Number(table.sentCovers || 0) > 0) return;
         table.covers = 0;
         table.coversEnteredAt = null;
         table.status = "Libero";
         delete table.customer;
-        table.tho = { ...tho };
-        delete table.tho.reservation_id;
-        delete table.tho.seated_reservation_id;
       });
       return true;
     }
@@ -1320,7 +1476,9 @@ function applyExternalCommand(command) {
       const currentStatus = lines.every(line => line.kitchenStatus === "Completo")
         ? "Completo"
         : lines.some(line => line.kitchenStatus === "In preparazione") ? "In preparazione" : "Da preparare";
-      const nextStatus = currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione";
+      const nextStatus = command.statusMode === "completeOnly"
+        ? (currentStatus === "Completo" ? "Da preparare" : "Completo")
+        : (currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione");
       lines.forEach(line => { line.kitchenStatus = nextStatus; });
       return true;
     }
@@ -1453,6 +1611,19 @@ const server = http.createServer((request, response) => {
     const monitor = (sharedState.settings?.monitors || []).find(item => String(item.name || "").trim().toLowerCase() === monitorName);
     if (!monitor || monitor.active === false || !monitor.accessKey || !constantTimeKeyEquals(accessKey, monitor.accessKey)) return sendJson(response, 401, { ok: false, error: "Chiave monitor non valida" });
     return sendJson(response, 200, { ok: true, monitor: monitor.name });
+  }
+  if (request.method === "GET" && ["/certificato", "/caddy-local-root.crt"].includes(request.url)) {
+    const certificatePath = path.join(ROOT, "outputs", "caddy-local-root.crt");
+    if (!fs.existsSync(certificatePath)) {
+      response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      return response.end("Certificato non disponibile");
+    }
+    response.writeHead(200, {
+      "Content-Type": "application/x-x509-ca-cert",
+      "Content-Disposition": "attachment; filename=gestione-comande-caddy-root.crt",
+      "Cache-Control": "public, max-age=3600"
+    });
+    return response.end(fs.readFileSync(certificatePath));
   }
   if (!mutationAuthorized(request, response)) {
     response.writeHead(401, { "Content-Type": "application/json" });
@@ -1689,6 +1860,88 @@ const server = http.createServer((request, response) => {
         if (!sharedState || !Array.isArray(sharedState.tables)) return sendJson(response, 503, { ok: false, error: "Stato sala non disponibile" });
         const expectedRevision = Number(payload.expectedRevision || 0);
         const currentRevision = Number(sharedState.stateRevision || 0);
+        if (operation === "commit_order") {
+          const incomingOrder = payload.order && typeof payload.order === "object" ? structuredClone(payload.order) : null;
+          if (!incomingOrder || incomingOrder.id == null) return sendJson(response, 400, { ok: false, error: "Comanda non valida" });
+          const orderId = String(incomingOrder.id);
+          const isManualPickup = incomingOrder.source === "manual";
+          const isTableOrder = !incomingOrder.source;
+          if (!isManualPickup && !isTableOrder) return sendJson(response, 403, { ok: false, error: "Tipo di comanda non autorizzato" });
+          if (isTableOrder) {
+            const table = (sharedState.tables || []).find(item => String(item.id) === orderId);
+            const lock = tableLocks.get(orderId);
+            if (!table || !lock || lock.token !== String(payload.lockToken || "") || lock.lockId !== String(payload.lockId || "") || lock.expiresAt <= Date.now()) {
+              return sendJson(response, 409, { ok: false, stale: true, lockExpired: true, state: stateForClient(sharedState), stateRevision: currentRevision });
+            }
+          }
+          const collections = [sharedState.tables || [], sharedState.deliveryOrders || []];
+          const currentOrder = collections.flat().find(order => String(order.id) === orderId);
+          if (currentOrder && payload.baseOrderRevision) {
+            const revision = order => JSON.stringify({ sentCovers: Number(order?.sentCovers || 0), lines: (Array.isArray(order?.items) ? order.items : []).map(line => ({ key: line.key, sentQty: Number(line.sentQty || 0), kitchenStatus: line.kitchenStatus || "" })).sort((a, b) => String(a.key).localeCompare(String(b.key))) });
+            if (revision(currentOrder) !== String(payload.baseOrderRevision)) return sendJson(response, 409, { ok: false, stale: true, orderConflict: true, state: stateForClient(sharedState), stateRevision: currentRevision });
+          }
+          const target = isManualPickup ? sharedState.deliveryOrders : sharedState.tables;
+          const index = target.findIndex(order => String(order.id) === orderId);
+          if (index >= 0) target[index] = incomingOrder;
+          else target.push(incomingOrder);
+          sharedState.stateRevision = currentRevision + 1;
+          persistStateFiles();
+          // La cassa locale non deve aspettare la rete remota per chiudere la
+          // comanda. Il commit locale e' gia' persistito; push e realtime
+          // proseguono in background e il client riceve subito lo snapshot.
+          broadcastLocal();
+          sendJson(response, 200, { ok: true, state: stateForClient(sharedState), stateRevision: sharedState.stateRevision });
+          pushStateSnapshot()
+            .then(() => publishRealtimeEvent("state.updated", {}))
+            .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} commit_order background sync ${error.message}\n`));
+          return;
+        }
+        if (["monitor_cycle_line", "monitor_activate_course", "monitor_close_course"].includes(operation)) {
+          if (expectedRevision && expectedRevision !== currentRevision) {
+            return sendJson(response, 409, { ok: false, stale: true, state: stateForClient(sharedState), stateRevision: currentRevision });
+          }
+          const orderId = String(payload.orderId || "");
+          const collections = [sharedState.tables || [], sharedState.deliveryOrders || []];
+          const order = collections.flat().find(item => String(item.id) === orderId);
+          if (!order) return sendJson(response, 404, { ok: false, error: "Ordine non trovato" });
+          if (!Array.isArray(order.items)) order.items = [];
+          if (operation === "monitor_cycle_line") {
+            const lines = order.items.filter(item => String(item.key) === String(payload.lineKey || ""));
+            if (!lines.length) return sendJson(response, 404, { ok: false, error: "Riga non trovata" });
+            const completeOnly = payload.statusMode === "completeOnly";
+            const currentStatus = lines.every(item => item.kitchenStatus === "Completo")
+              ? "Completo"
+              : lines.some(item => item.kitchenStatus === "In preparazione") ? "In preparazione" : "Da preparare";
+            const nextStatus = completeOnly
+              ? (currentStatus === "Completo" ? "Da preparare" : "Completo")
+              : (currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione");
+            lines.forEach(item => { item.kitchenStatus = nextStatus; });
+          } else if (operation === "monitor_activate_course") {
+            const course = Number(payload.course);
+            if (!Number.isFinite(course)) return sendJson(response, 400, { ok: false, error: "Sequenza non valida" });
+            order.activeCourse = course;
+            if (!Array.isArray(order.courseSequence)) order.courseSequence = [];
+            order.courseSequence = order.courseSequence.filter(value => Number(value) !== course);
+            order.courseSequence.push(course);
+          } else {
+            const course = Number(payload.course);
+            if (!Number.isFinite(course)) return sendJson(response, 400, { ok: false, error: "Sequenza non valida" });
+            if (!Array.isArray(order.dismissedCourses)) order.dismissedCourses = [];
+            if (!order.dismissedCourses.some(value => Number(value) === course)) order.dismissedCourses.push(course);
+            order.activeCourse = -1;
+            const lines = order.items.filter(item => Number(item.course || 1) === course);
+            const allCourses = [...new Set(order.items.map(item => Number(item.course || 1)))];
+            if (lines.length && order.items.every(item => item.kitchenStatus === "Completo") && allCourses.every(value => order.dismissedCourses.some(item => Number(item) === value))) {
+              order.status = "Completato";
+              order.kitchenClosed = true;
+              order.kitchenClosedAt = new Date().toISOString();
+            }
+          }
+          sharedState.stateRevision = currentRevision + 1;
+          persistStateFiles();
+          broadcastLocal();
+          return sendJson(response, 200, { ok: true, state: stateForClient(sharedState), stateRevision: sharedState.stateRevision });
+        }
         if (expectedRevision && expectedRevision !== currentRevision) return sendJson(response, 409, { ok: false, stale: true, state: sharedState });
         const tableId = Number(payload.tableId);
         const table = sharedState.tables.find(item => Number(item.id) === tableId);
@@ -1697,22 +1950,28 @@ const server = http.createServer((request, response) => {
         const reservation = (sharedState.reservations || []).find(item => String(item.id || item.reservationId || "") === reservationId);
         if (!reservation && operation !== "open_table") return sendJson(response, 404, { ok: false, error: "Prenotazione non trovata" });
         if (operation === "open_table" && (table.occupied || (table.items || []).length)) return sendJson(response, 409, { ok: false, error: "Il tavolo contiene gia una comanda" });
-        if (operation === "move_reservation" && (table.items || []).length) return sendJson(response, 409, { ok: false, error: "Il tavolo contiene articoli: spostare la comanda da Gestione Comande" });
+        if ((operation === "adopt_walkin" || operation === "move_reservation") && (table.occupied || (table.items || []).length)) {
+          const assignedReservationId = String(table.tho?.reservation_id || table.tho?.seated_reservation_id || "");
+          if (assignedReservationId !== reservationId) {
+            return sendJson(response, 409, { ok: false, error: "Il tavolo è già occupato da un'altra comanda" });
+          }
+        }
         if (operation === "clear_reservation") {
           const clearTableIds = Array.isArray(payload.tableIds) ? payload.tableIds.map(Number) : [];
           sharedState.tables.forEach(item => {
             const tho = item.tho || {};
             const matchesReservation = String(tho.reservation_id || tho.seated_reservation_id || "") === reservationId;
             if (!matchesReservation && clearTableIds.indexOf(Number(item.id)) < 0) return;
-            item.items = [];
-            item.occupied = false;
+            item.tho = { ...tho };
+            delete item.tho.reservation_id;
+            delete item.tho.seated_reservation_id;
+            delete item.tho.reservation_start;
+            delete item.tho.reservation_status;
+            if ((item.items || []).length || Number(item.sentCovers || 0) > 0) return;
             item.covers = 0;
             item.coversEnteredAt = null;
             item.status = "Libero";
             delete item.customer;
-            item.tho = { ...tho };
-            delete item.tho.reservation_id;
-            delete item.tho.seated_reservation_id;
           });
           sharedState.stateRevision = currentRevision + 1;
           persistStateFiles();
@@ -1898,7 +2157,7 @@ const server = http.createServer((request, response) => {
         // il valore precedente.
         pushStateSnapshot().finally(() => {
           broadcast();
-          sendJson(response, 200, { ok: true });
+          sendJson(response, 200, { ok: true, stateRevision: Number(sharedState.stateRevision || 0) });
         });
       } catch (error) {
         sendJson(response, 400, { error: "Stato non valido" });
@@ -2397,6 +2656,8 @@ if (HUBRISE_FEED_KEY) {
 
 pollSigonellaOrders();
 setInterval(pollSigonellaOrders, SIGONELLA_ORDERS_INTERVAL_MS);
+pollReservations();
+setInterval(pollReservations, RESERVATIONS_POLL_INTERVAL_MS);
 
 if (RESTAURANT_SYNC_KEY) {
   pushStateSnapshot();

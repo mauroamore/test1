@@ -2747,7 +2747,7 @@
       <div class="row">
         <button class="ghost mobile-monitor-toggle" id="mobileMonitorBackBtn" type="button" title="Torna ai tavoli" aria-label="Torna ai tavoli"><svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7z"></path><path d="M9 4.5h6"></path><path d="M10 9h4M10 13h4M10 17h3"></path></svg></button>
         <button class="icon-btn kitchen-setup-btn" id="kitchenSetupBtn" type="button" title="Impostazioni dispositivo" aria-label="Impostazioni dispositivo">⚙</button>
-        <button class="ghost" id="closeKitchenBtn" title="Torna alla sala">Torna alla sala</button>
+        <button class="ghost" id="closeKitchenBtn" title="Torna alla sala">Sala</button>
       </div>
     </div>
     <div class="kitchen-screen-body">
@@ -3209,20 +3209,30 @@
     const MONITOR_KEY = remoteParams.get("monitorKey") || "";
     const DEVICE_SETUP_MODE = remoteParams.get("setup") === "1";
     const DEVICE_PROFILE_KEY = "vorrei-device-profile-v1";
+    const MONITOR_FIRST_KEY = "vorrei-monitor-first-v1";
     const COMPACT_ROOM_MODE_KEY = "vorrei-compact-room-mode-v1";
     const COMPACT_ORDER_TIMEOUT_KEY = "vorrei-compact-order-timeout-v1";
     const DELIVERY_PANEL_VISIBLE_KEY = "vorrei-delivery-panel-visible-v1";
     const ORDER_PANEL_COLLAPSIBLE_KEY = "vorrei-order-panel-collapsible-v1";
     const MAIN_LAYOUT_KEY = "vorrei-main-layout-v1";
     let compactOrderCloseTimer = null;
+    let monitorFirstReturnTimer = null;
+    let monitorFirstCountdownTimer = null;
+    let monitorFirstActive = false;
     const compactRoomMode = () => localStorage.getItem(COMPACT_ROOM_MODE_KEY) === "1";
     const compactOrderTimeout = () => Math.max(0, Number(localStorage.getItem(COMPACT_ORDER_TIMEOUT_KEY) || 30));
     const deliveryPanelVisible = () => localStorage.getItem(DELIVERY_PANEL_VISIBLE_KEY) !== "0";
     const orderPanelCollapsible = () => localStorage.getItem(ORDER_PANEL_COLLAPSIBLE_KEY) === "1";
+    function monitorFirstSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(MONITOR_FIRST_KEY) || "{}");
+        return { monitor: String(saved.monitor || ""), timeout: Math.max(1, Math.min(3600, Math.round(Number(saved.timeout) || 30))) };
+      } catch { return { monitor: "", timeout: 30 }; }
+    }
     const mainLayoutDefaults = { panelHeight: 720, roomWidth: 0, deliveryWidth: 320, orderWidth: 360, fontSize: 16 };
     // Valutata solo quando si salva lo snapshot: alcuni layout sono dichiarati
     // più avanti nel file e non devono essere letti durante l'inizializzazione.
-    const deviceSnapshotKeys = () => [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, ROOM_WIDTH_AUTO_KEY, MAIN_HEIGHT_AUTO_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY];
+    const deviceSnapshotKeys = () => [ROOM_LAYOUT_STORAGE_KEY, TABLE_LAYOUT_STORAGE_KEY, KITCHEN_LAYOUT_KEY, BROWSER_UI_STORAGE_KEY, ROOM_WIDTH_AUTO_KEY, MAIN_HEIGHT_AUTO_KEY, COMPACT_ROOM_MODE_KEY, DELIVERY_PANEL_VISIBLE_KEY, ORDER_PANEL_COLLAPSIBLE_KEY, COMPACT_ORDER_TIMEOUT_KEY, MAIN_LAYOUT_KEY, DEVICE_PROFILE_KEY, MONITOR_FIRST_KEY];
     let deviceSnapshotMode = "save";
     function collectDeviceSnapshot() {
       const settings = {};
@@ -7841,6 +7851,22 @@
 
     function renderSetup() {
       state.settings ||= {};
+      const deviceBody = document.querySelector('[data-setup-panel="device"] .panel-body');
+      if (deviceBody && !document.getElementById("monitorFirstInput")) {
+        const box = document.createElement("div");
+        box.className = "setup-device-view";
+        box.innerHTML = '<h3>Monitor first</h3><span class="setup-section-note">All\'avvio mostra automaticamente il monitor scelto. Le impostazioni sono locali a questo browser.</span><label>Monitor iniziale <select id="monitorFirstInput"><option value="">Nessuno</option></select></label><label>Ritorna ai tavoli dopo (secondi) <input id="monitorFirstTimeoutInput" type="number" min="1" max="3600" step="1" style="width:90px"></label>';
+        deviceBody.insertBefore(box, deviceBody.querySelector(".setup-device-view:nth-child(3)"));
+        document.getElementById("monitorFirstInput").addEventListener("change", saveMonitorFirstSettings);
+        document.getElementById("monitorFirstTimeoutInput").addEventListener("change", saveMonitorFirstSettings);
+      }
+      const first = monitorFirstSettings();
+      const monitorInput = document.getElementById("monitorFirstInput");
+      if (monitorInput) {
+        monitorInput.innerHTML = '<option value="">Nessuno</option>' + (state.settings.monitors || []).filter(m => m && m.active !== false).map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join("");
+        monitorInput.value = first.monitor;
+        document.getElementById("monitorFirstTimeoutInput").value = first.timeout;
+      }
       state.settings.fiscalPrinter ||= { enabled: false, simulation: false, testModeOneCent: false, host: "", port: 80, devid: "local_printer", operator: "1", defaultDepartment: "2" };
       const fiscalPrinter = state.settings.fiscalPrinter;
       document.getElementById("posSimulationInput").checked = state.settings.posSimulation === true;
@@ -7969,6 +7995,61 @@
         } catch (error) { reportPrinterFailureOnce(error?.message || error); }
       }
     }
+
+    function saveMonitorFirstSettings() {
+      const monitor = document.getElementById("monitorFirstInput")?.value || "";
+      const timeout = Math.max(1, Math.min(3600, Math.round(Number(document.getElementById("monitorFirstTimeoutInput")?.value) || 30)));
+      localStorage.setItem(MONITOR_FIRST_KEY, JSON.stringify({ monitor, timeout }));
+      if (!monitor) {
+        monitorFirstActive = false;
+        clearTimeout(monitorFirstReturnTimer);
+        monitorFirstReturnTimer = null;
+      }
+    }
+
+    function startMonitorFirstTimer() {
+      clearTimeout(monitorFirstReturnTimer);
+      clearInterval(monitorFirstCountdownTimer);
+      let remaining = monitorFirstSettings().timeout;
+      let indicator = document.getElementById("monitorFirstTimerStatus");
+      if (!indicator) {
+        indicator = document.createElement("span");
+        indicator.id = "monitorFirstTimerStatus";
+        indicator.className = "small";
+        indicator.style.cssText = "display:inline-block;margin:0 12px;color:#176b5f;font-weight:600";
+        document.querySelector("body > header")?.append(indicator);
+      }
+      indicator.hidden = false;
+      indicator.textContent = `Ritorno al monitor tra ${remaining} s`;
+      monitorFirstCountdownTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining > 0) indicator.textContent = `Ritorno al monitor tra ${remaining} s`;
+      }, 1000);
+      monitorFirstReturnTimer = setTimeout(() => {
+        clearInterval(monitorFirstCountdownTimer);
+        indicator.hidden = true;
+        if (monitorFirstActive && !document.querySelector("dialog[open]")) enterMonitorFirst();
+        else if (monitorFirstActive) startMonitorFirstTimer();
+      }, monitorFirstSettings().timeout * 1000);
+    }
+
+    function enterMonitorFirst() {
+      const first = monitorFirstSettings();
+      const monitor = (state.settings.monitors || []).find(m => m.name === first.monitor && m.active !== false);
+      if (!monitor || DEVICE_SETUP_MODE || MONITOR_KEY || PALMARE_MODE) return;
+      selectedKitchenMonitor = monitor.name;
+      monitorFirstActive = true;
+      document.querySelector("main").hidden = true;
+      document.body.classList.add("kitchen-mode");
+      document.getElementById("kitchenScreen").hidden = false;
+      document.getElementById("kitchenTitle").textContent = monitor.name;
+      document.getElementById("mobileMonitorBackBtn").style.display = "inline-flex";
+      document.getElementById("mobileMonitorBackBtn").textContent = "Tavoli";
+      renderKitchen();
+    }
+
+    document.addEventListener("pointerdown", () => { if (monitorFirstActive) startMonitorFirstTimer(); });
+    document.addEventListener("keydown", () => { if (monitorFirstActive) startMonitorFirstTimer(); });
 
     function monitorStatusMode(monitorName) {
       const monitor = (state.settings.monitors || []).find(item => item.name === monitorName);
@@ -10032,11 +10113,16 @@
       renderKitchen();
     });
     document.getElementById("mobileMonitorBackBtn").addEventListener("click", () => {
+      clearTimeout(monitorFirstReturnTimer);
       document.body.classList.remove("kitchen-mode", "device-kitchen", "monitor-only", "bar-mobile-monitor");
       document.getElementById("kitchenScreen").hidden = true;
       document.querySelector("main").hidden = false;
       history.replaceState(null, "", window.location.pathname + window.location.search);
       render();
+      const first = monitorFirstSettings();
+      const configuredMonitor = (state.settings.monitors || []).some(monitor => monitor.name === first.monitor && monitor.active !== false);
+      monitorFirstActive = configuredMonitor && !DEVICE_SETUP_MODE && !MONITOR_KEY && !PALMARE_MODE;
+      if (monitorFirstActive) startMonitorFirstTimer();
     });
 
     document.getElementById("historyBtn").addEventListener("click", () => {
@@ -10137,6 +10223,10 @@
       document.body.classList.remove("kitchen-mode", "bar-mobile-monitor");
       document.getElementById("kitchenScreen").hidden = true;
       if (window.location.hash.toLowerCase().startsWith("#monitor")) history.replaceState(null, "", window.location.pathname + window.location.search);
+      const first = monitorFirstSettings();
+      const configuredMonitor = (state.settings.monitors || []).some(monitor => monitor.name === first.monitor && monitor.active !== false);
+      monitorFirstActive = configuredMonitor && !DEVICE_SETUP_MODE && !MONITOR_KEY && !PALMARE_MODE;
+      if (monitorFirstActive) startMonitorFirstTimer();
     });
 
     document.getElementById("closeModalBtn").addEventListener("click", () => {
@@ -10386,7 +10476,8 @@
           return window.ensureLocalAuth().catch(() => {});
         }
       })
-      .then(() => syncExternalMenu());
+      .then(() => syncExternalMenu())
+      .then(() => enterMonitorFirst());
     window.addEventListener("hashchange", () => {
       openKitchenFromHash();
       openOrderFromHash();

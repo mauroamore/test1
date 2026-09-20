@@ -8104,14 +8104,16 @@
 
     function saveFiscalPrinterSetup() {
       state.settings.fiscalPrinter = readFiscalPrinterSetup();
-      saveState();
+      persistPlatformConfig(state);
+      savePlatformConfig(false, true);
     }
 
     async function testFiscalPrinterConnection() {
       const status = document.getElementById("fiscalPrinterStatus");
       const printer = readFiscalPrinterSetup();
       state.settings.fiscalPrinter = printer;
-      saveState();
+      persistPlatformConfig(state);
+      savePlatformConfig(false, true);
       if (!printer.host) {
         status.textContent = "Inserisci l'IP o il nome host della stampante.";
         return;

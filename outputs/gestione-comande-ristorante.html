@@ -3087,6 +3087,7 @@
               const response = await originalFetch(`/api/monitor-auth?monitor=${encodeURIComponent(monitor)}&key=${encodeURIComponent(monitorKey)}`, { cache: "no-store", signal: controller.signal });
               clearTimeout(timeout);
               if (response.ok) {
+                window.__monitorAccess = { name: monitor, key: monitorKey };
                 document.getElementById("localLoginGate")?.setAttribute("hidden", "");
                 return true;
               }
@@ -3157,6 +3158,17 @@
         }
         if (["GET"].includes(method)) return originalFetch(input, init);
         for (let attempt = 0; attempt < 2; attempt += 1) {
+          const monitorAccess = window.__monitorAccess;
+          if (monitorAccess) {
+            const headers = new Headers(init.headers || {});
+            headers.set("X-Monitor-Name", monitorAccess.name);
+            headers.set("X-Monitor-Key", monitorAccess.key);
+            const response = await originalFetch(input, { ...init, headers });
+            if (response.status !== 401 || attempt === 1) return response;
+            window.__monitorAccess = null;
+            await verifyMonitorAccess();
+            continue;
+          }
           const { token, pair } = await auth();
           const timestamp = Date.now(); const payload = `${timestamp}.${method}.${url.split("?")[0]}`;
           const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, pair.privateKey, new TextEncoder().encode(payload));

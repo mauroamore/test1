@@ -187,12 +187,25 @@ function localSessionAuthorized(request) {
   } catch { return false; }
 }
 
+function monitorAuthorized(request) {
+  const monitorName = String(request.headers["x-monitor-name"] || "").trim().toLowerCase();
+  const accessKey = String(request.headers["x-monitor-key"] || "");
+  if (!monitorName || !accessKey) return false;
+  const monitor = (sharedState.settings?.monitors || []).find(item =>
+    String(item.name || "").trim().toLowerCase() === monitorName
+  );
+  return Boolean(monitor && monitor.active !== false && monitor.accessKey && constantTimeKeyEquals(accessKey, monitor.accessKey));
+}
+
 function mutationAuthorized(request, response) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return true;
   // La sessione ottenuta con la password resta valida anche quando non e'
   // configurata una LOCAL_API_KEY. Prima questo caso usciva subito con false:
   // il login riusciva, ma la prima POST riceveva 401 e cancellava il token.
   if (localSessionAuthorized(request)) return true;
+  // La chiave monitor abilita esclusivamente le operazioni atomiche del monitor;
+  // non deve poter autorizzare pagamenti, configurazione o altre mutazioni.
+  if (request.url === "/api/operations" && monitorAuthorized(request)) return true;
   if (LOCAL_API_KEY && constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY)) return true;
   return !LOCAL_API_KEY && ALLOW_INSECURE_LOCAL_API;
 }

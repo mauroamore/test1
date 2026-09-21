@@ -3391,13 +3391,20 @@
 
     function sendLocalMonitorOperation(operation, payload) {
       const run = async () => {
-        for (let attempt = 0; attempt < 2; attempt += 1) {
+        monitorPendingChanges += 1;
+        try {
+        const status = document.getElementById("realtime-status");
+        if (status) {
+          status.textContent = "Monitor: salvataggio aggiornamento...";
+          status.classList.remove("error");
+        }
+        for (let attempt = 0; attempt < 3; attempt += 1) {
           const response = await fetch("/api/operations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               operation,
-              payload: operation.startsWith("monitor_")
+              payload: operation.startsWith("monitor_") || operation === "free_table"
                 ? { ...payload }
                 : { ...payload, expectedRevision: Number(state.stateRevision || 0) }
             })
@@ -3422,16 +3429,27 @@
               }
               if (Number.isFinite(Number(result.stateRevision))) state.stateRevision = Number(result.stateRevision);
               renderKitchen();
+              if (status) {
+                status.textContent = "Monitor: aggiornamento salvato";
+                status.classList.remove("error");
+              }
             } catch {}
             return;
           }
           let detail = "";
           try { detail = (await response.json()).error || ""; } catch {}
-          if (response.status === 409 && attempt === 0) {
+          if (response.status === 409 && attempt < 2) {
             await syncFromServer({ force: true });
             continue;
           }
+          if (attempt < 2 && response.status >= 500) {
+            await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+            continue;
+          }
           throw new Error(detail || `Operazione monitor rifiutata (HTTP ${response.status})`);
+        }
+        } finally {
+          monitorPendingChanges = Math.max(0, monitorPendingChanges - 1);
         }
       };
       const result = localMonitorOperationQueue.then(run, run);
@@ -3793,6 +3811,7 @@
     let pendingSigonellaCloseOrder = null;
     let kitchenHistoryMode = false;
     let historyReturnTimer = null;
+    const recentlyClosedMonitorOrders = new Map();
     let selectedKitchenMonitor = "Cucina";
     const KITCHEN_LAYOUT_KEY = "vorrei-kitchen-layout-v2";
     const DEFAULT_KITCHEN_LAYOUT = { columns: 6, itemFontSize: 18, totalsWidth: 260, totalsFontSize: 18, ticketHeight: 420, areaBackground: "#f6f2ea", ticketBackground: "#ffffff", textColor: "#1f2933", barMobile: false };
@@ -4378,6 +4397,7 @@
     let platformConfigReady = false;
     let stateSyncInFlight = false;
     let lastStateSyncStartedAt = 0;
+    let monitorPendingChanges = 0;
 
     function applyPlatformConfig(config) {
       if (!config || typeof config !== "object") return;
@@ -4451,6 +4471,9 @@
       // Mentre la comanda e' aperta il suo contenuto appartiene all'operatore:
       // rimandiamo la sincronizzazione alla chiusura del modal.
       if (!force && document.getElementById("orderModal")?.open) return;
+      // Una modifica del monitor e' ottimistica fino alla risposta del server:
+      // il polling non deve sovrascriverla mentre e' ancora in volo.
+      if (!force && monitorPendingChanges > 0) return;
       if (stateSyncInFlight || (!force && now - lastStateSyncStartedAt < 750)) return;
       stateSyncInFlight = true;
       lastStateSyncStartedAt = now;
@@ -4514,6 +4537,24 @@
             reservations: preservedReservations,
             ...preservedBrowserUi
           };
+          // Dopo una chiusura il primo snapshot successivo puo' essere ancora
+          // quello precedente, soprattutto quando arriva da un altro canale.
+          // Manteniamo il tombstone locale per pochi secondi, evitando che la
+          // comanda ricompaia mentre il server completa la sincronizzazione.
+          const nowAfterSync = Date.now();
+          for (const [closedId, expiresAt] of recentlyClosedMonitorOrders) {
+            if (expiresAt <= nowAfterSync) {
+              recentlyClosedMonitorOrders.delete(closedId);
+              continue;
+            }
+            for (const collection of [state.tables || [], state.deliveryOrders || []]) {
+              const incomingOrder = collection.find(order => String(order.id) === String(closedId));
+              if (incomingOrder) {
+                incomingOrder.kitchenClosed = true;
+                incomingOrder.kitchenClosedAt = incomingOrder.kitchenClosedAt || new Date().toISOString();
+              }
+            }
+          }
           if (localPickupDrafts.length) {
             const incomingDeliveryOrders = Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [];
             const incomingIds = new Set(incomingDeliveryOrders.map(order => String(order.id)));
@@ -8376,6 +8417,7 @@
       if (order.source && isDeliveryCompleted(order)) order.deliveryDismissed = true;
       order.kitchenClosed = true;
       order.kitchenClosedAt = new Date().toISOString();
+      recentlyClosedMonitorOrders.set(String(orderId), Date.now() + 15000);
       document.getElementById("confirmCloseModal").close();
       pendingCloseTableId = null;
       pendingCloseCourse = null;
@@ -9539,6 +9581,8 @@
       delete order.discount;
       delete order.discountType;
       delete order.tip;
+      const linkedIds = Array.isArray(order.linkedTables) ? order.linkedTables.map(Number) : [];
+      const tableIds = [Number(order.id), ...linkedIds].filter(Number.isFinite);
       if (order.source) {
         // Conserva un tombstone nello stato condiviso: il feed esterno puo'
         // riproporre l'ordine al polling, ma non deve farlo riapparire dopo
@@ -9549,8 +9593,6 @@
         if (remoteSelectedOrderId === order.id) remoteSelectedOrderId = null;
       } else {
         await finishReservationForOrder(order);
-        const linkedIds = Array.isArray(order.linkedTables) ? order.linkedTables.map(Number) : [];
-        const tableIds = [Number(order.id), ...linkedIds].filter(Number.isFinite);
         tableIds.forEach(tableId => {
           const tableIndex = state.tables.findIndex(table => Number(table.id) === tableId);
           if (tableIndex >= 0) state.tables[tableIndex] = createFreshTable(state.tables[tableIndex]);
@@ -9558,7 +9600,11 @@
         // Fino al pagamento la cronologia e' parte dello stato del turno. Dopo
         // la liberazione il suo contenuto vive solo nel log remoto.
       }
-      await saveState();
+      if (order.source) {
+        await saveState();
+      } else {
+        await sendLocalMonitorOperation("free_table", { tableIds });
+      }
       render();
       closeOrderModal();
       document.getElementById("confirmFreeTableModal").close();

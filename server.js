@@ -1968,6 +1968,41 @@ const server = http.createServer((request, response) => {
           broadcastLocal();
           return sendJson(response, 200, { ok: true, state: stateForClient(sharedState), stateRevision: sharedState.stateRevision });
         }
+        if (operation === "free_table") {
+          const tableIds = Array.isArray(payload.tableIds) ? payload.tableIds.map(Number).filter(Number.isFinite) : [];
+          if (!tableIds.length) return sendJson(response, 400, { ok: false, error: "Nessun tavolo da liberare" });
+          sharedState.tables.forEach(table => {
+            if (!tableIds.includes(Number(table.id))) return;
+            table.occupied = false;
+            table.covers = 0;
+            table.coversEnteredAt = null;
+            table.notes = "";
+            table.status = "Nuova";
+            table.splitMode = false;
+            table.selectedSplit = "T";
+            table.splitCovers = {};
+            table.splitLabels = {};
+            table.paidSplits = {};
+            table.activeCourse = 0;
+            table.courseSequence = [1];
+            table.dismissedCourses = [];
+            table.items = [];
+            delete table.customer;
+            delete table.payment;
+            delete table.paymentStatus;
+            delete table.paymentMethod;
+            delete table.paymentReference;
+            delete table.fiscalReceipt;
+            delete table.fiscalPayment;
+            delete table.discount;
+            delete table.discountType;
+            delete table.tip;
+          });
+          sharedState.stateRevision = currentRevision + 1;
+          persistStateFiles();
+          broadcast();
+          return sendJson(response, 200, { ok: true, state: stateForClient(sharedState), stateRevision: sharedState.stateRevision });
+        }
         if (expectedRevision && expectedRevision !== currentRevision) return sendJson(response, 409, { ok: false, stale: true, state: sharedState });
         const tableId = Number(payload.tableId);
         const table = sharedState.tables.find(item => Number(item.id) === tableId);

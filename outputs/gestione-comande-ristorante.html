@@ -3376,7 +3376,12 @@
           const response = await fetch("/api/operations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ operation, payload: { ...payload, expectedRevision: Number(state.stateRevision || 0) } })
+            body: JSON.stringify({
+              operation,
+              payload: operation.startsWith("monitor_")
+                ? { ...payload }
+                : { ...payload, expectedRevision: Number(state.stateRevision || 0) }
+            })
           });
           if (response.ok) {
             // La UI contiene gia' l'aggiornamento ottimistico. Non ricaricare

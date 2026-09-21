@@ -3389,7 +3389,20 @@
             // potrebbe essere gia' visibile sul monitor.
             try {
               const result = await response.json();
+              if (result.state && typeof result.state === "object") {
+                const preservedPlatform = {
+                  room: structuredClone(state.room),
+                  settings: structuredClone(state.settings),
+                  variations: structuredClone(state.variations),
+                  menu: structuredClone(state.menu),
+                  reservations: structuredClone(state.reservations),
+                  orderModal: structuredClone(state.orderModal)
+                };
+                state = { ...state, ...result.state, ...preservedPlatform };
+                normalizeSharedState();
+              }
               if (Number.isFinite(Number(result.stateRevision))) state.stateRevision = Number(result.stateRevision);
+              renderKitchen();
             } catch {}
             return;
           }

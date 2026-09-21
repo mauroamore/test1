@@ -7698,23 +7698,7 @@
         ticket.querySelector(".kitchen-close-order")?.addEventListener("click", () => requestCloseKitchenOrder(order.id));
         ticket.querySelector(".kitchen-restore-order")?.addEventListener("click", () => restoreHistoryOrder(order.id));
         ticket.querySelectorAll(".kitchen-line").forEach(button => {
-          let linePointerStart = null;
-          let linePointerMoved = false;
-          button.addEventListener("pointerdown", event => {
-            linePointerStart = { x: event.clientX, y: event.clientY };
-            linePointerMoved = false;
-          }, { passive: true });
-          button.addEventListener("pointermove", event => {
-            if (!linePointerStart) return;
-            if (Math.hypot(event.clientX - linePointerStart.x, event.clientY - linePointerStart.y) > 10) linePointerMoved = true;
-          }, { passive: true });
-          button.addEventListener("pointerup", () => { linePointerStart = null; });
-          button.addEventListener("pointercancel", () => { linePointerStart = null; linePointerMoved = true; });
           button.addEventListener("click", () => {
-            if (linePointerMoved) {
-              linePointerMoved = false;
-              return;
-            }
             if (kitchenHistoryMode) return;
             const originalOrder = findOrderById(order.id);
             const lines = (originalOrder?.items || []).filter(item => item.key === button.dataset.lineKey && (lineUsesTurns(item) ? courseNumber(item.course) : 1) === courseNumber(group.course) && monitorForLine(item) === selectedKitchenMonitor);
@@ -7735,7 +7719,7 @@
             button.classList.toggle("completo", nextStatus === "Completo");
               button.dataset.optimisticStatus = nextStatus;
               requestAnimationFrame(() => renderKitchen());
-            sendLocalMonitorOperation("monitor_cycle_line", { orderId: originalOrder.id, lineKey: button.dataset.lineKey, statusMode })
+            sendLocalMonitorOperation("monitor_cycle_line", { orderId: originalOrder.id, lineKey: button.dataset.lineKey, statusMode, nextStatus })
               .catch(async error => {
                 await syncFromServer({ force: true });
                 const status = document.getElementById("realtime-status");

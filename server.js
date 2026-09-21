@@ -1613,14 +1613,14 @@ const server = http.createServer((request, response) => {
     return sendJson(response, 200, { ok: true, monitor: monitor.name });
   }
   if (request.method === "GET" && ["/certificato", "/caddy-local-root.crt"].includes(request.url)) {
-    const certificatePath = path.join(ROOT, "outputs", "caddy-local-root.crt");
+    const certificatePath = path.join(ROOT, "outputs", "caddy-local-root.cer");
     if (!fs.existsSync(certificatePath)) {
       response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       return response.end("Certificato non disponibile");
     }
     response.writeHead(200, {
       "Content-Type": "application/x-x509-ca-cert",
-      "Content-Disposition": "attachment; filename=gestione-comande-caddy-root.crt",
+      "Content-Disposition": "attachment; filename=gestione-comande-caddy-root.cer",
       "Cache-Control": "public, max-age=3600"
     });
     return response.end(fs.readFileSync(certificatePath));
@@ -1909,13 +1909,20 @@ const server = http.createServer((request, response) => {
             const lines = order.items.filter(item => String(item.key) === String(payload.lineKey || ""));
             if (!lines.length) return sendJson(response, 404, { ok: false, error: "Riga non trovata" });
             const completeOnly = payload.statusMode === "completeOnly";
-            const currentStatus = lines.every(item => item.kitchenStatus === "Completo")
-              ? "Completo"
-              : lines.some(item => item.kitchenStatus === "In preparazione") ? "In preparazione" : "Da preparare";
-            const nextStatus = completeOnly
-              ? (currentStatus === "Completo" ? "Da preparare" : "Completo")
-              : (currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione");
-            lines.forEach(item => { item.kitchenStatus = nextStatus; });
+            const requestedStatus = ["Da preparare", "In preparazione", "Completo"].includes(String(payload.nextStatus || ""))
+              ? String(payload.nextStatus)
+              : null;
+            if (requestedStatus) {
+              lines.forEach(item => { item.kitchenStatus = requestedStatus; });
+            } else {
+              const currentStatus = lines.every(item => item.kitchenStatus === "Completo")
+                ? "Completo"
+                : lines.some(item => item.kitchenStatus === "In preparazione") ? "In preparazione" : "Da preparare";
+              const nextStatus = completeOnly
+                ? (currentStatus === "Completo" ? "Da preparare" : "Completo")
+                : (currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione");
+              lines.forEach(item => { item.kitchenStatus = nextStatus; });
+            }
           } else if (operation === "monitor_activate_course") {
             const course = Number(payload.course);
             if (!Number.isFinite(course)) return sendJson(response, 400, { ok: false, error: "Sequenza non valida" });

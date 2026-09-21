@@ -9121,7 +9121,7 @@
             document.getElementById("printPreviewModal").showModal();
           }
         }
-        if (printer.preview === false) window.alert(`Preconto inviato a ${printer.name}.`);
+        if (printer.preview === false) document.getElementById("precontoModal").close();
       } catch (error) { window.alert(`Stampa preconto non riuscita: ${error.message}`); }
     });
     document.getElementById("printPreviewPrintBtn").addEventListener("click", async () => {
@@ -9133,7 +9133,7 @@
         const result = await response.json().catch(() => ({}));
         if (!response.ok || result.ok === false) throw new Error(result.error || `Errore HTTP ${response.status}`);
         document.getElementById("printPreviewModal").close();
-        window.alert(`Preconto inviato a ${pendingGraphicPreconto.printer.name}.`);
+        document.getElementById("precontoModal").close();
         pendingGraphicPreconto = null;
       } catch (error) { window.alert(`Stampa preconto non riuscita: ${error.message}`); }
       finally { button.disabled = false; }

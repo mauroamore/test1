@@ -1987,6 +1987,12 @@ const server = http.createServer((request, response) => {
             table.courseSequence = [1];
             table.dismissedCourses = [];
             table.items = [];
+            table.tho = { ...(table.tho || {}) };
+            delete table.tho.reservation_id;
+            delete table.tho.seated_reservation_id;
+            delete table.tho.reservation_start;
+            delete table.tho.reservation_status;
+            delete table.tho.table_status;
             delete table.customer;
             delete table.payment;
             delete table.paymentStatus;

@@ -5722,10 +5722,10 @@
     }
 
     async function finishReservationForOrder(order) {
-      if (!order || order.source || REMOTE_MODE) return;
+      if (!order || order.source || REMOTE_MODE) return true;
       const reservation = tableReservationFor(order) || (state.reservations || []).find(item =>
         String(item.id || item.reservationId || "") === String(order.tho?.seated_reservation_id || order.tho?.reservation_id || ""));
-      if (!reservation) return;
+      if (!reservation) return true;
       reservation.status = "finished";
       reservation.tableIds = [];
       reservation.notes = "[]";
@@ -5736,8 +5736,10 @@
           body: JSON.stringify({ s: JSON.stringify(reservation) })
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return true;
       } catch (error) {
         console.warn("Chiusura del walk-in non riuscita:", error);
+        return false;
       }
     }
 
@@ -9592,7 +9594,11 @@
         if (desktopSelectedOrderId === order.id) desktopSelectedOrderId = null;
         if (remoteSelectedOrderId === order.id) remoteSelectedOrderId = null;
       } else {
-        await finishReservationForOrder(order);
+        const reservationFinished = await finishReservationForOrder(order);
+        if (!reservationFinished) {
+          window.alert("Impossibile liberare il tavolo: la prenotazione non è stata chiusa sul server remoto. Riprova tra poco.");
+          return;
+        }
         tableIds.forEach(tableId => {
           const tableIndex = state.tables.findIndex(table => Number(table.id) === tableId);
           if (tableIndex >= 0) state.tables[tableIndex] = createFreshTable(state.tables[tableIndex]);

@@ -8353,11 +8353,18 @@
       if (order.source && isDeliveryCompleted(order)) order.deliveryDismissed = true;
       order.kitchenClosed = true;
       order.kitchenClosedAt = new Date().toISOString();
-      saveState();
       document.getElementById("confirmCloseModal").close();
       pendingCloseTableId = null;
       pendingCloseCourse = null;
       renderKitchen();
+      sendLocalMonitorOperation("monitor_close_order", { orderId: order.id }).catch(async error => {
+        await syncFromServer({ force: true });
+        const status = document.getElementById("realtime-status");
+        if (status) {
+          status.textContent = `Liberazione ordine non riuscita: ${error.message}`;
+          status.classList.add("error");
+        }
+      });
     }
 
     // Esposta per il pulsante statico del modal, che viene cliccato anche dopo

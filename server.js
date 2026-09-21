@@ -1909,7 +1909,7 @@ const server = http.createServer((request, response) => {
             .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} commit_order background sync ${error.message}\n`));
           return;
         }
-        if (["monitor_cycle_line", "monitor_activate_course", "monitor_close_course"].includes(operation)) {
+        if (["monitor_cycle_line", "monitor_activate_course", "monitor_close_course", "monitor_close_order"].includes(operation)) {
           if (expectedRevision && expectedRevision !== currentRevision) {
             return sendJson(response, 409, { ok: false, stale: true, state: stateForClient(sharedState), stateRevision: currentRevision });
           }
@@ -1943,6 +1943,12 @@ const server = http.createServer((request, response) => {
             if (!Array.isArray(order.courseSequence)) order.courseSequence = [];
             order.courseSequence = order.courseSequence.filter(value => Number(value) !== course);
             order.courseSequence.push(course);
+          } else if (operation === "monitor_close_order") {
+            order.kitchenClosed = true;
+            order.kitchenClosedAt = new Date().toISOString();
+            if (order.source && ["ready_for_pickup", "awaiting_collection", "pronta", "ready", "completed", "completato", "consegnato", "collected", "ritirato"].includes(String(order.status || "").toLowerCase())) {
+              order.deliveryDismissed = true;
+            }
           } else {
             const course = Number(payload.course);
             if (!Number.isFinite(course)) return sendJson(response, 400, { ok: false, error: "Sequenza non valida" });

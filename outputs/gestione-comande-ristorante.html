@@ -2709,6 +2709,7 @@
     <div class="modal-head"><h2>Nuovo ordine Pick-up</h2></div>
     <div class="modal-content stack">
       <label>Nome cliente <input id="pickupCustomerNameInput" required placeholder="Es. Mario Rossi"></label>
+      <div class="row pickup-service-buttons" aria-label="Servizio delivery"><button class="ghost" type="button" data-pickup-service="Deliveroo">Deliveroo</button><button class="ghost" type="button" data-pickup-service="JustEat">JustEat</button><button class="ghost" type="button" data-pickup-service="Glovo">Glovo</button><button class="ghost" type="button" data-pickup-service="We Delivery">We Delivery</button></div>
       <label class="checkbox-label"><input id="pickupAsapInput" type="checkbox" checked> Ritiro subito</label>
       <label>Orario ritiro <input id="pickupTimeInput" type="time" disabled></label>
       <div class="row">
@@ -9570,6 +9571,12 @@
     document.getElementById("pickupAsapInput").addEventListener("change", event => {
       document.getElementById("pickupTimeInput").disabled = event.target.checked;
     });
+
+    document.querySelectorAll("[data-pickup-service]").forEach(button => button.addEventListener("click", () => {
+      const input = document.getElementById("pickupCustomerNameInput");
+      input.value = button.dataset.pickupService;
+      input.focus();
+    }));
 
     document.getElementById("pickupCancelBtn").addEventListener("click", () => {
       const canceledPickupId = pendingPickupOrderId;

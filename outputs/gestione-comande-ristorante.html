@@ -7733,12 +7733,17 @@
             lines.forEach(item => { item.kitchenStatus = nextStatus; });
             button.classList.toggle("in-preparazione", nextStatus === "In preparazione");
             button.classList.toggle("completo", nextStatus === "Completo");
-            button.dataset.optimisticStatus = nextStatus;
-            requestAnimationFrame(() => renderKitchen());
+              button.dataset.optimisticStatus = nextStatus;
+              requestAnimationFrame(() => renderKitchen());
             sendLocalMonitorOperation("monitor_cycle_line", { orderId: originalOrder.id, lineKey: button.dataset.lineKey, statusMode })
               .catch(async error => {
                 await syncFromServer({ force: true });
-                alert(`Aggiornamento monitor non riuscito: ${error.message}`);
+                const status = document.getElementById("realtime-status");
+                if (status) {
+                  status.textContent = `Aggiornamento monitor non riuscito: ${error.message}`;
+                  status.classList.add("error");
+                }
+                console.error("Aggiornamento monitor non riuscito", error);
               });
           });
         });

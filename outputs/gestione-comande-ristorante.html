@@ -678,6 +678,8 @@
     .monitor-diagnostics { display: inline-flex; align-items: center; max-width: min(52vw, 760px); margin-left: 8px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.75); color: var(--muted); font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
     .monitor-diagnostics.ok { color: var(--ready); }
     .monitor-diagnostics.error { color: var(--danger); }
+    .kitchen-delete-order.icon-only { min-width: 34px; width: 34px; padding: 6px; font-size: 18px; line-height: 1; }
+    .kitchen-dismiss-course.icon-only { min-width: 34px; width: 34px; padding: 6px; font-size: 18px; line-height: 1; }
     .monitor-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
     .monitor-tabs[hidden] { display: none !important; }
     .monitor-tabs button.active { background: var(--brand); color: white; border-color: var(--brand); }
@@ -7799,7 +7801,7 @@
         ticket.innerHTML = `
           <div class="ticket-head">
             <div><strong>${orderTicketLabel(order)}${groupUsesTurns ? ` · ${courseLabel(group.course)}` : ""}</strong></div>
-            ${kitchenHistoryMode ? `<button class="ghost kitchen-restore-order" type="button" data-history-index="${orderIndex}">Ripristina</button>` : `${canDismissCourse ? `<button class="ghost kitchen-dismiss-course" type="button" title="Chiudi ${courseLabel(group.course)}">×</button>` : ""}`}
+            ${kitchenHistoryMode ? `<button class="ghost kitchen-restore-order" type="button" data-history-index="${orderIndex}">Ripristina</button>` : `${canDismissCourse ? `<button class="ghost icon-only kitchen-dismiss-course" type="button" title="Chiudi ${courseLabel(group.course)}" aria-label="Chiudi ${courseLabel(group.course)}">&#10003;</button>` : ""}`}
           </div>
           <div class="ticket-scroll">
             ${group.items.map(line => `<button class="kitchen-line ${lineCycleBlocked ? "remote-blocked" : ""} ${line.kitchenStatus === "In preparazione" ? "in-preparazione" : line.kitchenStatus === "Completo" ? "completo" : ""}" data-line-key="${line.key}" type="button">${line.qty} x ${line.name}${lineNoteHtml(line)}${lineVariationHtml(line)}</button>`).join("")}
@@ -7810,7 +7812,8 @@
           const deleteButton = document.createElement("button");
           deleteButton.className = "ghost kitchen-delete-order";
           deleteButton.type = "button";
-          deleteButton.textContent = "Libera ordine";
+          deleteButton.classList.add("icon-only");
+          deleteButton.textContent = "⇥";
           deleteButton.setAttribute("aria-label", "Libera la comanda completata dal monitor");
           deleteButton.title = "Libera la comanda completata dal monitor";
           ticket.querySelector(".ticket-head")?.appendChild(deleteButton);

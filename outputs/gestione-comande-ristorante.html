@@ -675,6 +675,9 @@
     }
 
     .kitchen-screen-head h1 { font-size: 24px; }
+    .monitor-diagnostics { margin: 0 8px 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.75); color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .monitor-diagnostics.ok { color: var(--ready); }
+    .monitor-diagnostics.error { color: var(--danger); }
     .monitor-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
     .monitor-tabs[hidden] { display: none !important; }
     .monitor-tabs button.active { background: var(--brand); color: white; border-color: var(--brand); }
@@ -2751,6 +2754,7 @@
         <button class="ghost" id="closeKitchenBtn" title="Torna alla sala">Sala</button>
       </div>
     </div>
+    <div class="monitor-diagnostics" id="monitorDiagnostics" aria-live="polite">Monitor: verifica connessione...</div>
     <div class="kitchen-screen-body">
       <div class="kitchen-tickets" id="tickets"></div>
       <aside class="kitchen-summary">
@@ -3088,6 +3092,7 @@
               clearTimeout(timeout);
               if (response.ok) {
                 window.__monitorAccess = { name: monitor, key: monitorKey };
+                window.__monitorAuthStatus = "valid";
                 document.getElementById("localLoginGate")?.setAttribute("hidden", "");
                 return true;
               }
@@ -3433,6 +3438,7 @@
                 status.textContent = "Monitor: aggiornamento salvato";
                 status.classList.remove("error");
               }
+              updateMonitorDiagnostics();
             } catch {}
             return;
           }
@@ -3450,6 +3456,7 @@
         }
         } finally {
           monitorPendingChanges = Math.max(0, monitorPendingChanges - 1);
+          updateMonitorDiagnostics();
         }
       };
       const result = localMonitorOperationQueue.then(run, run);
@@ -4493,6 +4500,12 @@
         }
         const payload = await response.json();
         if (payload.state) {
+          const incomingRevision = Number(payload.stateRevision ?? payload.state.stateRevision);
+          const currentRevision = Number(state.stateRevision || 0);
+          if (Number.isFinite(incomingRevision) && incomingRevision < currentRevision) {
+            updateMonitorDiagnostics({ staleRevision: `${incomingRevision} < ${currentRevision}` });
+            return;
+          }
           const previousSyncState = JSON.stringify(state);
           // Una comanda Sigonella aperta in modifica resta locale fino alla scelta
           // dell'operatore nel dialogo di chiusura; il polling non deve ripristinare
@@ -4631,6 +4644,36 @@
 
     const ENABLE_STATE_POLLING = true;
 
+    function updateMonitorDiagnostics(extra = {}) {
+      const element = document.getElementById("monitorDiagnostics");
+      if (!element) return;
+      const auth = window.__monitorAuthStatus === "valid" ? "chiave valida" : "chiave non verificata";
+      const monitor = window.__monitorAccess?.name || "monitor";
+      const revision = Number(state?.stateRevision || 0);
+      const stale = extra.staleRevision ? ` · snapshot ignorato (${extra.staleRevision})` : "";
+      const version = element.dataset.version || "build ?";
+      element.textContent = `${monitor} · ${auth} · ${version} · revisione ${revision}${stale}`;
+      element.classList.toggle("ok", window.__monitorAuthStatus === "valid" && !extra.staleRevision);
+      element.classList.toggle("error", Boolean(extra.staleRevision));
+      fetch("/api/monitor-status", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(info => {
+        if (!info) return;
+        const rt = info.realtime?.status || (info.realtime?.configured ? "in attesa" : "non configurato");
+        const remote = info.remoteSync?.status || (info.remoteSync?.configured ? "in attesa" : "non configurato");
+        const pending = info.remoteSync?.pending ? " · sincronizzazione remota in coda" : "";
+        element.textContent = `${monitor} · ${auth} · ${version} · server locale OK · realtime ${rt} · remoto ${remote} · rev ${revision}${pending}${stale}`;
+        element.classList.toggle("ok", window.__monitorAuthStatus === "valid" && rt === "connected" && remote !== "error" && !extra.staleRevision);
+      }).catch(() => {
+        element.textContent = `${monitor} · ${auth} · server stato non disponibile · rev ${revision}${stale}`;
+        element.classList.add("error");
+      });
+      fetch("/api/version", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(info => {
+        if (!info) return;
+        element.dataset.version = `build ${info.version || "?"}`;
+        element.title = `Versione ${info.packageVersion || "?"} · build ${info.version || "?"}`;
+        element.textContent = element.textContent.replace("build ?", element.dataset.version);
+      }).catch(() => {});
+    }
+
     function listenForStateChanges() {
       const setRealtimeStatus = (text, connected) => {
         const element = document.querySelector("#realtime-status");
@@ -4638,6 +4681,7 @@
         element.textContent = text;
         element.classList.toggle("connected", Boolean(connected));
         element.classList.toggle("error", !connected && /disconness|errore|non disponibile/i.test(text));
+        updateMonitorDiagnostics();
       };
       if (!ENABLE_STATE_POLLING) {
         setRealtimeStatus("Polling disattivato", false);
@@ -5739,6 +5783,7 @@
         return true;
       } catch (error) {
         console.warn("Chiusura del walk-in non riuscita:", error);
+        window.__monitorAuthStatus = "invalid";
         return false;
       }
     }

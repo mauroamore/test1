@@ -125,6 +125,14 @@ let hubRisePollInFlight = false;
 let externalCommandPollInFlight = false;
 let reservationsPollInFlight = false;
 let lastPushedStateRevision = null;
+const monitorRuntimeStatus = {
+  realtime: "disconnected",
+  realtimeLastChangeAt: null,
+  remoteSync: "unknown",
+  remoteSyncLastOkAt: null,
+  remoteSyncLastError: null,
+  remoteSyncLastErrorAt: null
+};
 const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || "").split(",").map(origin => origin.trim()).filter(Boolean));
@@ -696,10 +704,20 @@ function broadcastLocal(event = "state.updated", data = {}) {
 // to the shared Render channel so events produced by ReservationsNew reach the
 // LAN immediately instead of waiting for the reservation polling interval.
 function connectRealtimeBridge() {
-  if (!REALTIME_KEY || typeof WebSocket === "undefined") return;
+  if (!REALTIME_KEY || typeof WebSocket === "undefined") {
+    monitorRuntimeStatus.realtime = !REALTIME_KEY ? "not_configured" : "unavailable";
+    monitorRuntimeStatus.realtimeLastChangeAt = new Date().toISOString();
+    return;
+  }
   const realtimeSocketUrl = `${REALTIME_URL.replace(/^http/, "ws")}/realtime?channel=restaurant&key=${encodeURIComponent(REALTIME_KEY)}`;
   const connect = () => {
     const socket = new WebSocket(realtimeSocketUrl);
+    monitorRuntimeStatus.realtime = "connecting";
+    monitorRuntimeStatus.realtimeLastChangeAt = new Date().toISOString();
+    socket.addEventListener("open", () => {
+      monitorRuntimeStatus.realtime = "connected";
+      monitorRuntimeStatus.realtimeLastChangeAt = new Date().toISOString();
+    });
     socket.addEventListener("message", message => {
       try {
         const event = JSON.parse(message.data);
@@ -718,8 +736,15 @@ function connectRealtimeBridge() {
         appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} realtime bridge parse ${error.message}\n`);
       }
     });
-    socket.addEventListener("close", () => setTimeout(connect, 3000));
-    socket.addEventListener("error", () => {});
+    socket.addEventListener("close", () => {
+      monitorRuntimeStatus.realtime = "disconnected";
+      monitorRuntimeStatus.realtimeLastChangeAt = new Date().toISOString();
+      setTimeout(connect, 3000);
+    });
+    socket.addEventListener("error", () => {
+      monitorRuntimeStatus.realtime = "error";
+      monitorRuntimeStatus.realtimeLastChangeAt = new Date().toISOString();
+    });
   };
   connect();
 }
@@ -1331,7 +1356,13 @@ async function pushStateSnapshotOnce() {
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
     lastPushedStateRevision = currentRevision;
+    monitorRuntimeStatus.remoteSync = "connected";
+    monitorRuntimeStatus.remoteSyncLastOkAt = new Date().toISOString();
+    monitorRuntimeStatus.remoteSyncLastError = null;
   } catch (error) {
+    monitorRuntimeStatus.remoteSync = "error";
+    monitorRuntimeStatus.remoteSyncLastError = error.message;
+    monitorRuntimeStatus.remoteSyncLastErrorAt = new Date().toISOString();
     appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} push_state ${error.message}\n`);
   }
 }
@@ -1660,6 +1691,26 @@ const server = http.createServer((request, response) => {
   if (request.url === "/api/state" && request.method === "GET") return sendJson(response, 200, {
     state: stateForClient(sharedState),
     stateRevision: Number(sharedState && sharedState.stateRevision || 0)
+  });
+  if (request.url === "/api/monitor-status" && request.method === "GET") return sendJson(response, 200, {
+    ok: true,
+    server: "connected",
+    monitorAuth: "validated_by_client",
+    realtime: {
+      configured: Boolean(REALTIME_KEY),
+      status: monitorRuntimeStatus.realtime,
+      changedAt: monitorRuntimeStatus.realtimeLastChangeAt
+    },
+    remoteSync: {
+      configured: Boolean(RESTAURANT_SYNC_URL && RESTAURANT_SYNC_KEY),
+      status: monitorRuntimeStatus.remoteSync,
+      currentRevision: Number(sharedState && sharedState.stateRevision || 0),
+      pushedRevision: lastPushedStateRevision,
+      pending: lastPushedStateRevision !== Number(sharedState && sharedState.stateRevision || 0),
+      lastOkAt: monitorRuntimeStatus.remoteSyncLastOkAt,
+      lastError: monitorRuntimeStatus.remoteSyncLastError,
+      lastErrorAt: monitorRuntimeStatus.remoteSyncLastErrorAt
+    }
   });
   if (request.url.startsWith("/api/device-settings-snapshots") && ["GET", "POST"].includes(request.method)) {
     const localUrl = new URL(request.url, "http://localhost");

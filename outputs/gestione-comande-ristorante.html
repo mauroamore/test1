@@ -675,7 +675,7 @@
     }
 
     .kitchen-screen-head h1 { font-size: 24px; }
-    .monitor-diagnostics { margin: 0 8px 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.75); color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .monitor-diagnostics { display: inline-flex; align-items: center; max-width: min(52vw, 760px); margin-left: 8px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.75); color: var(--muted); font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
     .monitor-diagnostics.ok { color: var(--ready); }
     .monitor-diagnostics.error { color: var(--danger); }
     .monitor-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -2743,7 +2743,7 @@
   <section class="kitchen-screen" id="kitchenScreen" hidden>
     <div class="kitchen-screen-head">
       <div class="row">
-        <div class="kitchen-title-block"><h1 id="kitchenTitle">Monitor</h1><span class="badge" id="kitchenCount">0 comande attive</span></div>
+        <div class="kitchen-title-block"><h1 id="kitchenTitle">Monitor</h1><span class="badge" id="kitchenCount">0 comande attive</span></div><div class="monitor-diagnostics" id="monitorDiagnostics" aria-live="polite">Monitor: verifica connessione...</div>
         <button class="ghost" id="historyBtn" title="Visualizza storico ordini">Storico</button>
         <div class="date" id="kitchenToday"></div>
       </div>
@@ -2754,7 +2754,6 @@
         <button class="ghost" id="closeKitchenBtn" title="Torna alla sala">Sala</button>
       </div>
     </div>
-    <div class="monitor-diagnostics" id="monitorDiagnostics" aria-live="polite">Monitor: verifica connessione...</div>
     <div class="kitchen-screen-body">
       <div class="kitchen-tickets" id="tickets"></div>
       <aside class="kitchen-summary">

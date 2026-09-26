@@ -3410,9 +3410,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               operation,
-              payload: operation.startsWith("monitor_") || operation === "free_table"
-                ? { ...payload }
-                : { ...payload, expectedRevision: Number(state.stateRevision || 0) }
+              payload: { ...payload, expectedRevision: Number(state.stateRevision || 0) }
             })
           });
           if (response.ok) {

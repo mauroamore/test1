@@ -8920,7 +8920,9 @@
         ? (splitAccountOverride || (order.selectedSplit !== "T" ? order.selectedSplit : ""))
         : "";
       const key = lineKey(item.id, [], [], item.name, item.price, course);
-      const existing = order.items.find(line => line.key === key && (line.splitAccount || "") === splitAccount);
+      const existing = order.items.find(line => line.key === key
+        && (line.splitAccount || "") === splitAccount
+        && lineCanBeCompacted(line));
       if (existing) existing.qty += 1;
       else order.items.push({ ...item, key, originalName: item.name, minusVariations: [], plusVariations: [], lineNote: "", course, splitAccount, qty: 1, sentQty: 0, noTurns: isDeliveryOrder });
       compactOrderLines(order);
@@ -9138,11 +9140,19 @@
       }
     }
 
+    function lineCanBeCompacted(line) {
+      return !["In preparazione", "Completo"].includes(String(line?.kitchenStatus || ""));
+    }
+
     function compactOrderLines(order) {
       const compacted = [];
       const byGroup = new Map();
       order.items.forEach(line => {
         const groupKey = `${line.key}::split=${line.splitAccount || ""}`;
+        if (!lineCanBeCompacted(line)) {
+          compacted.push({ ...line });
+          return;
+        }
         const existing = byGroup.get(groupKey);
         if (existing) existing.qty += Number(line.qty || 0);
         else {

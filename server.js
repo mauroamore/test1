@@ -5,6 +5,7 @@ const path = require("path");
 const childProcess = require("child_process");
 const crypto = require("crypto");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
+const { mergeMonitorFields, mergeMonitorFieldsInCollections } = require("./src/monitor-state-merge");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
 let buildGraphicPreconto;
@@ -1947,28 +1948,7 @@ const server = http.createServer((request, response) => {
           const target = isManualPickup ? sharedState.deliveryOrders : sharedState.tables;
           const index = target.findIndex(order => String(order.id) === orderId);
           if (currentOrder) {
-            // Gestione Comande puo' aver aperto la comanda prima dell'ultimo
-            // aggiornamento del monitor. Non permettere che il suo snapshot
-            // sostituisca le sequenze gia' storicizzate o gli stati cucina.
-            const dismissed = new Set([
-              ...(Array.isArray(currentOrder.dismissedCourses) ? currentOrder.dismissedCourses : []),
-              ...(Array.isArray(incomingOrder.dismissedCourses) ? incomingOrder.dismissedCourses : [])
-            ].map(value => Number(value)).filter(Number.isFinite));
-            if (dismissed.size) incomingOrder.dismissedCourses = [...dismissed];
-            const currentLines = new Map((Array.isArray(currentOrder.items) ? currentOrder.items : [])
-              .filter(line => line && line.key != null)
-              .map(line => [String(line.key), line]));
-            if (Array.isArray(incomingOrder.items)) {
-              incomingOrder.items.forEach(line => {
-                const previous = currentLines.get(String(line.key));
-                if (!previous) return;
-                const previousStatus = String(previous.kitchenStatus || "");
-                const incomingStatus = String(line.kitchenStatus || "");
-                if (["In preparazione", "Completo"].includes(previousStatus) && incomingStatus !== previousStatus) {
-                  line.kitchenStatus = previousStatus;
-                }
-              });
-            }
+            mergeMonitorFields(currentOrder, incomingOrder);
           }
           if (index >= 0) target[index] = incomingOrder;
           else target.push(incomingOrder);
@@ -2001,7 +1981,10 @@ const server = http.createServer((request, response) => {
               ? String(payload.nextStatus)
               : null;
             if (requestedStatus) {
-              lines.forEach(item => { item.kitchenStatus = requestedStatus; });
+              lines.forEach(item => {
+                item.kitchenStatus = requestedStatus;
+                item.tho = { ...(item.tho || {}), kitchen_status: requestedStatus };
+              });
             } else {
               const currentStatus = lines.every(item => item.kitchenStatus === "Completo")
                 ? "Completo"
@@ -2009,7 +1992,10 @@ const server = http.createServer((request, response) => {
               const nextStatus = completeOnly
                 ? (currentStatus === "Completo" ? "Da preparare" : "Completo")
                 : (currentStatus === "In preparazione" ? "Completo" : currentStatus === "Completo" ? "Da preparare" : "In preparazione");
-              lines.forEach(item => { item.kitchenStatus = nextStatus; });
+              lines.forEach(item => {
+                item.kitchenStatus = nextStatus;
+                item.tho = { ...(item.tho || {}), kitchen_status: nextStatus };
+              });
             }
           } else if (operation === "monitor_activate_course") {
             const course = Number(payload.course);
@@ -2274,9 +2260,27 @@ const server = http.createServer((request, response) => {
         const previousDeliveryOrders = (sharedState && Array.isArray(sharedState.deliveryOrders)) ? sharedState.deliveryOrders : [];
         const previousFeedStatus = sharedState && sharedState.hubriseFeedStatus;
         const currentMenu = sharedState && sharedState.menu;
+        const currentRoom = sharedState && sharedState.room;
+        const currentSettings = sharedState && sharedState.settings;
+        const currentVariations = sharedState && sharedState.variations;
+        const currentReservations = sharedState && sharedState.reservations;
         delete incomingState.history;
+        const monitorMerge = mergeMonitorFieldsInCollections(
+          [sharedState.tables || [], sharedState.deliveryOrders || []],
+          [incomingState.tables || [], incomingState.deliveryOrders || []]
+        );
+        if (monitorMerge.orders) {
+          appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} state monitor merge orders=${monitorMerge.orders} statuses=${monitorMerge.preservedStatuses} dismissed=${monitorMerge.preservedDismissedCourses} closed=${monitorMerge.preservedClosed}\n`);
+        }
         sharedState = incomingState;
         if (!sharedState.menu && currentMenu) sharedState.menu = currentMenu;
+        // /api/state riceve solo il turno operativo. La configurazione piattaforma,
+        // il catalogo e le prenotazioni hanno endpoint/cicli di vita separati e
+        // non devono essere cancellati da un salvataggio del browser.
+        if (!sharedState.room && currentRoom) sharedState.room = currentRoom;
+        if (!sharedState.settings && currentSettings) sharedState.settings = currentSettings;
+        if (!sharedState.variations && currentVariations) sharedState.variations = currentVariations;
+        if (!Array.isArray(sharedState.reservations) && Array.isArray(currentReservations)) sharedState.reservations = currentReservations;
         sharedState.stateRevision = Math.max(currentRevision, incomingRevision) + 1;
         if (resetDeliveryOrders) {
           sharedState.deliveryOrders = [];

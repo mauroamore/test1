@@ -1946,6 +1946,29 @@ const server = http.createServer((request, response) => {
           }
           const target = isManualPickup ? sharedState.deliveryOrders : sharedState.tables;
           const index = target.findIndex(order => String(order.id) === orderId);
+          if (currentOrder) {
+            // Gestione Comande puo' aver aperto la comanda prima dell'ultimo
+            // aggiornamento del monitor. Non permettere che il suo snapshot
+            // sostituisca le sequenze gia' storicizzate o gli stati cucina.
+            const dismissed = new Set([
+              ...(Array.isArray(currentOrder.dismissedCourses) ? currentOrder.dismissedCourses : []),
+              ...(Array.isArray(incomingOrder.dismissedCourses) ? incomingOrder.dismissedCourses : [])
+            ].map(value => Number(value)).filter(Number.isFinite));
+            if (dismissed.size) incomingOrder.dismissedCourses = [...dismissed];
+            const currentLines = new Map((Array.isArray(currentOrder.items) ? currentOrder.items : [])
+              .filter(line => line && line.key != null)
+              .map(line => [String(line.key), line]));
+            if (Array.isArray(incomingOrder.items)) {
+              incomingOrder.items.forEach(line => {
+                const previous = currentLines.get(String(line.key));
+                if (!previous) return;
+                const previousStatus = String(previous.kitchenStatus || "");
+                const incomingStatus = String(line.kitchenStatus || "");
+                if (previousStatus === "Completo" && incomingStatus !== "Completo") line.kitchenStatus = previousStatus;
+                else if (previousStatus === "In preparazione" && !incomingStatus) line.kitchenStatus = previousStatus;
+              });
+            }
+          }
           if (index >= 0) target[index] = incomingOrder;
           else target.push(incomingOrder);
           sharedState.stateRevision = currentRevision + 1;

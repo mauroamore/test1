@@ -8367,7 +8367,7 @@
       document.getElementById("confirmCloseText").innerHTML = `<strong class="confirm-table-name">Tavolo ${orderId}</strong><span class="confirm-close-message">Tutti i piatti della ${courseLabel(courseValue)} sono completati. Vuoi chiuderla?</span>`;
       const confirmButton = document.getElementById("confirmCloseYesBtn");
       confirmButton.textContent = "Chiudi sequenza";
-      confirmButton.onclick = event => {
+      confirmButton.onclick = async event => {
         event.preventDefault();
         const currentOrder = [...(Array.isArray(state.tables) ? state.tables : []), ...(Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [])]
           .find(item => String(item.id) === String(orderId));
@@ -8383,7 +8383,13 @@
             currentOrder.kitchenClosed = true;
             currentOrder.kitchenClosedAt = new Date().toISOString();
         }
-        saveState();
+        // La chiusura della sequenza e' una mutazione atomica del monitor.
+        // Non inviare uno snapshot completo: potrebbe sovrascrivere modifiche
+        // piu' recenti effettuate dalla gestione comande o da un altro monitor.
+        sendLocalMonitorOperation("monitor_close_course", { orderId, course: courseValue }).catch(error => {
+          window.alert(`Chiusura sequenza non riuscita: ${error.message}`);
+          syncFromServer({ force: true });
+        });
         modal.close();
         pendingCloseTableId = null;
         pendingCloseCourse = null;

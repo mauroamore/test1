@@ -1964,8 +1964,9 @@ const server = http.createServer((request, response) => {
                 if (!previous) return;
                 const previousStatus = String(previous.kitchenStatus || "");
                 const incomingStatus = String(line.kitchenStatus || "");
-                if (previousStatus === "Completo" && incomingStatus !== "Completo") line.kitchenStatus = previousStatus;
-                else if (previousStatus === "In preparazione" && !incomingStatus) line.kitchenStatus = previousStatus;
+                if (["In preparazione", "Completo"].includes(previousStatus) && incomingStatus !== previousStatus) {
+                  line.kitchenStatus = previousStatus;
+                }
               });
             }
           }

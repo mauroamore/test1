@@ -813,23 +813,18 @@
 
     .kitchen-tickets .ticket-continuation {
       display: none;
-      width: 34px;
-      height: 34px;
-      align-items: center;
-      justify-content: center;
-      margin: 4px auto 0;
-      border: 2px solid currentColor;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--kitchen-ticket-background, #fff) 88%, transparent);
-      box-shadow: 0 2px 8px rgba(31, 41, 51, .18);
-      font-size: 25px;
-      font-weight: 900;
-      line-height: 1;
-      white-space: nowrap;
-      opacity: .95;
+      width: 100%;
+      height: 18px;
+      margin: 4px 0 0;
+      background: currentColor;
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+      opacity: .9;
     }
 
     .kitchen-tickets .ticket.has-more-content .ticket-continuation { display: flex; }
+    .kitchen-tickets .ticket-continuation.scroll-up {
+      clip-path: polygon(50% 0, 100% 100%, 0 100%);
+    }
 
     .kitchen-course {
       border: 1px solid #fda29b;
@@ -7729,7 +7724,8 @@
       const hasMore = scroll.scrollHeight > scroll.clientHeight + 2;
       const atBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2;
       ticket.classList.toggle("has-more-content", hasMore);
-      indicator.textContent = atBottom ? "↑" : "↓";
+      indicator.textContent = "";
+      indicator.classList.toggle("scroll-up", atBottom);
       indicator.setAttribute("aria-label", atBottom ? "Scorri verso l'alto per vedere il resto" : "Scorri verso il basso per vedere il resto");
       indicator.title = atBottom ? "Scorri verso l'alto per vedere il resto" : "Scorri verso il basso per vedere il resto";
     }

@@ -7714,7 +7714,11 @@
       document.querySelectorAll("#tickets .ticket[data-scroll-key]").forEach(ticket => {
         const scroll = ticket.querySelector(".ticket-scroll");
         if (!scroll) return;
-        kitchenScrollPositions.set(ticket.dataset.scrollKey, { top: scroll.scrollTop, left: scroll.scrollLeft });
+        kitchenScrollPositions.set(ticket.dataset.scrollKey, {
+          top: scroll.scrollTop,
+          left: scroll.scrollLeft,
+          atBottom: scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2
+        });
       });
     }
 
@@ -7737,11 +7741,15 @@
         if (!scroll) return;
         const saved = kitchenScrollPositions.get(ticket.dataset.scrollKey);
         if (saved) {
-          scroll.scrollTop = saved.top;
+          scroll.scrollTop = saved.atBottom ? scroll.scrollHeight : saved.top;
           scroll.scrollLeft = saved.left;
         }
         scroll.addEventListener("scroll", () => {
-          kitchenScrollPositions.set(ticket.dataset.scrollKey, { top: scroll.scrollTop, left: scroll.scrollLeft });
+          kitchenScrollPositions.set(ticket.dataset.scrollKey, {
+            top: scroll.scrollTop,
+            left: scroll.scrollLeft,
+            atBottom: scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2
+          });
           updateKitchenContinuation(ticket);
         }, { passive: true });
         updateKitchenContinuation(ticket);

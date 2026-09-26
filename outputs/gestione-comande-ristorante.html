@@ -813,13 +813,19 @@
 
     .kitchen-tickets .ticket-continuation {
       display: none;
-      flex: 0 0 auto;
+      position: sticky;
+      z-index: 2;
+      bottom: 4px;
+      width: 34px;
+      height: 34px;
       align-items: center;
-      min-height: 24px;
-      padding: 3px 7px;
-      border: 1px solid currentColor;
-      border-radius: 999px;
-      font-size: 12px;
+      justify-content: center;
+      margin: 2px auto 0;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--kitchen-ticket-background, #fff) 88%, transparent);
+      box-shadow: 0 2px 8px rgba(31, 41, 51, .18);
+      font-size: 25px;
       font-weight: 900;
       line-height: 1;
       white-space: nowrap;
@@ -7722,7 +7728,8 @@
       const hasMore = scroll.scrollHeight > scroll.clientHeight + 2;
       const atBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2;
       ticket.classList.toggle("has-more-content", hasMore);
-      indicator.textContent = atBottom ? "↑ Continua sopra" : "↓ Continua sotto";
+      indicator.textContent = atBottom ? "↑" : "↓";
+      indicator.setAttribute("aria-label", atBottom ? "Scorri verso l'alto per vedere il resto" : "Scorri verso il basso per vedere il resto");
       indicator.title = atBottom ? "Scorri verso l'alto per vedere il resto" : "Scorri verso il basso per vedere il resto";
     }
 
@@ -7819,7 +7826,6 @@
           ticket.innerHTML = `
             <div class="ticket-head">
               <div><strong>${orderTicketLabel(order)}</strong></div>
-              <span class="ticket-continuation" aria-live="polite"></span>
               <button class="ghost kitchen-restore-order" type="button">Ripristina</button>
             </div>
             <div class="ticket-scroll">
@@ -7828,6 +7834,7 @@
                 ${group.items.map(line => `<div class="kitchen-line ${line.kitchenStatus === "Completo" ? "completo" : ""}">${line.qty} x ${line.name}${lineNoteHtml(line)}${lineVariationHtml(line)}</div>`).join("")}
               `).join("") : `<div class="small">Comanda chiusa senza righe.</div>`}
               ${order.notes ? `<div class="small"><strong>Note:</strong> ${escapeHtml(order.notes)}</div>` : ""}
+              <span class="ticket-continuation" aria-live="polite"></span>
             </div>
           `;
           ticket.querySelector(".kitchen-restore-order").addEventListener("click", () => restoreHistoryOrder(order.id));
@@ -7873,12 +7880,12 @@
         ticket.innerHTML = `
           <div class="ticket-head">
             <div><strong>${orderTicketLabel(order)}${groupUsesTurns ? ` · ${courseLabel(group.course)}` : ""}</strong></div>
-            <span class="ticket-continuation" aria-live="polite"></span>
             ${kitchenHistoryMode ? `<button class="ghost kitchen-restore-order" type="button" data-history-index="${orderIndex}">Ripristina</button>` : `${canDismissCourse ? `<button class="ghost icon-only kitchen-dismiss-course" type="button" title="Chiudi ${courseLabel(group.course)}" aria-label="Chiudi ${courseLabel(group.course)}">&#10003;</button>` : ""}`}
           </div>
           <div class="ticket-scroll">
             ${group.items.map(line => `<button class="kitchen-line ${lineCycleBlocked ? "remote-blocked" : ""} ${line.kitchenStatus === "In preparazione" ? "in-preparazione" : line.kitchenStatus === "Completo" ? "completo" : ""}" data-line-key="${line.key}" type="button">${line.qty} x ${line.name}${lineNoteHtml(line)}${lineVariationHtml(line)}</button>`).join("")}
             ${order.notes ? `<div class="small"><strong>Note:</strong> ${order.notes}</div>` : ""}
+            <span class="ticket-continuation" aria-live="polite"></span>
           </div>
         `;
         if (!kitchenHistoryMode && allOrderLinesComplete) {

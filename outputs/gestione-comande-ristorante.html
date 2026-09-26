@@ -7740,10 +7740,21 @@
         const scroll = ticket.querySelector(".ticket-scroll");
         if (!scroll) return;
         const saved = kitchenScrollPositions.get(ticket.dataset.scrollKey);
-        if (saved) {
-          scroll.scrollTop = saved.atBottom ? scroll.scrollHeight : saved.top;
+        const restore = () => {
+          if (!saved) return;
+          scroll.scrollTop = saved.atBottom
+            ? Math.max(0, scroll.scrollHeight - scroll.clientHeight)
+            : Math.min(saved.top, Math.max(0, scroll.scrollHeight - scroll.clientHeight));
           scroll.scrollLeft = saved.left;
-        }
+          updateKitchenContinuation(ticket);
+        };
+        restore();
+        // Dopo un polling il contenuto può completare il layout nel frame successivo.
+        // Ripristiniamo allora il massimo effettivo, evitando che il fondo resti sopra.
+        requestAnimationFrame(() => {
+          restore();
+          requestAnimationFrame(restore);
+        });
         scroll.addEventListener("scroll", () => {
           kitchenScrollPositions.set(ticket.dataset.scrollKey, {
             top: scroll.scrollTop,

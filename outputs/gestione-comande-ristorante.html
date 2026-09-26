@@ -818,6 +818,7 @@
       margin: 4px 0 0;
       background: currentColor;
       clip-path: polygon(0 0, 100% 0, 50% 100%);
+      cursor: pointer;
       opacity: .9;
     }
 
@@ -7759,6 +7760,19 @@
           });
           updateKitchenContinuation(ticket);
         }, { passive: true });
+        const indicator = ticket.querySelector(".ticket-continuation");
+        if (indicator) {
+          indicator.addEventListener("click", () => {
+            const goTop = indicator.classList.contains("scroll-up");
+            scroll.scrollTo({ top: goTop ? 0 : scroll.scrollHeight, behavior: "smooth" });
+          });
+          indicator.addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            const goTop = indicator.classList.contains("scroll-up");
+            scroll.scrollTo({ top: goTop ? 0 : scroll.scrollHeight, behavior: "smooth" });
+          });
+        }
         updateKitchenContinuation(ticket);
       });
     }
@@ -7847,7 +7861,7 @@
               `).join("") : `<div class="small">Comanda chiusa senza righe.</div>`}
               ${order.notes ? `<div class="small"><strong>Note:</strong> ${escapeHtml(order.notes)}</div>` : ""}
             </div>
-            <span class="ticket-continuation" aria-live="polite"></span>
+            <span class="ticket-continuation" role="button" tabindex="0" aria-live="polite"></span>
           `;
           ticket.querySelector(".kitchen-restore-order").addEventListener("click", () => restoreHistoryOrder(order.id));
           root.appendChild(ticket);
@@ -7898,7 +7912,7 @@
             ${group.items.map(line => `<button class="kitchen-line ${lineCycleBlocked ? "remote-blocked" : ""} ${line.kitchenStatus === "In preparazione" ? "in-preparazione" : line.kitchenStatus === "Completo" ? "completo" : ""}" data-line-key="${line.key}" type="button">${line.qty} x ${line.name}${lineNoteHtml(line)}${lineVariationHtml(line)}</button>`).join("")}
             ${order.notes ? `<div class="small"><strong>Note:</strong> ${order.notes}</div>` : ""}
           </div>
-          <span class="ticket-continuation" aria-live="polite"></span>
+          <span class="ticket-continuation" role="button" tabindex="0" aria-live="polite"></span>
         `;
         if (!kitchenHistoryMode && allOrderLinesComplete) {
           const deleteButton = document.createElement("button");

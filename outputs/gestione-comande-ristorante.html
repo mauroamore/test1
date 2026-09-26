@@ -802,6 +802,32 @@
       touch-action: pan-y;
     }
 
+    .kitchen-tickets .ticket-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .kitchen-tickets .ticket-head > div { min-width: 0; flex: 1 1 auto; }
+
+    .kitchen-tickets .ticket-continuation {
+      display: none;
+      flex: 0 0 auto;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 7px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+      opacity: .95;
+    }
+
+    .kitchen-tickets .ticket.has-more-content .ticket-continuation { display: inline-flex; }
+
     .kitchen-course {
       border: 1px solid #fda29b;
       background: #fee4e2;
@@ -7675,7 +7701,51 @@
       }
     }
 
+    const kitchenScrollPositions = new Map();
+
+    function kitchenScrollKey(orderId, course, monitorName, history = false) {
+      return `${history ? "history" : "active"}:${String(orderId)}:${courseNumber(course)}:${String(monitorName || "")}`;
+    }
+
+    function captureKitchenScrollPositions() {
+      document.querySelectorAll("#tickets .ticket[data-scroll-key]").forEach(ticket => {
+        const scroll = ticket.querySelector(".ticket-scroll");
+        if (!scroll) return;
+        kitchenScrollPositions.set(ticket.dataset.scrollKey, { top: scroll.scrollTop, left: scroll.scrollLeft });
+      });
+    }
+
+    function updateKitchenContinuation(ticket) {
+      const scroll = ticket.querySelector(".ticket-scroll");
+      const indicator = ticket.querySelector(".ticket-continuation");
+      if (!scroll || !indicator) return;
+      const hasMore = scroll.scrollHeight > scroll.clientHeight + 2;
+      const atBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2;
+      ticket.classList.toggle("has-more-content", hasMore);
+      indicator.textContent = atBottom ? "↑ Continua sopra" : "↓ Continua sotto";
+      indicator.title = atBottom ? "Scorri verso l'alto per vedere il resto" : "Scorri verso il basso per vedere il resto";
+    }
+
+    function restoreKitchenScrollPositions() {
+      const tickets = document.querySelectorAll("#tickets .ticket[data-scroll-key]");
+      tickets.forEach(ticket => {
+        const scroll = ticket.querySelector(".ticket-scroll");
+        if (!scroll) return;
+        const saved = kitchenScrollPositions.get(ticket.dataset.scrollKey);
+        if (saved) {
+          scroll.scrollTop = saved.top;
+          scroll.scrollLeft = saved.left;
+        }
+        scroll.addEventListener("scroll", () => {
+          kitchenScrollPositions.set(ticket.dataset.scrollKey, { top: scroll.scrollTop, left: scroll.scrollLeft });
+          updateKitchenContinuation(ticket);
+        }, { passive: true });
+        updateKitchenContinuation(ticket);
+      });
+    }
+
     function renderKitchen() {
+      captureKitchenScrollPositions();
       try {
         const localKitchen = JSON.parse(localStorage.getItem("vorrei-kitchen-layout") || "null");
         if (localKitchen) Object.assign(state.settings, localKitchen);
@@ -7745,9 +7815,11 @@
           const ticket = document.createElement("div");
           const lines = Array.isArray(order.items) ? order.items : [];
           ticket.className = "ticket history-ticket";
+          ticket.dataset.scrollKey = kitchenScrollKey(order.id, 0, selectedKitchenMonitor, true);
           ticket.innerHTML = `
             <div class="ticket-head">
               <div><strong>${orderTicketLabel(order)}</strong></div>
+              <span class="ticket-continuation" aria-live="polite"></span>
               <button class="ghost kitchen-restore-order" type="button">Ripristina</button>
             </div>
             <div class="ticket-scroll">
@@ -7761,6 +7833,7 @@
           ticket.querySelector(".kitchen-restore-order").addEventListener("click", () => restoreHistoryOrder(order.id));
           root.appendChild(ticket);
         });
+        restoreKitchenScrollPositions();
         return;
       }
       const tickets = source.flatMap((order, orderIndex) => {
@@ -7782,6 +7855,7 @@
       });
       tickets.forEach(({ order, group }) => {
         const ticket = document.createElement("div");
+        ticket.dataset.scrollKey = kitchenScrollKey(order.id, group.course, selectedKitchenMonitor);
         const courseIsActive = !kitchenHistoryMode && (Boolean(order.source) || courseNumber(group.course) === monitorActiveCourse(order));
         const groupUsesTurns = group.items.some(line => lineUsesTurns(line));
         const fullOrder = findOrderById(order.id) || order;
@@ -7799,6 +7873,7 @@
         ticket.innerHTML = `
           <div class="ticket-head">
             <div><strong>${orderTicketLabel(order)}${groupUsesTurns ? ` · ${courseLabel(group.course)}` : ""}</strong></div>
+            <span class="ticket-continuation" aria-live="polite"></span>
             ${kitchenHistoryMode ? `<button class="ghost kitchen-restore-order" type="button" data-history-index="${orderIndex}">Ripristina</button>` : `${canDismissCourse ? `<button class="ghost icon-only kitchen-dismiss-course" type="button" title="Chiudi ${courseLabel(group.course)}" aria-label="Chiudi ${courseLabel(group.course)}">&#10003;</button>` : ""}`}
           </div>
           <div class="ticket-scroll">
@@ -7874,6 +7949,7 @@
           item.innerHTML = `<span><strong>${escapeHtml(entry.name)}</strong>${entry.variation ? `<div class="variation">${escapeHtml(entry.variation)}</div>` : ""}</span><strong>${entry.quantity}</strong>`;
           summaryRoot.appendChild(item);
         });
+      restoreKitchenScrollPositions();
     }
 
     function monitorForLine(line) {

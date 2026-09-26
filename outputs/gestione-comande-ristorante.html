@@ -762,7 +762,7 @@
       min-height: var(--kitchen-ticket-height, 420px);
       height: var(--kitchen-ticket-height, 420px);
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto;
       padding: 10px;
       box-shadow: 0 6px 18px rgba(31, 41, 51, 0.08);
       align-content: start;
@@ -813,14 +813,11 @@
 
     .kitchen-tickets .ticket-continuation {
       display: none;
-      position: sticky;
-      z-index: 2;
-      bottom: 4px;
       width: 34px;
       height: 34px;
       align-items: center;
       justify-content: center;
-      margin: 2px auto 0;
+      margin: 4px auto 0;
       border: 2px solid currentColor;
       border-radius: 50%;
       background: color-mix(in srgb, var(--kitchen-ticket-background, #fff) 88%, transparent);
@@ -832,7 +829,6 @@
       opacity: .95;
     }
 
-    .kitchen-tickets .ticket.has-more-content .ticket-scroll { padding-bottom: 42px; }
     .kitchen-tickets .ticket.has-more-content .ticket-continuation { display: flex; }
 
     .kitchen-course {
@@ -7835,8 +7831,8 @@
                 ${group.items.map(line => `<div class="kitchen-line ${line.kitchenStatus === "Completo" ? "completo" : ""}">${line.qty} x ${line.name}${lineNoteHtml(line)}${lineVariationHtml(line)}</div>`).join("")}
               `).join("") : `<div class="small">Comanda chiusa senza righe.</div>`}
               ${order.notes ? `<div class="small"><strong>Note:</strong> ${escapeHtml(order.notes)}</div>` : ""}
-              <span class="ticket-continuation" aria-live="polite"></span>
             </div>
+            <span class="ticket-continuation" aria-live="polite"></span>
           `;
           ticket.querySelector(".kitchen-restore-order").addEventListener("click", () => restoreHistoryOrder(order.id));
           root.appendChild(ticket);
@@ -7886,8 +7882,8 @@
           <div class="ticket-scroll">
             ${group.items.map(line => `<button class="kitchen-line ${lineCycleBlocked ? "remote-blocked" : ""} ${line.kitchenStatus === "In preparazione" ? "in-preparazione" : line.kitchenStatus === "Completo" ? "completo" : ""}" data-line-key="${line.key}" type="button">${line.qty} x ${line.name}${lineNoteHtml(line)}${lineVariationHtml(line)}</button>`).join("")}
             ${order.notes ? `<div class="small"><strong>Note:</strong> ${order.notes}</div>` : ""}
-            <span class="ticket-continuation" aria-live="polite"></span>
           </div>
+          <span class="ticket-continuation" aria-live="polite"></span>
         `;
         if (!kitchenHistoryMode && allOrderLinesComplete) {
           const deleteButton = document.createElement("button");

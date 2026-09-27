@@ -202,6 +202,18 @@ public class RestaurantSync : IHttpHandler
         var parsedConfig = json.Deserialize<Dictionary<string, object>>(payload) ?? new Dictionary<string, object>();
         object commonValue;
         parsedConfig.TryGetValue("commonVariations", out commonValue);
+        if (commonValue == null)
+        {
+            object catalogValue;
+            object catalogVariations;
+            if (parsedConfig.TryGetValue("catalog", out catalogValue)
+                && (catalogValue as Dictionary<string, object>) != null
+                && (catalogValue as Dictionary<string, object>).TryGetValue("variations", out catalogVariations)
+                && (catalogVariations as Dictionary<string, object>) != null)
+            {
+                (catalogVariations as Dictionary<string, object>).TryGetValue("common", out commonValue);
+            }
+        }
 
         using (var connection = HubRiseIntegration.OpenDatabase())
         {

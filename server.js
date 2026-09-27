@@ -384,7 +384,10 @@ function platformConfigForClient(state) {
   return {
     room,
     settings: state && state.settings || {},
-    catalog: { variations: state && state.variations || {} }
+    catalog: { variations: state && state.variations || {} },
+    commonVariations: state && state.variations && Array.isArray(state.variations.common)
+      ? state.variations.common
+      : []
   };
 }
 
@@ -869,6 +872,9 @@ async function pullPlatformConfigFromRemote() {
   const incomingVariations = config.catalog?.variations || config.variations;
   if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
     sharedState.variations = { ...(sharedState.variations || {}), ...incomingVariations };
+  }
+  if (Array.isArray(config.commonVariations)) {
+    sharedState.variations = { ...(sharedState.variations || {}), common: config.commonVariations };
   }
   persistStateFiles();
   return true;
@@ -1766,6 +1772,9 @@ const server = http.createServer((request, response) => {
         const incomingVariations = incoming.catalog?.variations || incoming.variations;
         if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
           sharedState.variations = { ...(sharedState.variations || {}), ...incomingVariations };
+        }
+        if (Array.isArray(incoming.commonVariations)) {
+          sharedState.variations = { ...(sharedState.variations || {}), common: incoming.commonVariations };
         }
         persistStateFiles();
         pushPlatformConfigToRemote(platformConfigForClient(sharedState))

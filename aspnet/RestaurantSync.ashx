@@ -100,8 +100,30 @@ public class RestaurantSync : IHttpHandler
             command.CommandTimeout = CommandTimeoutSeconds;
             var value = command.ExecuteScalar();
             var payload = value == null || value == DBNull.Value ? "{}" : value.ToString();
-            context.Response.Write("{\"platformConfig\":" + payload + "}");
+            var serializer = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue };
+            var config = serializer.Deserialize<Dictionary<string, object>>(payload) ?? new Dictionary<string, object>();
+            config["commonVariations"] = ReadCommonVariations(connection);
+            context.Response.Write("{\"platformConfig\":" + serializer.Serialize(config) + "}");
         }
+    }
+
+    private List<object> ReadCommonVariations(MySqlConnection connection)
+    {
+        var result = new List<object>();
+        using (var command = new MySqlCommand(@"SELECT id, variation_name, price, display_order, background_color, is_active
+            FROM restaurant_common_variation ORDER BY display_order, variation_name", connection))
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read()) result.Add(new Dictionary<string, object> {
+                { "id", Convert.ToInt64(reader["id"]) },
+                { "name", reader["variation_name"].ToString() },
+                { "price", Convert.ToDecimal(reader["price"], CultureInfo.InvariantCulture) },
+                { "order", Convert.ToInt32(reader["display_order"]) },
+                { "color", reader["background_color"].ToString() },
+                { "active", Convert.ToBoolean(reader["is_active"]) }
+            });
+        }
+        return result;
     }
 
     private void GetDeviceSettingsSnapshots(HttpContext context)
@@ -177,23 +199,53 @@ public class RestaurantSync : IHttpHandler
             : body;
         json.DeserializeObject(payload);
 
+        var parsedConfig = json.Deserialize<Dictionary<string, object>>(payload) ?? new Dictionary<string, object>();
+        object commonValue;
+        parsedConfig.TryGetValue("commonVariations", out commonValue);
+
         using (var connection = HubRiseIntegration.OpenDatabase())
-        using (var update = new MySqlCommand(@"
-            UPDATE restaurant_platform_config
-            SET config_payload = CAST(@payload AS JSON), updated_at_utc = UTC_TIMESTAMP()
-            WHERE config_key = 'default'", connection))
         {
-            update.CommandTimeout = CommandTimeoutSeconds;
-            update.Parameters.AddWithValue("@payload", payload);
-            if (update.ExecuteNonQuery() == 0)
+            using (var update = new MySqlCommand(@"
+                UPDATE restaurant_platform_config
+                SET config_payload = CAST(@payload AS JSON), updated_at_utc = UTC_TIMESTAMP()
+                WHERE config_key = 'default'", connection))
             {
-                using (var insert = new MySqlCommand(@"
-                    INSERT INTO restaurant_platform_config (config_key, config_payload, updated_at_utc)
-                    VALUES ('default', CAST(@payload AS JSON), UTC_TIMESTAMP())", connection))
+                update.CommandTimeout = CommandTimeoutSeconds;
+                update.Parameters.AddWithValue("@payload", payload);
+                if (update.ExecuteNonQuery() == 0)
                 {
-                    insert.CommandTimeout = CommandTimeoutSeconds;
-                    insert.Parameters.AddWithValue("@payload", payload);
-                    insert.ExecuteNonQuery();
+                    using (var insert = new MySqlCommand(@"
+                        INSERT INTO restaurant_platform_config (config_key, config_payload, updated_at_utc)
+                        VALUES ('default', CAST(@payload AS JSON), UTC_TIMESTAMP())", connection))
+                    {
+                        insert.CommandTimeout = CommandTimeoutSeconds;
+                        insert.Parameters.AddWithValue("@payload", payload);
+                        insert.ExecuteNonQuery();
+                    }
+                }
+            }
+
+            if (commonValue != null)
+            {
+                var common = commonValue as object[] ?? new object[0];
+                using (var delete = new MySqlCommand("DELETE FROM restaurant_common_variation", connection)) delete.ExecuteNonQuery();
+                foreach (var value in common)
+                {
+                    var row = value as Dictionary<string, object>;
+                    if (row == null) continue;
+                    var name = row.ContainsKey("name") ? Convert.ToString(row["name"]).Trim() : "";
+                    if (String.IsNullOrWhiteSpace(name)) continue;
+                    using (var insert = new MySqlCommand(@"INSERT INTO restaurant_common_variation
+                        (variation_name, price, display_order, background_color, is_active)
+                        VALUES (@name, @price, @displayOrder, @color, @active)", connection))
+                    {
+                        insert.Parameters.AddWithValue("@name", name);
+                        insert.Parameters.AddWithValue("@price", row.ContainsKey("price") ? Convert.ToDecimal(row["price"], CultureInfo.InvariantCulture) : 0m);
+                        insert.Parameters.AddWithValue("@displayOrder", row.ContainsKey("order") ? Convert.ToInt32(row["order"]) : 0);
+                        insert.Parameters.AddWithValue("@color", row.ContainsKey("color") ? Convert.ToString(row["color"]) : "#e8f3ef");
+                        insert.Parameters.AddWithValue("@active", !row.ContainsKey("active") || Convert.ToBoolean(row["active"]));
+                        insert.ExecuteNonQuery();
+                    }
                 }
             }
         }

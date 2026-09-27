@@ -1526,6 +1526,11 @@
       border-color: var(--brand);
     }
 
+    .variation-item.common-variation {
+      border-left: 5px solid var(--brand-2);
+      font-weight: 700;
+    }
+
     .menu-item strong, .ticket strong {
       display: block;
       overflow-wrap: anywhere;
@@ -2682,8 +2687,9 @@
 
   <section class="setup-screen" id="setupScreen" hidden>
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
-    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="general">Generale</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
+    <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="common-variations">Varianti comuni</button><button class="ghost" data-setup-tab="general">Generale</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
     <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="common-variations" hidden><div class="panel-header"><h2>Varianti comuni</h2><button class="primary" id="addCommonVariationBtn" type="button">Aggiungi variante</button></div><div class="panel-body"><div class="setup-list" id="commonVariationsList"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="general" hidden><div class="panel-header"><h2>Impostazioni generali</h2><span class="small">Valori condivisi dal ristorante</span></div><div class="panel-body stack"><label>Costo coperto (EUR) <input id="generalCoverChargeInput" type="number" min="0" max="50" step="0.1"></label><div class="setup-section-note">Il costo viene applicato ai coperti e compare nel preconto e nel conto.</div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Dimensioni prima pagina</h3><span class="setup-section-note">Le tre colonne mantengono la stessa altezza.</span><label>Altezza colonne (px) <input id="mainPanelHeightInput" type="number" min="360" max="1600" step="20"></label><label>Larghezza area tavoli (px) <input id="roomColumnWidthInput" type="number" min="640" max="2200" step="20"></label><label>Larghezza Delivery/Pick-up (px) <input id="deliveryColumnWidthInput" type="number" min="220" max="600" step="10"></label><label>Larghezza comanda (px) <input id="orderColumnWidthInput" type="number" min="260" max="700" step="10"></label><label>Dimensione carattere generale (px) <input id="mainFontSizeInput" type="number" min="12" max="22" step="1"></label></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div><div class="setup-device-view"><h3>Snapshot settaggi locali</h3><span class="setup-section-note">Salva o richiama layout e preferenze di questo dispositivo dal server remoto.</span><div class="row"><button class="ghost" id="saveDeviceSnapshotBtn" type="button">Salva settaggi</button><button class="ghost" id="loadDeviceSnapshotBtn" type="button">Carica settaggi</button></div></div></div></section>
     <dialog id="deviceSnapshotModal"><form method="dialog" class="modal-card"><div class="modal-head"><h2 id="deviceSnapshotTitle">Snapshot settaggi</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><div id="deviceSnapshotSaveView"><label>Nome snapshot<input id="deviceSnapshotName" type="text" maxlength="128" autocomplete="off"></label><div class="setup-section-note">Se il nome esiste, potrai confermare la sovrascrittura.</div></div><div id="deviceSnapshotLoadView" hidden><label>Settaggio da caricare<select id="deviceSnapshotSelect"></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Annulla</button><button class="primary" id="deviceSnapshotConfirmBtn" type="button">Conferma</button></div><div class="login-error" id="deviceSnapshotError" role="alert"></div></form></dialog>
@@ -3632,7 +3638,8 @@
         { name: "Tartufo", price: 4 },
         { name: "Doppia porzione", price: 5 },
         { name: "Pane extra", price: 1 }
-      ]
+      ],
+      common: []
     };
 
     const initialState = {
@@ -3742,7 +3749,8 @@
         menu: Array.isArray(source?.menu) ? structuredClone(source.menu) : [],
         room: { ...room, tables: configuredTables },
         settings: structuredClone(source?.settings || initialState.settings),
-        catalog: { variations: structuredClone(source?.variations || initialState.variations) }
+        catalog: { variations: structuredClone(source?.variations || initialState.variations) },
+        commonVariations: structuredClone(source?.variations?.common || [])
       };
     }
 
@@ -3809,6 +3817,7 @@
     function platformConfigForSync(source) {
       const config = platformConfigFromState(source);
       delete config.menu;
+      config.commonVariations = structuredClone(source?.variations?.common || []);
       return config;
     }
 
@@ -4332,6 +4341,7 @@
           if (!Array.isArray(saved.courseActivationOrder)) saved.courseActivationOrder = [];
           if (!Array.isArray(saved.variations.minus)) saved.variations.minus = structuredClone(defaultVariations.minus);
           if (!Array.isArray(saved.variations.plus)) saved.variations.plus = structuredClone(defaultVariations.plus);
+          if (!Array.isArray(saved.variations.common)) saved.variations.common = structuredClone(defaultVariations.common);
           saved.settings.coverCharge = clamp(Number(saved.settings.coverCharge || 0), 0, 50);
           saved.room.width = clamp(Number(saved.room.width || DEFAULT_ROOM.width), 640, 2200);
           saved.room.height = clamp(Number(saved.room.height || DEFAULT_ROOM.height), 360, 1400);
@@ -4523,6 +4533,7 @@
       if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
         state.variations = { ...(state.variations || {}), ...structuredClone(incomingVariations) };
       }
+      if (Array.isArray(config.commonVariations)) state.variations.common = structuredClone(config.commonVariations);
       persistPlatformConfig(state);
       normalizeSharedState();
       persistBrowserState();
@@ -7514,6 +7525,11 @@
       }).filter(Boolean);
       const plusOptions = [...new Map(allMenuIngredients.map(name => [name.toLowerCase(), { name, price: 0 }])).values()]
         .filter(extra => !presentNames.has(extra.name.toLowerCase()));
+      const commonOptions = (Array.isArray(state.variations?.common) ? state.variations.common : [])
+        .filter(variation => variation.active !== false && String(variation.name || "").trim())
+        .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name).localeCompare(String(right.name), "it", { sensitivity: "base", numeric: true }))
+        .filter(variation => !presentNames.has(String(variation.name).toLowerCase()))
+        .map(variation => ({ name: variation.name, price: Number(variation.price || 0), common: true, color: variation.color }));
 
       if (variationMode === "minus") {
         const minusOptions = ingredientNames.map(name => `Senza ${name}`)
@@ -7534,10 +7550,14 @@
       }
 
       plusOptions.sort((left, right) => left.name.localeCompare(right.name, "it", { sensitivity: "base", numeric: true }));
-      plusOptions.forEach(extra => {
+      [...commonOptions, ...plusOptions].forEach(extra => {
         const selected = normalizeExtras(line.plusVariations).some(item => item.name === extra.name);
         const button = document.createElement("button");
         button.className = `menu-item variation-item ${selected ? "selected" : ""}`;
+        if (extra.common) {
+          button.classList.add("common-variation");
+          if (/^#[0-9a-f]{6}$/i.test(extra.color || "")) button.style.backgroundColor = extra.color;
+        }
         button.disabled = lineLocked;
         button.innerHTML = `<strong>${escapeHtml(extra.name)}</strong><span class="small">In più</span><span class="price">+${money.format(extra.price)}</span>`;
         button.addEventListener("click", event => {
@@ -8206,6 +8226,21 @@
       state.settings.printers = Array.isArray(state.settings.printers) ? state.settings.printers : [];
       const categoryRoot = document.getElementById("setupCategoryList");
       categoryRoot.innerHTML = menuCategories().map(category => `<div class="setup-row"><strong>${escapeHtml(category)}</strong><span class="small">Sincronizzata dal menu online</span></div>`).join("") || `<div class="empty">Nessuna categoria disponibile.</div>`;
+      const commonRoot = document.getElementById("commonVariationsList");
+      if (commonRoot) {
+        state.variations ||= {};
+        state.variations.common = Array.isArray(state.variations.common) ? state.variations.common : [];
+        commonRoot.innerHTML = state.variations.common.map((variation, index) => `<div class="setup-row common-variation-row" data-common-index="${index}"><input data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Nome"><input data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}" placeholder="Prezzo"><input data-common-field="order" type="number" step="1" value="${Number(variation.order ?? index)}" placeholder="Ordine"><input data-common-field="color" type="color" value="${/^#[0-9a-f]{6}$/i.test(variation.color || "") ? variation.color : "#e8f3ef"}" title="Colore"><label class="checkbox-label"><input data-common-field="active" type="checkbox" ${variation.active !== false ? "checked" : ""}> Attiva</label><button class="ghost common-variation-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna variante comune configurata.</div>`;
+        commonRoot.querySelectorAll(".common-variation-row").forEach(row => {
+          const index = Number(row.dataset.commonIndex);
+          row.querySelectorAll("[data-common-field]").forEach(input => input.addEventListener("change", () => {
+            const field = input.dataset.commonField;
+            state.variations.common[index][field] = field === "price" ? Number(input.value || 0) : field === "order" ? Number(input.value || 0) : field === "active" ? input.checked : input.value.trim();
+            saveState();
+          }));
+          row.querySelector(".common-variation-remove").addEventListener("click", () => { state.variations.common.splice(index, 1); saveState(); renderSetup(); });
+        });
+      }
       const printerRoot = document.getElementById("setupPrinterList");
         printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><select data-printer-field="protocol" title="Protocollo di stampa"><option value="escpos" ${printer.protocol !== "epson-pcpos" ? "selected" : ""}>ESC/POS</option><option value="epson-pcpos" ${printer.protocol === "epson-pcpos" ? "selected" : ""}>Epson PC-POS</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><label class="checkbox-label"><input class="printer-preview" type="checkbox" ${printer.preview !== false ? "checked" : ""}> Anteprima</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
       printerRoot.querySelectorAll(".setup-row").forEach(row => {
@@ -10370,7 +10405,7 @@
       const tab = button.dataset.setupTab;
       document.querySelectorAll("[data-setup-tab]").forEach(item => item.classList.toggle("active", item === button));
       document.querySelectorAll("[data-setup-panel]").forEach(panel => panel.hidden = panel.dataset.setupPanel !== tab);
-      if (tab === "device" || tab === "monitors" || tab === "printers" || tab === "fiscal" || tab === "pos") renderSetup();
+      if (tab === "device" || tab === "common-variations" || tab === "monitors" || tab === "printers" || tab === "fiscal" || tab === "pos") renderSetup();
       if (tab === "update") loadUpdateVersion();
     }));
 
@@ -10429,6 +10464,16 @@
       document.getElementById(id).addEventListener("change", saveFiscalPrinterSetup);
     });
     document.getElementById("fiscalPrinterTestBtn").addEventListener("click", testFiscalPrinterConnection);
+
+    document.getElementById("addCommonVariationBtn").addEventListener("click", () => {
+      state.variations ||= {};
+      state.variations.common ||= [];
+      state.variations.common.push({ name: "", price: 0, order: state.variations.common.length, color: "#e8f3ef", active: true });
+      saveState();
+      renderSetup();
+      const inputs = document.querySelectorAll("#commonVariationsList [data-common-field=name]");
+      inputs[inputs.length - 1]?.focus();
+    });
 
     document.getElementById("closeSetupBtn").addEventListener("click", () => {
       document.getElementById("setupScreen").hidden = true;

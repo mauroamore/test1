@@ -1462,6 +1462,10 @@
       overflow-y: auto;
       padding-right: 6px;
     }
+    .menu-grid.variation-menu-grid {
+      display: block;
+      overflow-y: auto;
+    }
 
     .menu-layout {
       display: grid;
@@ -1611,6 +1615,7 @@
       grid-column: 1 / -1;
       display: grid;
       grid-template-columns: repeat(auto-fill, 160px);
+      grid-template-rows: auto;
       grid-auto-rows: 118px;
       gap: 10px;
       align-content: start;
@@ -7438,6 +7443,7 @@
     function renderMenu() {
       const root = document.getElementById("menu");
       if (!Array.isArray(state.menu)) state.menu = [];
+      root.classList.toggle("variation-menu-grid", menuMode === "variations");
       root.innerHTML = "";
       document.getElementById("menuSearchBar").hidden = menuMode === "variations";
       renderTabs();

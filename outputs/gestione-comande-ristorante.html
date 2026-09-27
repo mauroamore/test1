@@ -8466,11 +8466,15 @@
             const swatch = row.querySelector(".common-color-swatch");
             if (swatch) {
               swatch.style.setProperty("--common-color", color);
+              swatch.style.backgroundColor = color;
               swatch.title = color;
             }
             row.querySelectorAll(".common-name-preview").forEach(preview => {
               preview.style.setProperty("--common-variation-color", color);
-              preview.style.setProperty("--common-variation-text-color", commonVariationTextColor({ color }));
+              const textColor = commonVariationTextColor({ color });
+              preview.style.setProperty("--common-variation-text-color", textColor);
+              preview.style.backgroundColor = color;
+              preview.style.color = textColor;
             });
           });
           row.querySelector(".common-variation-edit").addEventListener("click", () => { editingCommonVariationIndex = index; setEditing(true); });

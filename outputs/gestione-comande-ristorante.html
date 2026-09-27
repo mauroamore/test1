@@ -10107,12 +10107,34 @@
       if (event.key === "Escape") closeSplitLabelModal();
     });
 
-    document.getElementById("splitStartBtn").addEventListener("click", () => {
+    document.getElementById("splitStartBtn").addEventListener("click", async () => {
       const order = currentOrder();
       if (!order) return;
+      const previousSplitMode = order.splitMode;
+      const previousSelectedSplit = order.selectedSplit;
       order.splitMode = true;
-      order.selectedSplit = "T";
+      order.selectedSplit = "1";
       order.splitCount = Math.max(6, Number(order.splitCount || 6));
+      renderOrder();
+      const details = await askSplitDetails(order, "1", {
+        showAssignExisting: Array.isArray(order.items) && order.items.some(line => !line.splitAccount || line.splitAccount === "T")
+      });
+      if (!details) {
+        order.splitMode = previousSplitMode;
+        order.selectedSplit = previousSelectedSplit || "T";
+        renderOrder();
+        return;
+      }
+      if (!order.splitCovers) order.splitCovers = {};
+      if (!order.splitLabels) order.splitLabels = {};
+      order.splitCovers["1"] = details.covers;
+      if (details.name) order.splitLabels["1"] = details.name;
+      else delete order.splitLabels["1"];
+      if (details.assignExisting) {
+        order.items.forEach(line => {
+          if (!line.splitAccount || line.splitAccount === "T") line.splitAccount = "1";
+        });
+      }
       saveState();
       renderOrder();
     });

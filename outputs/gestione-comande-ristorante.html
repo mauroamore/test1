@@ -3889,6 +3889,7 @@
 
     let state = loadState();
     let editingCommonVariationIndex = null;
+    let setupPollingPaused = false;
     applyLocalRoomLayout();
     clearCoversFromFreeTables();
     let editRoom = false;
@@ -4568,7 +4569,9 @@
       }
       const incomingVariations = config.catalog?.variations || config.variations;
       if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
-        state.variations = { ...(state.variations || {}), ...structuredClone(incomingVariations) };
+        const variations = structuredClone(incomingVariations);
+        if (editingCommonVariationIndex !== null) delete variations.common;
+        state.variations = { ...(state.variations || {}), ...variations };
       }
       // Una riga in modifica appartiene temporaneamente all'operatore: il
       // polling della configurazione non deve sostituirla prima di Salva o Annulla.
@@ -4600,6 +4603,7 @@
 
     async function syncFromServer({ force = false } = {}) {
       const now = Date.now();
+      if (setupPollingPaused && !force) return;
       // Il polling e gli eventi realtime aggiornano solo la lista sottostante.
       // Mentre la comanda e' aperta il suo contenuto appartiene all'operatore:
       // rimandiamo la sincronizzazione alla chiusura del modal.
@@ -4824,6 +4828,7 @@
             onState: status => setRealtimeStatus(`Realtime: ${status}`, status === "connected"),
             onEvent: message => {
               if (message.event === "platform-config.updated") {
+                if (setupPollingPaused) return;
                 loadPlatformConfig().then(applyPlatformConfig);
                 return;
               }
@@ -4851,6 +4856,7 @@
           const message = JSON.parse(event.data);
           if (message.type !== "state-updated") return;
           if (message.event === "platform-config.updated") {
+            if (setupPollingPaused) return;
             loadPlatformConfig().then(applyPlatformConfig);
             return;
           }
@@ -10339,6 +10345,7 @@
 
     document.getElementById("setupBtn").addEventListener("click", () => {
       if (REMOTE_MODE) return;
+      setupPollingPaused = true;
       document.body.classList.remove("kitchen-mode", "device-kitchen", "bar-mobile-monitor");
       document.getElementById("kitchenScreen").hidden = true;
       document.querySelector("main").hidden = true;
@@ -10568,14 +10575,17 @@
 
     document.getElementById("closeSetupBtn").addEventListener("click", () => {
       document.getElementById("setupScreen").hidden = true;
+      setupPollingPaused = false;
       if (deviceMode === "kitchen") {
         document.querySelector("main").hidden = true;
         document.body.classList.add("kitchen-mode", "device-kitchen");
         document.getElementById("kitchenScreen").hidden = false;
         renderKitchen();
+        syncFromServer({ force: true });
         return;
       }
       document.querySelector("main").hidden = false;
+      syncFromServer({ force: true });
       render();
     });
 

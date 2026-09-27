@@ -1567,6 +1567,14 @@
       font-weight: 700;
     }
 
+    /* Il colore configurato deve restare visibile anche quando la variante e' selezionata. */
+    .variation-item.common-variation,
+    .variation-item.common-variation:hover,
+    .variation-item.common-variation:focus-visible,
+    .variation-item.common-variation.selected {
+      background-color: var(--common-variation-color, white) !important;
+    }
+
     .menu-item strong, .ticket strong {
       display: block;
       overflow-wrap: anywhere;
@@ -7604,7 +7612,9 @@
         button.className = `menu-item variation-item ${selected ? "selected" : ""}`;
         if (extra.common) {
           button.classList.add("common-variation");
-          if (/^#[0-9a-f]{6}$/i.test(extra.color || "")) button.style.backgroundColor = extra.color;
+          if (/^#[0-9a-f]{6}$/i.test(extra.color || "")) {
+            button.style.setProperty("--common-variation-color", extra.color.toLowerCase());
+          }
         }
         button.disabled = lineLocked;
         button.innerHTML = `<strong>${escapeHtml(extra.name)}</strong><span class="small">In più</span><span class="price">+${money.format(extra.price)}</span>`;
@@ -8300,7 +8310,8 @@
             const fields = Object.fromEntries([...row.querySelectorAll("[data-common-field]")].map(input => [input.dataset.commonField, input]));
             const name = fields.name.value.trim();
             if (!name) { fields.name.focus(); return; }
-            state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price.value || 0), color: fields.color.value, active: fields.active.checked };
+            const color = /^#[0-9a-f]{6}$/i.test(fields.color.value || "") ? fields.color.value.toLowerCase() : "#e8f3ef";
+            state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price.value || 0), color, active: fields.active.checked };
             editingCommonVariationIndex = null;
             saveState();
             await savePlatformConfig(false, true);

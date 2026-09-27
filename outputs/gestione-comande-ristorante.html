@@ -752,7 +752,7 @@
     .common-name-preview.common-display-value { display: inline-block; padding: 5px 8px; }
     .common-name-preview.common-edit-field { padding: 7px 8px; }
     .common-variation-row.is-editing .common-view-actions { display: none; }
-    .printer-row { min-width: 1180px; grid-template-columns: minmax(130px, 1.1fr) minmax(150px, 1.2fr) 82px 70px 130px 100px 100px 92px minmax(120px, 1fr) 34px; }
+    .printer-row { min-width: 1280px; grid-template-columns: minmax(130px, 1.1fr) minmax(150px, 1.2fr) 82px 70px 92px 130px 100px 100px 92px minmax(120px, 1fr) 34px; }
     .monitor-config { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
     .monitor-config { display: grid; gap: 14px; padding: 16px; background: var(--panel); }
     .monitor-config-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
@@ -8444,10 +8444,10 @@
         });
       }
       const printerRoot = document.getElementById("setupPrinterList");
-        printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><select data-printer-field="protocol" title="Protocollo di stampa"><option value="escpos" ${printer.protocol !== "epson-pcpos" ? "selected" : ""}>ESC/POS</option><option value="epson-pcpos" ${printer.protocol === "epson-pcpos" ? "selected" : ""}>Epson PC-POS</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><label class="checkbox-label"><input class="printer-preview" type="checkbox" ${printer.preview !== false ? "checked" : ""}> Anteprima</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
+        printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width" title="Larghezza carta"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><select data-printer-field="fontSize" title="Dimensione caratteri articoli"><option value="1" ${Number(printer.fontSize || 1) === 1 ? "selected" : ""}>Caratteri 1x</option><option value="2" ${Number(printer.fontSize || 1) === 2 ? "selected" : ""}>Caratteri 2x</option><option value="3" ${Number(printer.fontSize || 1) === 3 ? "selected" : ""}>Caratteri 3x</option><option value="4" ${Number(printer.fontSize || 1) === 4 ? "selected" : ""}>Caratteri 4x</option></select><select data-printer-field="protocol" title="Protocollo di stampa"><option value="escpos" ${printer.protocol !== "epson-pcpos" ? "selected" : ""}>ESC/POS</option><option value="epson-pcpos" ${printer.protocol === "epson-pcpos" ? "selected" : ""}>Epson PC-POS</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><label class="checkbox-label"><input class="printer-preview" type="checkbox" ${printer.preview !== false ? "checked" : ""}> Anteprima</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
       printerRoot.querySelectorAll(".setup-row").forEach(row => {
         const index = Number(row.dataset.printerIndex);
-        row.querySelectorAll("[data-printer-field]").forEach(input => input.addEventListener("change", () => { state.settings.printers[index][input.dataset.printerField] = ["width", "port"].includes(input.dataset.printerField) ? Number(input.value) : input.value; saveState(); }));
+        row.querySelectorAll("[data-printer-field]").forEach(input => input.addEventListener("change", () => { state.settings.printers[index][input.dataset.printerField] = ["width", "port", "fontSize"].includes(input.dataset.printerField) ? Number(input.value) : input.value; saveState(); }));
         row.querySelector(".preconto-printer")?.addEventListener("change", event => { state.settings.precontoPrinter = event.target.checked ? state.settings.printers[index].name : ""; saveState(); renderSetup(); });
         row.querySelector(".printer-preview")?.addEventListener("change", event => { state.settings.printers[index].preview = event.target.checked; saveState(); });
         row.querySelector(".printer-test").addEventListener("click", () => simulatePrinterTest(state.settings.printers[index], row));
@@ -8538,7 +8538,9 @@
       for (const { printer, lines } of grouped.values()) {
         const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine");
         const text = lines.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`).join("\n");
-        const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n${text}\n\n`;
+        const fontSize = Math.max(1, Math.min(4, Number(printer.fontSize || 1)));
+        const escPosScale = (fontSize - 1) * 0x11;
+        const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n\x1d\x21${String.fromCharCode(escPosScale)}${text}\n\x1d\x21\x00\n`;
         try {
           const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "order", printer, payload }) });
           if (!response.ok) {
@@ -10742,7 +10744,7 @@
 
     document.getElementById("addPrinterBtn").addEventListener("click", () => {
       state.settings.printers ||= [];
-      state.settings.printers.push({ name: "Stampante", width: 80, connection: "USB" });
+      state.settings.printers.push({ name: "Stampante", width: 80, fontSize: 1, connection: "USB" });
       saveState();
       renderSetup();
     });

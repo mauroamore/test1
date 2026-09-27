@@ -7525,9 +7525,9 @@
               if (orderNow?.splitMode && orderNow.selectedSplit === "T" && !splitAccount) return;
               markItemJustAdded(item.id);
               const addedKey = addItem(item, splitAccount);
-              if (addedKey) editVariation(addedKey);
+              if (addedKey) requestAnimationFrame(() => editVariation(addedKey));
             })();
-          }, 900);
+          }, 700);
         });
         button.addEventListener("pointerup", cancelLongPress);
         button.addEventListener("pointercancel", cancelLongPress);

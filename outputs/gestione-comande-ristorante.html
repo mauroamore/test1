@@ -1308,6 +1308,55 @@
       margin: 0;
     }
 
+    .switch-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .switch-label input[type="checkbox"] {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .switch-track {
+      position: relative;
+      flex: 0 0 auto;
+      width: 42px;
+      height: 24px;
+      border-radius: 999px;
+      background: #c6cfcc;
+      transition: background .18s ease;
+    }
+
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+      transition: transform .18s ease;
+    }
+
+    .switch-label input[type="checkbox"]:checked + .switch-track {
+      background: var(--brand);
+    }
+
+    .switch-label input[type="checkbox"]:checked + .switch-track::after {
+      transform: translateX(18px);
+    }
+
+    .switch-label input[type="checkbox"]:focus-visible + .switch-track {
+      outline: 3px solid rgba(35, 100, 90, .25);
+      outline-offset: 2px;
+    }
+
     #monitorCategoriesList {
       margin-bottom: 14px;
     }
@@ -2928,7 +2977,7 @@
     <div class="modal-content stack">
       <label>Numero di coperti <input id="splitDetailsCoversInput" type="number" min="1" step="1" inputmode="numeric"></label>
       <label>Nome (facoltativo) <input id="splitDetailsNameInput" type="text" autocomplete="off" placeholder="Es. Marco"></label>
-      <label id="splitDetailsAssignExistingWrap" hidden><input id="splitDetailsAssignExistingInput" type="checkbox" checked> Inserisci nel sottoconto 1 i piatti gia' presenti</label>
+      <label class="switch-label" id="splitDetailsAssignExistingWrap" hidden><input id="splitDetailsAssignExistingInput" type="checkbox" checked><span class="switch-track" aria-hidden="true"></span><span>Inserisci nel sottoconto 1 i piatti gia' presenti</span></label>
       <div class="row"><button class="secondary" id="splitDetailsCancelBtn" type="button">Annulla</button><button class="primary" id="splitDetailsSaveBtn" type="button">Conferma</button></div>
     </div>
   </dialog>
@@ -7893,16 +7942,25 @@
           .filter(group => !(order.dismissedCourses || []).includes(courseNumber(group.course)))
           .map(group => ({ order, group, orderIndex }));
       });
+      const kitchenOrderAge = order => {
+        const candidates = [order.coversEnteredAt, order.createdAt, order.created, order.sentAt, order.updatedAt];
+        for (const value of candidates) {
+          const timestamp = new Date(value || "").getTime();
+          if (Number.isFinite(timestamp)) return timestamp;
+        }
+        const numericId = Number(order.id);
+        return Number.isFinite(numericId) ? numericId : Number.MAX_SAFE_INTEGER;
+      };
       tickets.sort((a, b) => {
-        const courseOrder = courseNumber(a.group.course) - courseNumber(b.group.course);
-        if (courseOrder !== 0) return courseOrder;
         const aActive = courseNumber(a.group.course) === monitorActiveCourse(a.order);
         const bActive = courseNumber(b.group.course) === monitorActiveCourse(b.order);
         if (aActive !== bActive) return aActive ? -1 : 1;
-        const activationOrder = Array.isArray(state.courseActivationOrder) ? state.courseActivationOrder : [];
-        const aIndex = activationOrder.indexOf(`${a.order.id}:${courseNumber(a.group.course)}`);
-        const bIndex = activationOrder.indexOf(`${b.order.id}:${courseNumber(b.group.course)}`);
-        return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+        const ageOrder = kitchenOrderAge(a.order) - kitchenOrderAge(b.order);
+        if (ageOrder !== 0) return ageOrder;
+        if (String(a.order.id) === String(b.order.id)) {
+          return courseNumber(a.group.course) - courseNumber(b.group.course);
+        }
+        return a.orderIndex - b.orderIndex;
       });
       tickets.forEach(({ order, group }) => {
         const ticket = document.createElement("div");

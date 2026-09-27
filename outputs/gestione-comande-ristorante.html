@@ -446,6 +446,33 @@
       align-self: stretch;
       min-width: 0;
     }
+    body.palmare-mode .variation-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      align-items: center;
+      gap: 2px 8px;
+    }
+    body.palmare-mode .variation-item strong {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      align-self: center;
+    }
+    body.palmare-mode .variation-item .price {
+      grid-column: 2;
+      grid-row: 2;
+      justify-self: end;
+      align-self: end;
+    }
+    body.palmare-mode .variation-item .variation-sign {
+      width: auto;
+      margin-right: 2px;
+    }
+    body.palmare-mode .variation-section {
+      grid-template-columns: 1fr;
+      grid-auto-rows: auto;
+      gap: 0;
+    }
     body.palmare-mode .menu-item .item-quantity {
       flex: 0 0 3.5ch;
       width: 3.5ch;

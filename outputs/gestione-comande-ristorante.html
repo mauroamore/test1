@@ -1598,6 +1598,15 @@
       color: inherit !important;
     }
 
+    .variation-sign {
+      display: inline-block;
+      width: 1.25em;
+      margin-right: 3px;
+      font-size: 1.15em;
+      font-weight: 800;
+      line-height: 1;
+    }
+
     .menu-item strong, .ticket strong {
       display: block;
       overflow-wrap: anywhere;
@@ -7630,6 +7639,24 @@
         .filter(variation => !presentNames.has(String(variation.name).toLowerCase()))
         .map(variation => ({ name: variation.name, price: Number(variation.price || 0), common: true, color: normalizeCommonVariationColor(variation) }));
 
+      const appendCommonVariation = extra => {
+        const selected = normalizeExtras(line.plusVariations).some(item => item.name === extra.name);
+        const button = document.createElement("button");
+        button.className = `menu-item variation-item common-variation ${selected ? "selected" : ""}`;
+        if (/^#[0-9a-f]{6}$/i.test(extra.color || "")) {
+          button.style.setProperty("--common-variation-color", extra.color.toLowerCase());
+          button.style.setProperty("--common-variation-text-color", commonVariationTextColor(extra));
+        }
+        button.disabled = lineLocked;
+        button.innerHTML = `<strong>${escapeHtml(extra.name)}</strong><span class="price">+${money.format(extra.price)}</span>`;
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          togglePlusVariation(line, extra);
+        });
+        root.appendChild(button);
+      };
+      commonOptions.forEach(appendCommonVariation);
+
       if (variationMode === "minus") {
         const minusOptions = ingredientNames.map(name => `Senza ${name}`)
           .sort((left, right) => left.localeCompare(right, "it", { sensitivity: "base", numeric: true }));
@@ -7638,7 +7665,7 @@
           const button = document.createElement("button");
           button.className = `menu-item variation-item ${selected ? "selected" : ""}`;
           button.disabled = lineLocked;
-          button.innerHTML = `<strong>${escapeHtml(name)}</strong><span class="small">In meno</span>`;
+          button.innerHTML = `<strong><span class="variation-sign" aria-hidden="true">−</span>${escapeHtml(name)}</strong>`;
           button.addEventListener("click", event => {
             event.stopPropagation();
             toggleMinusVariation(line, name);
@@ -7649,7 +7676,7 @@
       }
 
       plusOptions.sort((left, right) => left.name.localeCompare(right.name, "it", { sensitivity: "base", numeric: true }));
-      [...commonOptions, ...plusOptions].forEach(extra => {
+      plusOptions.forEach(extra => {
         const selected = normalizeExtras(line.plusVariations).some(item => item.name === extra.name);
         const button = document.createElement("button");
         button.className = `menu-item variation-item ${selected ? "selected" : ""}`;
@@ -7661,7 +7688,7 @@
           }
         }
         button.disabled = lineLocked;
-        button.innerHTML = `<strong>${escapeHtml(extra.name)}</strong><span class="small">In più</span><span class="price">+${money.format(extra.price)}</span>`;
+        button.innerHTML = `<strong><span class="variation-sign" aria-hidden="true">+</span>${escapeHtml(extra.name)}</strong><span class="price">+${money.format(extra.price)}</span>`;
         button.addEventListener("click", event => {
           event.stopPropagation();
           togglePlusVariation(line, extra);

@@ -119,7 +119,7 @@ public class RestaurantSync : IHttpHandler
                 { "name", reader["variation_name"].ToString() },
                 { "price", Convert.ToDecimal(reader["price"], CultureInfo.InvariantCulture) },
                 { "order", Convert.ToInt32(reader["display_order"]) },
-                { "color", reader["background_color"].ToString() },
+                { "color", reader["background_color"].ToString().Trim() },
                 { "active", Convert.ToBoolean(reader["is_active"]) }
             });
         }

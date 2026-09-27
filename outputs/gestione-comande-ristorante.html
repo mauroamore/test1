@@ -3862,8 +3862,16 @@
     function platformConfigForSync(source) {
       const config = platformConfigFromState(source);
       delete config.menu;
-      config.commonVariations = structuredClone(source?.variations?.common || []);
+      config.commonVariations = structuredClone(source?.variations?.common || []).map(variation => ({
+        ...variation,
+        color: normalizeCommonVariationColor(variation)
+      }));
       return config;
+    }
+
+    function normalizeCommonVariationColor(variation) {
+      const value = String(variation?.color ?? variation?.backgroundColor ?? variation?.background_color ?? "").trim();
+      return /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : "#e8f3ef";
     }
 
     function persistPlatformConfig(source = state) {
@@ -4585,7 +4593,10 @@
       // Una riga in modifica appartiene temporaneamente all'operatore: il
       // polling della configurazione non deve sostituirla prima di Salva o Annulla.
       if (Array.isArray(config.commonVariations) && editingCommonVariationIndex === null) {
-        state.variations.common = structuredClone(config.commonVariations);
+        state.variations.common = structuredClone(config.commonVariations).map(variation => ({
+          ...variation,
+          color: normalizeCommonVariationColor(variation)
+        }));
       }
       persistPlatformConfig(state);
       normalizeSharedState();
@@ -7586,7 +7597,7 @@
         .filter(variation => variation.active !== false && String(variation.name || "").trim())
         .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name).localeCompare(String(right.name), "it", { sensitivity: "base", numeric: true }))
         .filter(variation => !presentNames.has(String(variation.name).toLowerCase()))
-        .map(variation => ({ name: variation.name, price: Number(variation.price || 0), common: true, color: variation.color }));
+        .map(variation => ({ name: variation.name, price: Number(variation.price || 0), common: true, color: normalizeCommonVariationColor(variation) }));
 
       if (variationMode === "minus") {
         const minusOptions = ingredientNames.map(name => `Senza ${name}`)
@@ -8292,7 +8303,7 @@
         state.variations.common.sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name || "").localeCompare(String(right.name || ""), "it", { sensitivity: "base", numeric: true }));
         state.variations.common.forEach((variation, index) => { variation.order = index; });
         commonRoot.innerHTML = state.variations.common.length ? `<div class="common-variations-table-wrap"><table class="common-variations-table"><thead><tr><th>Nome</th><th>Prezzo extra</th><th>Colore</th><th>Attiva</th><th>Ordine</th><th>Azioni</th></tr></thead><tbody>${state.variations.common.map((variation, index) => {
-          const color = /^#[0-9a-f]{6}$/i.test(variation.color || "") ? variation.color : "#e8f3ef";
+          const color = normalizeCommonVariationColor(variation);
           return `<tr class="common-variation-row ${editingCommonVariationIndex === index ? "is-editing" : ""}" data-common-index="${index}">
             <td class="common-name"><span class="common-display-value">${escapeHtml(variation.name || "(senza nome)")}</span><input class="common-edit-field" data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla"></td>
             <td class="common-price"><span class="common-display-value">+${money.format(Number(variation.price || 0))}</span><input class="common-edit-field" data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}"></td>
@@ -8311,7 +8322,7 @@
             const fields = Object.fromEntries([...row.querySelectorAll("[data-common-field]")].map(input => [input.dataset.commonField, input]));
             const name = fields.name.value.trim();
             if (!name) { fields.name.focus(); return; }
-            const color = /^#[0-9a-f]{6}$/i.test(fields.color.value || "") ? fields.color.value.toLowerCase() : "#e8f3ef";
+            const color = normalizeCommonVariationColor({ color: fields.color.value });
             state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price.value || 0), color, active: fields.active.checked };
             editingCommonVariationIndex = null;
             saveState();

@@ -3888,6 +3888,7 @@
     }
 
     let state = loadState();
+    let editingCommonVariationIndex = null;
     applyLocalRoomLayout();
     clearCoversFromFreeTables();
     let editRoom = false;
@@ -8271,7 +8272,7 @@
         state.variations.common.forEach((variation, index) => { variation.order = index; });
         commonRoot.innerHTML = state.variations.common.length ? `<div class="common-variations-table-wrap"><table class="common-variations-table"><thead><tr><th>Nome</th><th>Prezzo extra</th><th>Colore</th><th>Attiva</th><th>Ordine</th><th>Azioni</th></tr></thead><tbody>${state.variations.common.map((variation, index) => {
           const color = /^#[0-9a-f]{6}$/i.test(variation.color || "") ? variation.color : "#e8f3ef";
-          return `<tr class="common-variation-row" data-common-index="${index}">
+          return `<tr class="common-variation-row ${editingCommonVariationIndex === index ? "is-editing" : ""}" data-common-index="${index}">
             <td class="common-name"><span class="common-display-value">${escapeHtml(variation.name || "(senza nome)")}</span><input class="common-edit-field" data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla"></td>
             <td class="common-price"><span class="common-display-value">+${money.format(Number(variation.price || 0))}</span><input class="common-edit-field" data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}"></td>
             <td class="common-color"><span class="common-display-value common-color-swatch" style="background:${color}" title="${color}"></span><input class="common-edit-field" data-common-field="color" type="color" value="${color}" title="Colore pulsante"></td>
@@ -8284,12 +8285,13 @@
           const index = Number(row.dataset.commonIndex);
           const setEditing = editing => row.classList.toggle("is-editing", editing);
           row.querySelector(".common-variation-edit").addEventListener("click", () => setEditing(true));
-          row.querySelector(".common-variation-cancel").addEventListener("click", () => renderSetup());
+          row.querySelector(".common-variation-cancel").addEventListener("click", () => { editingCommonVariationIndex = null; renderSetup(); });
           row.querySelector(".common-variation-save").addEventListener("click", async () => {
             const fields = Object.fromEntries([...row.querySelectorAll("[data-common-field]")].map(input => [input.dataset.commonField, input]));
             const name = fields.name.value.trim();
             if (!name) { fields.name.focus(); return; }
             state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price.value || 0), color: fields.color.value, active: fields.active.checked };
+            editingCommonVariationIndex = null;
             saveState();
             await savePlatformConfig(false, true);
             renderSetup();
@@ -10541,12 +10543,11 @@
       state.variations ||= {};
       state.variations.common ||= [];
       state.variations.common.push({ name: "", price: 0, order: state.variations.common.length, color: "#e8f3ef", active: true });
+      editingCommonVariationIndex = state.variations.common.length - 1;
       saveState();
-      savePlatformConfig(false, true);
       renderSetup();
       const rows = document.querySelectorAll("#commonVariationsList .common-variation-row");
       const row = rows[rows.length - 1];
-      row?.classList.add("is-editing");
       row?.querySelector("[data-common-field=name]")?.focus();
     });
 

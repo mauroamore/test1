@@ -1746,7 +1746,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/platform-config" && request.method === "POST") {
-    readRequestBody(request).then(body => {
+    readRequestBody(request).then(async body => {
       try {
         const parsed = JSON.parse(body || "{}");
         const incoming = parsed.platformConfig || parsed;
@@ -1777,13 +1777,14 @@ const server = http.createServer((request, response) => {
           sharedState.variations = { ...(sharedState.variations || {}), common: incoming.commonVariations };
         }
         persistStateFiles();
-        pushPlatformConfigToRemote(platformConfigForClient(sharedState))
-          .then(() => broadcast("platform-config.updated"))
-          .catch(error => {
-            appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} platform-config push ${error.message}\n`);
-            broadcastLocal("platform-config.updated");
-          });
-        return sendJson(response, 200, { ok: true });
+        try {
+          await pushPlatformConfigToRemote(platformConfigForClient(sharedState));
+        } catch (error) {
+          appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} platform-config push ${error.message}\n`);
+          return sendJson(response, 502, { ok: false, error: `Salvataggio remoto non riuscito: ${error.message}` });
+        }
+        broadcast("platform-config.updated");
+        return sendJson(response, 200, { ok: true, remote: true });
       } catch (error) {
         return sendJson(response, 400, { ok: false, error: "Configurazione piattaforma non valida" });
       }

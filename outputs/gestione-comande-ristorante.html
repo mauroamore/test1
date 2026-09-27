@@ -4570,7 +4570,11 @@
       if (incomingVariations && typeof incomingVariations === "object" && Object.keys(incomingVariations).length) {
         state.variations = { ...(state.variations || {}), ...structuredClone(incomingVariations) };
       }
-      if (Array.isArray(config.commonVariations)) state.variations.common = structuredClone(config.commonVariations);
+      // Una riga in modifica appartiene temporaneamente all'operatore: il
+      // polling della configurazione non deve sostituirla prima di Salva o Annulla.
+      if (Array.isArray(config.commonVariations) && editingCommonVariationIndex === null) {
+        state.variations.common = structuredClone(config.commonVariations);
+      }
       persistPlatformConfig(state);
       normalizeSharedState();
       persistBrowserState();

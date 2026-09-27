@@ -2928,6 +2928,7 @@
     <div class="modal-content stack">
       <label>Numero di coperti <input id="splitDetailsCoversInput" type="number" min="1" step="1" inputmode="numeric"></label>
       <label>Nome (facoltativo) <input id="splitDetailsNameInput" type="text" autocomplete="off" placeholder="Es. Marco"></label>
+      <label id="splitDetailsAssignExistingWrap" hidden><input id="splitDetailsAssignExistingInput" type="checkbox" checked> Inserisci nel sottoconto 1 i piatti gia' presenti</label>
       <div class="row"><button class="secondary" id="splitDetailsCancelBtn" type="button">Annulla</button><button class="primary" id="splitDetailsSaveBtn" type="button">Conferma</button></div>
     </div>
   </dialog>
@@ -6123,7 +6124,9 @@
           longPressTimer = setTimeout(async () => {
             longPressed = true;
             if (account === "T") return;
-            const details = await askSplitDetails(order, account);
+            const details = await askSplitDetails(order, account, {
+              showAssignExisting: account === "1" && (order.items || []).length > 0
+            });
             if (!details) return;
             if (!order.splitCovers) order.splitCovers = {};
             if (!order.splitLabels) order.splitLabels = {};
@@ -6145,7 +6148,9 @@
           }
           const currentCovers = Number((order.splitCovers || {})[account] || 0);
           if (account !== "T" && currentCovers <= 0) {
-            const details = await askSplitDetails(order, account);
+            const details = await askSplitDetails(order, account, {
+              showAssignExisting: account === "1" && (order.items || []).length > 0
+            });
             if (!details) return;
             if (!order.splitCovers) order.splitCovers = {};
             if (!order.splitLabels) order.splitLabels = {};
@@ -6174,7 +6179,9 @@
       add.className = "ghost";
       add.textContent = "+";
       add.addEventListener("click", () => {
-        order.splitCount += 8;
+        const firstNewAccount = Math.max(1, Number(order.splitCount || 0) + 1);
+        order.splitCount = Math.max(6, Number(order.splitCount || 0)) + 8;
+        order.selectedSplit = String(firstNewAccount);
         saveState();
         renderOrder();
       });
@@ -7266,6 +7273,9 @@
       document.getElementById("lineSplitSelect").hidden = true;
       document.getElementById("menuModeTitle").textContent = "Articoli";
 
+      const alphabeticNameCompare = (left, right) => String(left?.name || "")
+        .localeCompare(String(right?.name || ""), "it", { sensitivity: "base", numeric: true });
+
       if (PALMARE_MODE && !suppressOrderHash) {
         document.getElementById("variationModeButtons").hidden = true;
         renderMenuSequenceButtons();
@@ -7368,7 +7378,9 @@
             }
             menuRoot.scrollTop += heading.getBoundingClientRect().top - menuRoot.getBoundingClientRect().top;
           });
-          const items = state.menu.filter(item => item.category === category && matchesSearch(item));
+          const items = state.menu
+            .filter(item => item.category === category && matchesSearch(item))
+            .sort(alphabeticNameCompare);
           if (!items.length) return;
           const categoryQuantity = items.reduce((total, item) => total + (state.menu && currentOrder()?.items
             ? currentOrder().items.filter(line => String(line.id) === String(item.id)).reduce((sum, line) => sum + Number(line.qty || 0), 0)
@@ -7405,7 +7417,11 @@
         return;
       }
 
-      state.menu.filter(item => item.category === state.category).filter(matchesSearch).forEach(appendItemButton);
+      state.menu
+        .filter(item => item.category === state.category)
+        .filter(matchesSearch)
+        .sort(alphabeticNameCompare)
+        .forEach(appendItemButton);
       root.classList.toggle("menu-collapsed", palmareMenuCollapsed);
       root.querySelectorAll(".menu-item").forEach(item => {
         item.hidden = palmareMenuCollapsed;
@@ -7451,7 +7467,8 @@
         .filter(extra => !presentNames.has(extra.name.toLowerCase()));
 
       if (variationMode === "minus") {
-        const minusOptions = ingredientNames.map(name => `Senza ${name}`);
+        const minusOptions = ingredientNames.map(name => `Senza ${name}`)
+          .sort((left, right) => left.localeCompare(right, "it", { sensitivity: "base", numeric: true }));
         minusOptions.forEach(name => {
           const selected = normalizeList(line.minusVariations).includes(name);
           const button = document.createElement("button");
@@ -7467,6 +7484,7 @@
         return;
       }
 
+      plusOptions.sort((left, right) => left.name.localeCompare(right.name, "it", { sensitivity: "base", numeric: true }));
       plusOptions.forEach(extra => {
         const selected = normalizeExtras(line.plusVariations).some(item => item.name === extra.name);
         const button = document.createElement("button");
@@ -8849,7 +8867,10 @@
     }
 
     function markLinesSentToKitchen(order) {
-      order.items.forEach(line => { line.sentQty = Math.max(0, Number(line.qty || 0)); });
+      order.items.forEach(line => {
+        line.sentQty = Math.max(0, Number(line.qty || 0));
+        line.sentSignature = lineDetailsSignature(line);
+      });
       order.sentCovers = Number(order.covers || 0);
       // L'invio iniziale comunica alla cucina l'avvio della sequenza 0. Le sequenze
       // successive restano attivabili solo dalla loro testata.
@@ -8862,10 +8883,27 @@
       }
     }
 
-    // C'e' qualcosa di non ancora mandato in cucina rispetto all'ultimo invio (quantita' oltre
-    // quella gia' inviata): usato per attivare/disattivare "Invia" ovunque compaia.
+    function lineDetailsSignature(line) {
+      return JSON.stringify({
+        id: line.id || "",
+        name: line.name || "",
+        price: Number(line.price || 0),
+        minusVariations: Array.isArray(line.minusVariations) ? line.minusVariations : [],
+        plusVariations: Array.isArray(line.plusVariations) ? line.plusVariations : [],
+        lineNote: line.lineNote || "",
+        course: courseNumber(line.course),
+        splitAccount: line.splitAccount || ""
+      });
+    }
+
+    // C'e' qualcosa di non ancora mandato in cucina rispetto all'ultimo invio: oltre alla
+    // quantita', anche i dettagli della riga possono essere cambiati (sequenza, variazioni,
+    // note o sottoconto).
     function orderHasUnsentLines(order) {
-      return Array.isArray(order.items) && order.items.some(line => Number(line.qty || 0) > Number(line.sentQty || 0));
+      return Array.isArray(order.items) && order.items.some(line =>
+        Number(line.qty || 0) > Number(line.sentQty || 0)
+        || line.sentSignature !== lineDetailsSignature(line)
+      );
     }
 
     function orderHasUnsentChangesForSend(order) {
@@ -9999,13 +10037,18 @@
       });
     });
 
-    function askSplitDetails(order, account) {
+    function askSplitDetails(order, account, options = {}) {
       const modal = document.getElementById("splitDetailsModal");
       const coversInput = document.getElementById("splitDetailsCoversInput");
       const nameInput = document.getElementById("splitDetailsNameInput");
+      const assignExistingWrap = document.getElementById("splitDetailsAssignExistingWrap");
+      const assignExistingInput = document.getElementById("splitDetailsAssignExistingInput");
+      const showAssignExisting = Boolean(options.showAssignExisting && (order.items || []).length > 0);
       document.getElementById("splitDetailsTitle").textContent = `Sottoconto ${account}`;
       coversInput.value = String(Number((order.splitCovers || {})[account] || 1));
       nameInput.value = order.splitLabels?.[account] || "";
+      assignExistingWrap.hidden = !showAssignExisting;
+      assignExistingInput.checked = true;
       modal.showModal();
       requestAnimationFrame(() => { coversInput.focus(); coversInput.select(); });
       return new Promise(resolve => {
@@ -10024,7 +10067,7 @@
             return;
           }
           coversInput.setCustomValidity("");
-          finish({ covers, name: nameInput.value.trim() });
+          finish({ covers, name: nameInput.value.trim(), assignExisting: showAssignExisting && assignExistingInput.checked });
         };
         document.getElementById("splitDetailsSaveBtn").onclick = save;
         document.getElementById("splitDetailsCancelBtn").onclick = () => finish(null);
@@ -10066,8 +10109,9 @@
 
     document.getElementById("splitStartBtn").addEventListener("click", () => {
       const order = currentOrder();
+      if (!order) return;
       order.splitMode = true;
-      order.selectedSplit = order.selectedSplit || "T";
+      order.selectedSplit = "T";
       order.splitCount = Math.max(6, Number(order.splitCount || 6));
       saveState();
       renderOrder();

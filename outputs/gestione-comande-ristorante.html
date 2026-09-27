@@ -8284,7 +8284,7 @@
         commonRoot.querySelectorAll(".common-variation-row").forEach(row => {
           const index = Number(row.dataset.commonIndex);
           const setEditing = editing => row.classList.toggle("is-editing", editing);
-          row.querySelector(".common-variation-edit").addEventListener("click", () => setEditing(true));
+          row.querySelector(".common-variation-edit").addEventListener("click", () => { editingCommonVariationIndex = index; setEditing(true); });
           row.querySelector(".common-variation-cancel").addEventListener("click", () => { editingCommonVariationIndex = null; renderSetup(); });
           row.querySelector(".common-variation-save").addEventListener("click", async () => {
             const fields = Object.fromEntries([...row.querySelectorAll("[data-common-field]")].map(input => [input.dataset.commonField, input]));

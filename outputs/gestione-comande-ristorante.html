@@ -744,6 +744,13 @@
     .common-variation-row.is-editing .common-view-actions { display: none; }
     .common-view-actions, .common-edit-actions { align-items: center; gap: 4px; }
     .common-edit-actions { display: none; }
+    .common-name-preview {
+      background-color: var(--common-variation-color, transparent) !important;
+      color: var(--common-variation-text-color, inherit) !important;
+      border-radius: 5px;
+    }
+    .common-name-preview.common-display-value { display: inline-block; padding: 5px 8px; }
+    .common-name-preview.common-edit-field { padding: 7px 8px; }
     .common-variation-row.is-editing .common-view-actions { display: none; }
     .printer-row { min-width: 1180px; grid-template-columns: minmax(130px, 1.1fr) minmax(150px, 1.2fr) 82px 70px 130px 100px 100px 92px minmax(120px, 1fr) 34px; }
     .monitor-config { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
@@ -1584,6 +1591,11 @@
     .variation-item.common-variation.selected {
       background-color: var(--common-variation-color, white) !important;
       color: var(--common-variation-text-color, var(--ink)) !important;
+    }
+
+    .variation-item.common-variation .small,
+    .variation-item.common-variation .price {
+      color: inherit !important;
     }
 
     .menu-item strong, .ticket strong {
@@ -8325,7 +8337,7 @@
         commonRoot.innerHTML = state.variations.common.length ? `<div class="common-variations-table-wrap"><table class="common-variations-table"><thead><tr><th>Nome</th><th>Prezzo extra</th><th>Colore</th><th>Attiva</th><th>Ordine</th><th>Azioni</th></tr></thead><tbody>${state.variations.common.map((variation, index) => {
           const color = normalizeCommonVariationColor(variation);
           return `<tr class="common-variation-row ${editingCommonVariationIndex === index ? "is-editing" : ""}" data-common-index="${index}">
-            <td class="common-name"><span class="common-display-value">${escapeHtml(variation.name || "(senza nome)")}</span><input class="common-edit-field" data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla"></td>
+            <td class="common-name"><span class="common-display-value common-name-preview" style="--common-variation-color:${color};--common-variation-text-color:${commonVariationTextColor(variation)}">${escapeHtml(variation.name || "(senza nome)")}</span><input class="common-edit-field common-name-preview" data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla" style="--common-variation-color:${color};--common-variation-text-color:${commonVariationTextColor(variation)}"></td>
             <td class="common-price"><span class="common-display-value">+${money.format(Number(variation.price || 0))}</span><input class="common-edit-field" data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}"></td>
             <td class="common-color"><span class="common-display-value common-color-swatch" style="--common-color:${color};" title="${color}"></span><input class="common-edit-field" data-common-field="color" type="color" value="${color}" title="Colore pulsante"></td>
             <td class="common-active"><label class="switch-label common-edit-field common-edit-active" title="${variation.active !== false ? "Attiva" : "Disattiva"}"><input data-common-field="active" type="checkbox" ${variation.active !== false ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></td>
@@ -8343,6 +8355,10 @@
               swatch.style.setProperty("--common-color", color);
               swatch.title = color;
             }
+            row.querySelectorAll(".common-name-preview").forEach(preview => {
+              preview.style.setProperty("--common-variation-color", color);
+              preview.style.setProperty("--common-variation-text-color", commonVariationTextColor({ color }));
+            });
           });
           row.querySelector(".common-variation-edit").addEventListener("click", () => { editingCommonVariationIndex = index; setEditing(true); });
           row.querySelector(".common-variation-cancel").addEventListener("click", () => { editingCommonVariationIndex = null; renderSetup(); });

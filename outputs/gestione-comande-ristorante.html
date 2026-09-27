@@ -1621,16 +1621,7 @@
       align-content: start;
       justify-content: start;
     }
-    .variation-section-title {
-      grid-column: 1 / -1;
-      height: 28px;
-      padding: 4px 2px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
+    .variation-common-section { margin-bottom: 18px; }
 
     .menu-item strong, .ticket strong {
       display: block;
@@ -7667,12 +7658,6 @@
 
       const commonSection = document.createElement("div");
       commonSection.className = "variation-section variation-common-section";
-      if (commonOptions.length) {
-        const title = document.createElement("div");
-        title.className = "variation-section-title";
-        title.textContent = "Varianti comuni";
-        commonSection.appendChild(title);
-      }
       root.appendChild(commonSection);
       const normalSection = document.createElement("div");
       normalSection.className = "variation-section variation-normal-section";

@@ -8418,6 +8418,33 @@
       if (commonRoot) {
         state.variations ||= {};
         state.variations.common = Array.isArray(state.variations.common) ? state.variations.common : [];
+        if (commonRoot.dataset.saveHandler !== "1") {
+          commonRoot.dataset.saveHandler = "1";
+          commonRoot.addEventListener("click", async event => {
+            const saveButton = event.target.closest(".common-variation-save");
+            if (!saveButton || !commonRoot.contains(saveButton)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const row = saveButton.closest(".common-variation-row");
+            const index = Number(row?.dataset.commonIndex);
+            const fields = Object.fromEntries([...row.querySelectorAll("[data-common-field]")].map(input => [input.dataset.commonField, input]));
+            const name = fields.name?.value.trim() || "";
+            if (!name) { fields.name?.focus(); return; }
+            const color = normalizeCommonVariationColor({ color: fields.color?.value });
+            state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price?.value || 0), color, active: fields.active?.checked !== false };
+            saveButton.disabled = true;
+            try {
+              saveState();
+              const saved = await savePlatformConfig(false, true);
+              if (!saved) throw new Error("Il server non ha confermato il salvataggio remoto");
+              editingCommonVariationIndex = null;
+              renderSetup();
+            } catch (error) {
+              saveButton.disabled = false;
+              alert(`Salvataggio variante non riuscito: ${error.message}`);
+            }
+          });
+        }
         state.variations.common.sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name || "").localeCompare(String(right.name || ""), "it", { sensitivity: "base", numeric: true }));
         state.variations.common.forEach((variation, index) => { variation.order = index; });
         commonRoot.innerHTML = state.variations.common.length ? `<div class="common-variations-table-wrap"><table class="common-variations-table"><thead><tr><th>Nome</th><th>Prezzo extra</th><th>Colore</th><th>Attiva</th><th>Ordine</th><th>Azioni</th></tr></thead><tbody>${state.variations.common.map((variation, index) => {
@@ -8448,17 +8475,6 @@
           });
           row.querySelector(".common-variation-edit").addEventListener("click", () => { editingCommonVariationIndex = index; setEditing(true); });
           row.querySelector(".common-variation-cancel").addEventListener("click", () => { editingCommonVariationIndex = null; renderSetup(); });
-          row.querySelector(".common-variation-save").addEventListener("click", async () => {
-            const fields = Object.fromEntries([...row.querySelectorAll("[data-common-field]")].map(input => [input.dataset.commonField, input]));
-            const name = fields.name.value.trim();
-            if (!name) { fields.name.focus(); return; }
-            const color = normalizeCommonVariationColor({ color: fields.color.value });
-            state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price.value || 0), color, active: fields.active.checked };
-            editingCommonVariationIndex = null;
-            saveState();
-            await savePlatformConfig(false, true);
-            renderSetup();
-          });
           row.querySelector(".common-variation-up").addEventListener("click", () => {
             if (index <= 0) return;
             [state.variations.common[index - 1], state.variations.common[index]] = [state.variations.common[index], state.variations.common[index - 1]];

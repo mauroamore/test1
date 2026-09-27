@@ -1,6 +1,7 @@
 <%@ WebHandler Language="C#" Class="RestaurantSync" %>
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Globalization;
@@ -239,8 +240,11 @@ public class RestaurantSync : IHttpHandler
 
             if (commonValue != null)
             {
-                var common = commonValue as object[] ?? new object[0];
+                // JavaScriptSerializer materializes JSON arrays as ArrayList on this
+                // framework, not necessarily as object[]. Keep both cases supported.
+                var common = commonValue as IEnumerable;
                 using (var delete = new MySqlCommand("DELETE FROM restaurant_common_variation", connection)) delete.ExecuteNonQuery();
+                if (common == null) common = new object[0];
                 foreach (var value in common)
                 {
                     var row = value as Dictionary<string, object>;

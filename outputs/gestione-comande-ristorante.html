@@ -720,7 +720,7 @@
     .common-variations-table .common-name { width: 50%; font-weight: 700; }
     .common-variations-table .common-price { width: 120px; white-space: nowrap; }
     .common-variations-table .common-color { width: 90px; }
-    .common-color-swatch { display: inline-block; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 5px; vertical-align: middle; }
+    .common-color-swatch { display: inline-block; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 5px; vertical-align: middle; background-color: var(--common-color, #e8f3ef) !important; }
     .common-active { width: 90px; }
     .common-order { width: 78px; white-space: nowrap; }
     .common-actions { width: 210px; white-space: nowrap; }
@@ -8307,7 +8307,7 @@
           return `<tr class="common-variation-row ${editingCommonVariationIndex === index ? "is-editing" : ""}" data-common-index="${index}">
             <td class="common-name"><span class="common-display-value">${escapeHtml(variation.name || "(senza nome)")}</span><input class="common-edit-field" data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla"></td>
             <td class="common-price"><span class="common-display-value">+${money.format(Number(variation.price || 0))}</span><input class="common-edit-field" data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}"></td>
-            <td class="common-color"><span class="common-display-value common-color-swatch" style="background-color:${color};" title="${color}"></span><input class="common-edit-field" data-common-field="color" type="color" value="${color}" title="Colore pulsante"></td>
+            <td class="common-color"><span class="common-display-value common-color-swatch" style="--common-color:${color};" title="${color}"></span><input class="common-edit-field" data-common-field="color" type="color" value="${color}" title="Colore pulsante"></td>
             <td class="common-active"><label class="switch-label common-edit-field common-edit-active" title="${variation.active !== false ? "Attiva" : "Disattiva"}"><input data-common-field="active" type="checkbox" ${variation.active !== false ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></td>
             <td class="common-order"><button class="icon-btn common-variation-up" type="button" title="Sposta su" aria-label="Sposta su" ${index === 0 ? "disabled" : ""}>▲</button><button class="icon-btn common-variation-down" type="button" title="Sposta giù" aria-label="Sposta giù" ${index === state.variations.common.length - 1 ? "disabled" : ""}>▼</button></td>
             <td class="common-actions"><span class="common-view-actions"><button class="ghost common-variation-edit" type="button">Modifica</button><button class="icon-btn common-variation-remove" type="button" title="Elimina variante" aria-label="Elimina variante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></button></span><span class="common-edit-actions"><button class="primary common-variation-save" type="button">Salva</button><button class="ghost common-variation-cancel" type="button">Annulla</button></span></td>
@@ -8316,6 +8316,14 @@
         commonRoot.querySelectorAll(".common-variation-row").forEach(row => {
           const index = Number(row.dataset.commonIndex);
           const setEditing = editing => row.classList.toggle("is-editing", editing);
+          row.querySelector('[data-common-field="color"]').addEventListener("input", event => {
+            const color = normalizeCommonVariationColor({ color: event.target.value });
+            const swatch = row.querySelector(".common-color-swatch");
+            if (swatch) {
+              swatch.style.setProperty("--common-color", color);
+              swatch.title = color;
+            }
+          });
           row.querySelector(".common-variation-edit").addEventListener("click", () => { editingCommonVariationIndex = index; setEditing(true); });
           row.querySelector(".common-variation-cancel").addEventListener("click", () => { editingCommonVariationIndex = null; renderSetup(); });
           row.querySelector(".common-variation-save").addEventListener("click", async () => {

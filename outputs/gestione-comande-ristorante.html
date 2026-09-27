@@ -712,6 +712,29 @@
     .common-variation-actions .icon-btn:disabled { opacity: .35; cursor: default; }
     .common-variation-switch { justify-content: center; align-self: end; padding-bottom: 5px; }
     .common-variation-color { align-self: end; padding-bottom: 5px; }
+    .common-variations-table-wrap { overflow-x: auto; }
+    .common-variations-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+    .common-variations-table th, .common-variations-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .common-variations-table th { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .common-variations-table tbody tr:hover { background: rgba(232, 243, 239, .45); }
+    .common-variations-table .common-name { width: 50%; font-weight: 700; }
+    .common-variations-table .common-price { width: 120px; white-space: nowrap; }
+    .common-variations-table .common-color { width: 90px; }
+    .common-color-swatch { display: inline-block; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 5px; vertical-align: middle; }
+    .common-active { width: 90px; }
+    .common-order { width: 78px; white-space: nowrap; }
+    .common-actions { width: 210px; white-space: nowrap; }
+    .common-actions .icon-btn { width: 31px; height: 31px; padding: 5px; margin-right: 3px; }
+    .common-actions .icon-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .common-edit-field { display: none; width: 100%; }
+    .common-variation-row.is-editing .common-display-value { display: none; }
+    .common-variation-row.is-editing .common-edit-field { display: inline-block; }
+    .common-variation-row.is-editing .common-edit-active { display: inline-flex; }
+    .common-variation-row.is-editing .common-edit-actions { display: inline-flex; }
+    .common-variation-row.is-editing .common-view-actions { display: none; }
+    .common-view-actions, .common-edit-actions { align-items: center; gap: 4px; }
+    .common-edit-actions { display: none; }
+    .common-variation-row.is-editing .common-view-actions { display: none; }
     .printer-row { min-width: 1180px; grid-template-columns: minmax(130px, 1.1fr) minmax(150px, 1.2fr) 82px 70px 130px 100px 100px 92px minmax(120px, 1fr) 34px; }
     .monitor-config { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
     .monitor-config { display: grid; gap: 14px; padding: 16px; background: var(--panel); }
@@ -8246,22 +8269,31 @@
         state.variations.common = Array.isArray(state.variations.common) ? state.variations.common : [];
         state.variations.common.sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name || "").localeCompare(String(right.name || ""), "it", { sensitivity: "base", numeric: true }));
         state.variations.common.forEach((variation, index) => { variation.order = index; });
-        commonRoot.innerHTML = state.variations.common.map((variation, index) => `<div class="setup-row common-variation-row" data-common-index="${index}">
-          <label class="common-field-label">Nome<input data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla"></label>
-          <label class="common-field-label">Prezzo extra<input data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}" placeholder="0,00"></label>
-          <label class="common-field-label common-variation-color">Colore<input data-common-field="color" type="color" value="${/^#[0-9a-f]{6}$/i.test(variation.color || "") ? variation.color : "#e8f3ef"}" title="Colore pulsante"></label>
-          <div class="common-field-label common-variation-switch">Attiva<label class="switch-label" title="Attiva variante"><input data-common-field="active" type="checkbox" ${variation.active !== false ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></div>
-          <div class="common-field-label common-variation-actions"><span>Ordine</span><div><button class="icon-btn common-variation-up" type="button" title="Sposta su" aria-label="Sposta ${escapeHtml(variation.name || "variante")} su" ${index === 0 ? "disabled" : ""}>▲</button><button class="icon-btn common-variation-down" type="button" title="Sposta giù" aria-label="Sposta ${escapeHtml(variation.name || "variante")} giù" ${index === state.variations.common.length - 1 ? "disabled" : ""}>▼</button></div></div>
-          <button class="icon-btn common-variation-remove" type="button" title="Elimina variante" aria-label="Elimina ${escapeHtml(variation.name || "variante")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></button>
-        </div>`).join("") || `<div class="empty">Nessuna variante comune configurata.</div>`;
+        commonRoot.innerHTML = state.variations.common.length ? `<div class="common-variations-table-wrap"><table class="common-variations-table"><thead><tr><th>Nome</th><th>Prezzo extra</th><th>Colore</th><th>Attiva</th><th>Ordine</th><th>Azioni</th></tr></thead><tbody>${state.variations.common.map((variation, index) => {
+          const color = /^#[0-9a-f]{6}$/i.test(variation.color || "") ? variation.color : "#e8f3ef";
+          return `<tr class="common-variation-row" data-common-index="${index}">
+            <td class="common-name"><span class="common-display-value">${escapeHtml(variation.name || "(senza nome)")}</span><input class="common-edit-field" data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla"></td>
+            <td class="common-price"><span class="common-display-value">+${money.format(Number(variation.price || 0))}</span><input class="common-edit-field" data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}"></td>
+            <td class="common-color"><span class="common-display-value common-color-swatch" style="background:${color}" title="${color}"></span><input class="common-edit-field" data-common-field="color" type="color" value="${color}" title="Colore pulsante"></td>
+            <td class="common-active"><span class="common-display-value">${variation.active !== false ? "Sì" : "No"}</span><label class="switch-label common-edit-field common-edit-active" title="Attiva variante"><input data-common-field="active" type="checkbox" ${variation.active !== false ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></td>
+            <td class="common-order"><button class="icon-btn common-variation-up" type="button" title="Sposta su" aria-label="Sposta su" ${index === 0 ? "disabled" : ""}>▲</button><button class="icon-btn common-variation-down" type="button" title="Sposta giù" aria-label="Sposta giù" ${index === state.variations.common.length - 1 ? "disabled" : ""}>▼</button></td>
+            <td class="common-actions"><span class="common-view-actions"><button class="ghost common-variation-edit" type="button">Modifica</button><button class="icon-btn common-variation-remove" type="button" title="Elimina variante" aria-label="Elimina variante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></button></span><span class="common-edit-actions"><button class="primary common-variation-save" type="button">Salva</button><button class="ghost common-variation-cancel" type="button">Annulla</button></span></td>
+          </tr>`;
+        }).join("")}</tbody></table></div>` : `<div class="empty">Nessuna variante comune configurata.</div>`;
         commonRoot.querySelectorAll(".common-variation-row").forEach(row => {
           const index = Number(row.dataset.commonIndex);
-          row.querySelectorAll("[data-common-field]").forEach(input => input.addEventListener("change", () => {
-            const field = input.dataset.commonField;
-            state.variations.common[index][field] = field === "price" ? Number(input.value || 0) : field === "active" ? input.checked : input.value.trim();
+          const setEditing = editing => row.classList.toggle("is-editing", editing);
+          row.querySelector(".common-variation-edit").addEventListener("click", () => setEditing(true));
+          row.querySelector(".common-variation-cancel").addEventListener("click", () => renderSetup());
+          row.querySelector(".common-variation-save").addEventListener("click", async () => {
+            const fields = Object.fromEntries([...row.querySelectorAll("[data-common-field]")].map(input => [input.dataset.commonField, input]));
+            const name = fields.name.value.trim();
+            if (!name) { fields.name.focus(); return; }
+            state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price.value || 0), color: fields.color.value, active: fields.active.checked };
             saveState();
-            savePlatformConfig(false, true);
-          }));
+            await savePlatformConfig(false, true);
+            renderSetup();
+          });
           row.querySelector(".common-variation-up").addEventListener("click", () => {
             if (index <= 0) return;
             [state.variations.common[index - 1], state.variations.common[index]] = [state.variations.common[index], state.variations.common[index - 1]];
@@ -10512,8 +10544,10 @@
       saveState();
       savePlatformConfig(false, true);
       renderSetup();
-      const inputs = document.querySelectorAll("#commonVariationsList [data-common-field=name]");
-      inputs[inputs.length - 1]?.focus();
+      const rows = document.querySelectorAll("#commonVariationsList .common-variation-row");
+      const row = rows[rows.length - 1];
+      row?.querySelector(".common-variation-edit")?.click();
+      row?.querySelector("[data-common-field=name]")?.focus();
     });
 
     document.getElementById("saveCommonVariationsBtn").addEventListener("click", async event => {

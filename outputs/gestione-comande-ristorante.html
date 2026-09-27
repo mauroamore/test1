@@ -1607,6 +1607,26 @@
       line-height: 1;
     }
 
+    .variation-section {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 160px);
+      grid-auto-rows: 118px;
+      gap: 10px;
+      align-content: start;
+      justify-content: start;
+    }
+    .variation-section-title {
+      grid-column: 1 / -1;
+      height: 28px;
+      padding: 4px 2px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
     .menu-item strong, .ticket strong {
       display: block;
       overflow-wrap: anywhere;
@@ -6117,7 +6137,7 @@
 
     function normalizeExtras(value) {
       return (Array.isArray(value) ? value : [])
-        .map(extra => ({ name: normalizeVariation(extra.name), price: Number(extra.price || 0) }))
+        .map(extra => ({ name: normalizeVariation(extra.name), price: Number(extra.price || 0), common: extra.common === true }))
         .filter(extra => extra.name);
     }
 
@@ -6139,7 +6159,7 @@
       const minus = normalizeList(line.minusVariations);
       const plus = normalizeExtras(line.plusVariations);
       const parts = [];
-      if (plus.length) parts.push(...plus.map(extra => `+ ${escapeHtml(extra.name)}`));
+      if (plus.length) parts.push(...plus.map(extra => `${extra.common ? "" : "+ "}${escapeHtml(extra.name)}`));
       if (minus.length) parts.push(...minus.map(item => `- ${escapeHtml(item.replace(/^senza\s+/i, ""))}`));
       return parts.length ? `<div class="variation">${parts.join(" ")}</div>` : "";
     }
@@ -6148,7 +6168,7 @@
       const minus = normalizeList(line.minusVariations);
       const plus = normalizeExtras(line.plusVariations);
       const parts = [];
-      if (plus.length) parts.push(...plus.map(extra => `+ ${extra.name}`));
+      if (plus.length) parts.push(...plus.map(extra => `${extra.common ? "" : "+ "}${extra.name}`));
       if (minus.length) parts.push(...minus.map(item => `- ${item.replace(/^senza\s+/i, "")}`));
       return parts.join(" ");
     }
@@ -7639,6 +7659,19 @@
         .filter(variation => !presentNames.has(String(variation.name).toLowerCase()))
         .map(variation => ({ name: variation.name, price: Number(variation.price || 0), common: true, color: normalizeCommonVariationColor(variation) }));
 
+      const commonSection = document.createElement("div");
+      commonSection.className = "variation-section variation-common-section";
+      if (commonOptions.length) {
+        const title = document.createElement("div");
+        title.className = "variation-section-title";
+        title.textContent = "Varianti comuni";
+        commonSection.appendChild(title);
+      }
+      root.appendChild(commonSection);
+      const normalSection = document.createElement("div");
+      normalSection.className = "variation-section variation-normal-section";
+      root.appendChild(normalSection);
+
       const appendCommonVariation = extra => {
         const selected = normalizeExtras(line.plusVariations).some(item => item.name === extra.name);
         const button = document.createElement("button");
@@ -7653,7 +7686,7 @@
           event.stopPropagation();
           togglePlusVariation(line, extra);
         });
-        root.appendChild(button);
+        commonSection.appendChild(button);
       };
       commonOptions.forEach(appendCommonVariation);
 
@@ -7670,7 +7703,7 @@
             event.stopPropagation();
             toggleMinusVariation(line, name);
           });
-          root.appendChild(button);
+          normalSection.appendChild(button);
         });
         return;
       }
@@ -7693,7 +7726,7 @@
           event.stopPropagation();
           togglePlusVariation(line, extra);
         });
-        root.appendChild(button);
+        normalSection.appendChild(button);
       });
     }
 
@@ -9508,7 +9541,7 @@
       if (!current.some(item => item.name === extra.name)) isolateVariationPortion(line);
       line.plusVariations = current.some(item => item.name === extra.name)
         ? current.filter(item => item.name !== extra.name)
-        : [...current, { name: extra.name, price: Number(extra.price || 0) }];
+        : [...current, { name: extra.name, price: Number(extra.price || 0), common: extra.common === true }];
       replaceLineKey(line);
     }
 

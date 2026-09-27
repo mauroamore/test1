@@ -8555,7 +8555,9 @@
     function escPosTest(printer) {
       const width = Number(printer.width) === 58 ? 32 : 48;
       const line = "-".repeat(width);
-      return `\x1b@\x1ba\x01\x1bE\x01RISTORANTE\x1bE\x00\n${line}\nSTAMPA DI PROVA\n\nStampante: ${printer.name}\nIP: ${printer.host || "non configurato"}\nPorta: ${printer.port || 9100}\nLarghezza: ${printer.width || 80} mm\n${line}\n\n\x1dV\x00`;
+      const fontSize = Math.max(1, Math.min(4, Number(printer.fontSize || 1)));
+      const escPosScale = (fontSize - 1) * 0x11;
+      return `\x1b@\x1ba\x01\x1bE\x01RISTORANTE\x1bE\x00\n${line}\nSTAMPA DI PROVA\n\nStampante: ${printer.name}\nIP: ${printer.host || "non configurato"}\nPorta: ${printer.port || 9100}\nLarghezza: ${printer.width || 80} mm\nDimensione articoli: ${fontSize}x\n${line}\n\n\x1d\x21${String.fromCharCode(escPosScale)}ARTICOLO DI PROVA\n\x1d\x21\x00\n\n\x1dV\x00`;
     }
 
     async function printOrderToConfiguredMonitors(order) {

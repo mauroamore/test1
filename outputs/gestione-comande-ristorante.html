@@ -2702,7 +2702,7 @@
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
     <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="common-variations">Varianti comuni</button><button class="ghost" data-setup-tab="general">Generale</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
     <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
-    <section class="panel setup-tab-panel" data-setup-panel="common-variations" hidden><div class="panel-header"><h2>Varianti comuni</h2><button class="primary" id="addCommonVariationBtn" type="button">Aggiungi variante</button></div><div class="panel-body"><div class="setup-list" id="commonVariationsList"></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="common-variations" hidden><div class="panel-header"><h2>Varianti comuni</h2><div class="row"><button class="ghost" id="saveCommonVariationsBtn" type="button">Salva varianti</button><button class="primary" id="addCommonVariationBtn" type="button">Aggiungi variante</button></div></div><div class="panel-body"><div class="setup-list" id="commonVariationsList"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="general" hidden><div class="panel-header"><h2>Impostazioni generali</h2><span class="small">Valori condivisi dal ristorante</span></div><div class="panel-body stack"><label>Costo coperto (EUR) <input id="generalCoverChargeInput" type="number" min="0" max="50" step="0.1"></label><div class="setup-section-note">Il costo viene applicato ai coperti e compare nel preconto e nel conto.</div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Dimensioni prima pagina</h3><span class="setup-section-note">Le tre colonne mantengono la stessa altezza.</span><label>Altezza colonne (px) <input id="mainPanelHeightInput" type="number" min="360" max="1600" step="20"></label><label>Larghezza area tavoli (px) <input id="roomColumnWidthInput" type="number" min="640" max="2200" step="20"></label><label>Larghezza Delivery/Pick-up (px) <input id="deliveryColumnWidthInput" type="number" min="220" max="600" step="10"></label><label>Larghezza comanda (px) <input id="orderColumnWidthInput" type="number" min="260" max="700" step="10"></label><label>Dimensione carattere generale (px) <input id="mainFontSizeInput" type="number" min="12" max="22" step="1"></label></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div><div class="setup-device-view"><h3>Snapshot settaggi locali</h3><span class="setup-section-note">Salva o richiama layout e preferenze di questo dispositivo dal server remoto.</span><div class="row"><button class="ghost" id="saveDeviceSnapshotBtn" type="button">Salva settaggi</button><button class="ghost" id="loadDeviceSnapshotBtn" type="button">Carica settaggi</button></div></div></div></section>
     <dialog id="deviceSnapshotModal"><form method="dialog" class="modal-card"><div class="modal-head"><h2 id="deviceSnapshotTitle">Snapshot settaggi</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><div id="deviceSnapshotSaveView"><label>Nome snapshot<input id="deviceSnapshotName" type="text" maxlength="128" autocomplete="off"></label><div class="setup-section-note">Se il nome esiste, potrai confermare la sovrascrittura.</div></div><div id="deviceSnapshotLoadView" hidden><label>Settaggio da caricare<select id="deviceSnapshotSelect"></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Annulla</button><button class="primary" id="deviceSnapshotConfirmBtn" type="button">Conferma</button></div><div class="login-error" id="deviceSnapshotError" role="alert"></div></form></dialog>
@@ -6208,6 +6208,7 @@
             else delete order.splitLabels[account];
             order.selectedSplit = account;
             saveState();
+            savePlatformConfig(false, true);
             renderOrder();
           }, 2000);
         });
@@ -8259,12 +8260,14 @@
             const field = input.dataset.commonField;
             state.variations.common[index][field] = field === "price" ? Number(input.value || 0) : field === "active" ? input.checked : input.value.trim();
             saveState();
+            savePlatformConfig(false, true);
           }));
           row.querySelector(".common-variation-up").addEventListener("click", () => {
             if (index <= 0) return;
             [state.variations.common[index - 1], state.variations.common[index]] = [state.variations.common[index], state.variations.common[index - 1]];
             state.variations.common.forEach((variation, position) => { variation.order = position; });
             saveState();
+            savePlatformConfig(false, true);
             renderSetup();
           });
           row.querySelector(".common-variation-down").addEventListener("click", () => {
@@ -8272,9 +8275,10 @@
             [state.variations.common[index], state.variations.common[index + 1]] = [state.variations.common[index + 1], state.variations.common[index]];
             state.variations.common.forEach((variation, position) => { variation.order = position; });
             saveState();
+            savePlatformConfig(false, true);
             renderSetup();
           });
-          row.querySelector(".common-variation-remove").addEventListener("click", () => { state.variations.common.splice(index, 1); saveState(); renderSetup(); });
+          row.querySelector(".common-variation-remove").addEventListener("click", () => { state.variations.common.splice(index, 1); state.variations.common.forEach((variation, position) => { variation.order = position; }); saveState(); savePlatformConfig(false, true); renderSetup(); });
         });
       }
       const printerRoot = document.getElementById("setupPrinterList");
@@ -10506,9 +10510,21 @@
       state.variations.common ||= [];
       state.variations.common.push({ name: "", price: 0, order: state.variations.common.length, color: "#e8f3ef", active: true });
       saveState();
+      savePlatformConfig(false, true);
       renderSetup();
       const inputs = document.querySelectorAll("#commonVariationsList [data-common-field=name]");
       inputs[inputs.length - 1]?.focus();
+    });
+
+    document.getElementById("saveCommonVariationsBtn").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const saved = await savePlatformConfig(false, true);
+        button.textContent = saved ? "Varianti salvate" : "Salvataggio non riuscito";
+      } finally {
+        setTimeout(() => { button.textContent = "Salva varianti"; button.disabled = false; }, 1600);
+      }
     });
 
     document.getElementById("closeSetupBtn").addEventListener("click", () => {

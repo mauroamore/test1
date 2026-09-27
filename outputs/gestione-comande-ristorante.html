@@ -721,6 +721,15 @@
     .common-variations-table .common-price { width: 120px; white-space: nowrap; }
     .common-variations-table .common-color { width: 90px; }
     .common-color-swatch { display: inline-block; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 5px; vertical-align: middle; background-color: var(--common-color, #e8f3ef) !important; }
+    .common-edit-field[data-common-field="color"] {
+      width: 38px !important;
+      min-width: 38px;
+      height: 38px;
+      min-height: 38px;
+      padding: 3px;
+      cursor: pointer;
+      appearance: auto;
+    }
     .common-active { width: 90px; }
     .common-order { width: 78px; white-space: nowrap; }
     .common-actions { width: 210px; white-space: nowrap; }
@@ -2734,7 +2743,7 @@
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
     <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="common-variations">Varianti comuni</button><button class="ghost" data-setup-tab="general">Generale</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
     <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
-    <section class="panel setup-tab-panel" data-setup-panel="common-variations" hidden><div class="panel-header"><h2>Varianti comuni</h2><div class="row"><button class="ghost" id="saveCommonVariationsBtn" type="button">Salva varianti</button><button class="primary" id="addCommonVariationBtn" type="button">Aggiungi variante</button></div></div><div class="panel-body"><div class="setup-list" id="commonVariationsList"></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="common-variations" hidden><div class="panel-header"><h2>Varianti comuni</h2><button class="primary" id="addCommonVariationBtn" type="button">Aggiungi variante</button></div><div class="panel-body"><div class="setup-list" id="commonVariationsList"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="general" hidden><div class="panel-header"><h2>Impostazioni generali</h2><span class="small">Valori condivisi dal ristorante</span></div><div class="panel-body stack"><label>Costo coperto (EUR) <input id="generalCoverChargeInput" type="number" min="0" max="50" step="0.1"></label><div class="setup-section-note">Il costo viene applicato ai coperti e compare nel preconto e nel conto.</div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Dimensioni prima pagina</h3><span class="setup-section-note">Le tre colonne mantengono la stessa altezza.</span><label>Altezza colonne (px) <input id="mainPanelHeightInput" type="number" min="360" max="1600" step="20"></label><label>Larghezza area tavoli (px) <input id="roomColumnWidthInput" type="number" min="640" max="2200" step="20"></label><label>Larghezza Delivery/Pick-up (px) <input id="deliveryColumnWidthInput" type="number" min="220" max="600" step="10"></label><label>Larghezza comanda (px) <input id="orderColumnWidthInput" type="number" min="260" max="700" step="10"></label><label>Dimensione carattere generale (px) <input id="mainFontSizeInput" type="number" min="12" max="22" step="1"></label></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div><div class="setup-device-view"><h3>Snapshot settaggi locali</h3><span class="setup-section-note">Salva o richiama layout e preferenze di questo dispositivo dal server remoto.</span><div class="row"><button class="ghost" id="saveDeviceSnapshotBtn" type="button">Salva settaggi</button><button class="ghost" id="loadDeviceSnapshotBtn" type="button">Carica settaggi</button></div></div></div></section>
     <dialog id="deviceSnapshotModal"><form method="dialog" class="modal-card"><div class="modal-head"><h2 id="deviceSnapshotTitle">Snapshot settaggi</h2><button class="icon-btn" value="cancel" type="submit">×</button></div><div id="deviceSnapshotSaveView"><label>Nome snapshot<input id="deviceSnapshotName" type="text" maxlength="128" autocomplete="off"></label><div class="setup-section-note">Se il nome esiste, potrai confermare la sovrascrittura.</div></div><div id="deviceSnapshotLoadView" hidden><label>Settaggio da caricare<select id="deviceSnapshotSelect"></select></label></div><div class="row"><button class="ghost" value="cancel" type="submit">Annulla</button><button class="primary" id="deviceSnapshotConfirmBtn" type="button">Conferma</button></div><div class="login-error" id="deviceSnapshotError" role="alert"></div></form></dialog>
@@ -8310,7 +8319,7 @@
             <td class="common-color"><span class="common-display-value common-color-swatch" style="--common-color:${color};" title="${color}"></span><input class="common-edit-field" data-common-field="color" type="color" value="${color}" title="Colore pulsante"></td>
             <td class="common-active"><label class="switch-label common-edit-field common-edit-active" title="${variation.active !== false ? "Attiva" : "Disattiva"}"><input data-common-field="active" type="checkbox" ${variation.active !== false ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></td>
             <td class="common-order"><button class="icon-btn common-variation-up" type="button" title="Sposta su" aria-label="Sposta su" ${index === 0 ? "disabled" : ""}>▲</button><button class="icon-btn common-variation-down" type="button" title="Sposta giù" aria-label="Sposta giù" ${index === state.variations.common.length - 1 ? "disabled" : ""}>▼</button></td>
-            <td class="common-actions"><span class="common-view-actions"><button class="ghost common-variation-edit" type="button">Modifica</button><button class="icon-btn common-variation-remove" type="button" title="Elimina variante" aria-label="Elimina variante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></button></span><span class="common-edit-actions"><button class="primary common-variation-save" type="button">Salva</button><button class="ghost common-variation-cancel" type="button">Annulla</button></span></td>
+            <td class="common-actions"><span class="common-view-actions"><button class="icon-btn common-variation-edit" type="button" title="Modifica variante" aria-label="Modifica variante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16 9.5-9.5a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3L8 20H4v-4ZM14 7l3 3M4 20h4"></path></svg></button><button class="icon-btn common-variation-remove" type="button" title="Elimina variante" aria-label="Elimina variante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></button></span><span class="common-edit-actions"><button class="icon-btn common-variation-save" type="button" title="Salva variante" aria-label="Salva variante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l3 3v13H4V4h12v5H7V4M8 20v-6h8v6"></path></svg></button><button class="icon-btn common-variation-cancel" type="button" title="Annulla modifica" aria-label="Annulla modifica"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg></button></span></td>
           </tr>`;
         }).join("")}</tbody></table></div>` : `<div class="empty">Nessuna variante comune configurata.</div>`;
         commonRoot.querySelectorAll(".common-variation-row").forEach(row => {
@@ -10591,17 +10600,6 @@
       const rows = document.querySelectorAll("#commonVariationsList .common-variation-row");
       const row = rows[rows.length - 1];
       row?.querySelector("[data-common-field=name]")?.focus();
-    });
-
-    document.getElementById("saveCommonVariationsBtn").addEventListener("click", async event => {
-      const button = event.currentTarget;
-      button.disabled = true;
-      try {
-        const saved = await savePlatformConfig(false, true);
-        button.textContent = saved ? "Varianti salvate" : "Salvataggio non riuscito";
-      } finally {
-        setTimeout(() => { button.textContent = "Salva varianti"; button.disabled = false; }, 1600);
-      }
     });
 
     document.getElementById("closeSetupBtn").addEventListener("click", () => {

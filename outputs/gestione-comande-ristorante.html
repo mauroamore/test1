@@ -10546,7 +10546,7 @@
       renderSetup();
       const rows = document.querySelectorAll("#commonVariationsList .common-variation-row");
       const row = rows[rows.length - 1];
-      row?.querySelector(".common-variation-edit")?.click();
+      row?.classList.add("is-editing");
       row?.querySelector("[data-common-field=name]")?.focus();
     });
 

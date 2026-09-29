@@ -8084,21 +8084,26 @@
     }
 
     function renderMonitorDebug(allOrders, visibleOrders) {
-      const root = document.getElementById("monitorDebugList");
-      if (!root) return;
-      const visibleIds = new Set(visibleOrders.map(order => String(order.id)));
-      root.innerHTML = allOrders.length ? allOrders.map(order => {
+      try {
+        const root = document.getElementById("monitorDebugList");
+        if (!root) return;
+        const visibleIds = new Set(visibleOrders.map(order => String(order.id)));
+        root.innerHTML = allOrders.length ? allOrders.map(order => {
         const visible = visibleIds.has(String(order.id));
         const lines = Array.isArray(order.items) ? order.items : [];
         const routed = lines.filter(line => monitorForLine(line) === selectedKitchenMonitor);
         const reason = visible ? "presente nella vista" : (order.kitchenClosed ? "comanda chiusa" : routed.length ? "righe filtrate da sequenza/stato" : "nessuna riga assegnata a questo monitor");
         return `<details class="monitor-debug-order"><summary><span class="${visible ? "monitor-debug-visible" : "monitor-debug-hidden"}">${visible ? "VISIBILE" : "NASCOSTA"}</span> · ${escapeHtml(orderTicketLabel(order))} · ${escapeHtml(reason)} · ${lines.length} righe</summary><pre>${escapeHtml(JSON.stringify(order, null, 2))}</pre></details>`;
-      }).join("") : "<span>Nessuna comanda nello state ricevuto.</span>";
+        }).join("") : "<span>Nessuna comanda nello state ricevuto.</span>";
+      } catch (error) {
+        console.warn("Diagnostica monitor non disponibile", error);
+      }
     }
 
     function renderKitchen() {
       captureKitchenScrollPositions();
       const kitchenScreen = document.getElementById("kitchenScreen");
+      renderMonitorTabs();
       // In modalita' monitor dedicato l'hash e' la fonte di verita' per il
       // monitor visualizzato. La configurazione puo' arrivare dopo il primo
       // render: riallineiamo la selezione prima di filtrare le righe.
@@ -8159,7 +8164,7 @@
           .filter(line => line.qty > 0)) }))
         .filter(order => order.items.length);
       const source = kitchenHistoryMode ? historyOrders : active;
-      renderMonitorDebug([...state.tables, ...state.deliveryOrders], active);
+      renderMonitorDebug([...(Array.isArray(state.tables) ? state.tables : []), ...(Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [])], active);
       const monitorDebugOrders = [...(Array.isArray(state.tables) ? state.tables : []), ...(Array.isArray(state.deliveryOrders) ? state.deliveryOrders : [])]
         .filter(order => String(order.id) === "11" || (order.items || []).some(line => String(line.category || "").trim().toLowerCase() === "drinks"));
       const monitorDebug = monitorDebugOrders.map(order => ({

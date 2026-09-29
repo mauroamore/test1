@@ -8198,9 +8198,9 @@
         const closeBlocked = REMOTE_MODE;
         const lineCycleBlocked = REMOTE_MODE && !isRemoteEditableOrder(order);
         const groupComplete = group.items.length > 0 && group.items.every(line => line.kitchenStatus === "Completo");
-        // Il Bar non usa il ciclo "in preparazione", ma deve comunque poter
-        // storicizzare la propria sequenza con lo stesso pulsante della Cucina.
-        const canDismissCourse = (groupUsesTurns || isBarMonitor) && groupComplete && !REMOTE_MODE;
+        // Ogni monitor puo' storicizzare il proprio gruppo corrente con lo
+        // stesso pulsante, indipendentemente dal nome o dal tipo di monitor.
+        const canDismissCourse = groupComplete && !REMOTE_MODE;
         ticket.className = `ticket ${kitchenHistoryMode ? "history-ticket" : courseIsActive ? "course-active" : "course-waiting"}`;
         ticket.innerHTML = `
           <div class="ticket-head">
@@ -8216,7 +8216,7 @@
         // Con le sequenze il monitor deve archiviare solo il gruppo corrente:
         // non mostrare "Libera comanda/tavolo", che chiuderebbe l'intero ordine
         // anche quando altri monitor devono ancora lavorare sulle proprie righe.
-        if (!kitchenHistoryMode && allOrderLinesComplete && !groupUsesTurns && !isBarMonitor) {
+        if (!kitchenHistoryMode && allOrderLinesComplete && !canDismissCourse) {
           const deleteButton = document.createElement("button");
           deleteButton.className = "ghost kitchen-delete-order";
           deleteButton.type = "button";

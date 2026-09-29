@@ -2052,7 +2052,16 @@ const server = http.createServer((request, response) => {
           sharedState.stateRevision = currentRevision + 1;
           persistStateFiles();
           broadcastLocal();
-          return sendJson(response, 200, { ok: true, state: stateForClient(sharedState), stateRevision: sharedState.stateRevision });
+          // Le operazioni del monitor modificano lo stato autorevole locale:
+          // devono essere propagate anche al server remoto, altrimenti il
+          // successivo riallineamento puo' riportare una copia piu' vecchia
+          // e far ricomparire la comanda nel monitor.
+          const monitorOperationRevision = sharedState.stateRevision;
+          sendJson(response, 200, { ok: true, state: stateForClient(sharedState), stateRevision: monitorOperationRevision });
+          pushStateSnapshot()
+            .then(() => publishRealtimeEvent("state.updated", {}))
+            .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} monitor operation background sync ${error.message}\n`));
+          return;
         }
         if (operation === "free_table") {
           const tableIds = Array.isArray(payload.tableIds) ? payload.tableIds.map(Number).filter(Number.isFinite) : [];

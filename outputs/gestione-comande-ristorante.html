@@ -6578,12 +6578,12 @@
       const canActivate = !hasUnsentChanges
         && !courseCompleted
         && courseNumberValue === nextCourseToActivate(order)
-        && previousReady;
+        && (courseNumberValue === 0 || previousLines.length > 0);
       activate.className = `course-activate ${courseNumberValue === currentActive ? "active" : ""}`;
       activate.disabled = !canActivate;
       activate.textContent = "▶";
       activate.title = canActivate
-        ? `Comunica alla cucina: attiva ${courseLabel(course)}`
+        ? (previousReady ? `Comunica alla cucina: attiva ${courseLabel(course)}` : `Forza ${courseLabel(course)} e chiudi la precedente`)
         : hasUnsentChanges
           ? "Invia prima le modifiche per poter attivare una sequenza"
         : previousCourse >= 0 && !previousReady
@@ -6591,7 +6591,7 @@
           : `Attiva prima ${courseLabel(currentActive + 1)}`;
       activate.setAttribute("aria-label", `Attiva ${courseLabel(course)} in cucina`);
       activate.addEventListener("click", () => {
-        activateCourse(order, course);
+        activateCourse(order, course, !previousReady);
         saveState();
         // I tasti sequenza rapidi accanto a "Piatti" si sbloccano fino a activeCourse+1: senza
         // richiamare anche renderMenu() qui, il nuovo tasto (es. "3" dopo aver attivato la
@@ -6603,22 +6603,23 @@
       return controls;
     }
 
-    function activateCourse(order, course) {
+    function activateCourse(order, course, forcePrevious = false) {
       const normalized = courseNumber(course);
       const currentActive = activeCourseNumber(order.activeCourse);
       const previousCourse = normalized - 1;
       const currentLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === normalized);
       if (currentLines.length > 0 && currentLines.every(line => line.kitchenStatus === "Completo")) return;
       if (normalized !== nextCourseToActivate(order)) return;
-      if (normalized > currentActive && previousCourse >= 0) {
+      if (normalized > currentActive && previousCourse >= 0 && !forcePrevious) {
         const previousLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === previousCourse);
         if (!previousLines.length || !previousLines.every(line => line.kitchenStatus === "Completo")) return;
       }
+      if (forcePrevious && !window.confirm(`La ${courseLabel(previousCourse)} contiene ancora piatti non completati. Vuoi marcarli come fatti, storicizzarla e attivare la ${courseLabel(normalized)}?`)) return;
       if (REMOTE_MODE) {
         if (isRemoteEditableOrder(order)) sendRemoteCommand("activateCourse", { orderId: order.id, course: normalized });
         return;
       }
-      sendLocalMonitorOperation("monitor_activate_course", { orderId: order.id, course: normalized })
+      sendLocalMonitorOperation(forcePrevious ? "monitor_force_activate_course" : "monitor_activate_course", { orderId: order.id, course: normalized })
         .catch(error => alert(`Attivazione sequenza non riuscita: ${error.message}`));
     }
 

@@ -1974,7 +1974,7 @@ const server = http.createServer((request, response) => {
             .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} commit_order background sync ${error.message}\n`));
           return;
         }
-        if (["monitor_cycle_line", "monitor_activate_course", "monitor_close_course", "monitor_close_order"].includes(operation)) {
+        if (["monitor_cycle_line", "monitor_activate_course", "monitor_force_activate_course", "monitor_close_course", "monitor_close_order"].includes(operation)) {
           if (expectedRevision && expectedRevision !== currentRevision) {
             return sendJson(response, 409, { ok: false, stale: true, state: stateForClient(sharedState), stateRevision: currentRevision });
           }
@@ -2010,6 +2010,21 @@ const server = http.createServer((request, response) => {
           } else if (operation === "monitor_activate_course") {
             const course = Number(payload.course);
             if (!Number.isFinite(course)) return sendJson(response, 400, { ok: false, error: "Sequenza non valida" });
+            order.activeCourse = course;
+            if (!Array.isArray(order.courseSequence)) order.courseSequence = [];
+            order.courseSequence = order.courseSequence.filter(value => Number(value) !== course);
+            order.courseSequence.push(course);
+          } else if (operation === "monitor_force_activate_course") {
+            const course = Number(payload.course);
+            if (!Number.isFinite(course) || course < 1) return sendJson(response, 400, { ok: false, error: "Sequenza successiva non valida" });
+            const previousCourse = course - 1;
+            const previousLines = order.items.filter(item => Number(item.course || 0) === previousCourse);
+            previousLines.forEach(item => {
+              item.kitchenStatus = "Completo";
+              item.tho = { ...(item.tho || {}), kitchen_status: "Completo" };
+            });
+            if (!Array.isArray(order.dismissedCourses)) order.dismissedCourses = [];
+            if (!order.dismissedCourses.some(value => Number(value) === previousCourse)) order.dismissedCourses.push(previousCourse);
             order.activeCourse = course;
             if (!Array.isArray(order.courseSequence)) order.courseSequence = [];
             order.courseSequence = order.courseSequence.filter(value => Number(value) !== course);

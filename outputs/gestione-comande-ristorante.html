@@ -8185,12 +8185,14 @@
         const closeBlocked = REMOTE_MODE;
         const lineCycleBlocked = REMOTE_MODE && !isRemoteEditableOrder(order);
         const groupComplete = group.items.length > 0 && group.items.every(line => line.kitchenStatus === "Completo");
-        const canDismissCourse = groupUsesTurns && groupComplete && !REMOTE_MODE;
+        // Il Bar non usa il ciclo "in preparazione", ma deve comunque poter
+        // storicizzare la propria sequenza con lo stesso pulsante della Cucina.
+        const canDismissCourse = (groupUsesTurns || isBarMonitor) && groupComplete && !REMOTE_MODE;
         ticket.className = `ticket ${kitchenHistoryMode ? "history-ticket" : courseIsActive ? "course-active" : "course-waiting"}`;
         ticket.innerHTML = `
           <div class="ticket-head">
             <div><strong>${orderTicketLabel(order)}${groupUsesTurns ? ` · ${courseLabel(group.course)}` : ""}</strong></div>
-            ${kitchenHistoryMode ? `<button class="ghost kitchen-restore-order" type="button" data-history-index="${orderIndex}">Ripristina</button>` : `${canDismissCourse ? `<button class="ghost icon-only kitchen-dismiss-course" type="button" title="Chiudi ${courseLabel(group.course)}" aria-label="Chiudi ${courseLabel(group.course)}">&#10003;</button>` : ""}`}
+            ${kitchenHistoryMode ? `<button class="ghost kitchen-restore-order" type="button" data-history-index="${orderIndex}">Ripristina</button>` : `${canDismissCourse ? `<button class="ghost icon-only kitchen-dismiss-course" type="button" title="Nascondi ${courseLabel(group.course)}" aria-label="Nascondi ${courseLabel(group.course)}">&#10003;</button>` : ""}`}
           </div>
           <div class="ticket-scroll">
             ${group.items.map(line => `<button class="kitchen-line ${lineCycleBlocked ? "remote-blocked" : ""} ${line.kitchenStatus === "In preparazione" ? "in-preparazione" : line.kitchenStatus === "Completo" ? "completo" : ""}" data-line-key="${line.key}" type="button">${line.qty} x ${line.name}${lineNoteHtml(line)}${lineVariationHtml(line)}</button>`).join("")}
@@ -8201,7 +8203,7 @@
         // Con le sequenze il monitor deve archiviare solo il gruppo corrente:
         // non mostrare "Libera comanda/tavolo", che chiuderebbe l'intero ordine
         // anche quando altri monitor devono ancora lavorare sulle proprie righe.
-        if (!kitchenHistoryMode && allOrderLinesComplete && !groupUsesTurns) {
+        if (!kitchenHistoryMode && allOrderLinesComplete && !groupUsesTurns && !isBarMonitor) {
           const deleteButton = document.createElement("button");
           deleteButton.className = "ghost kitchen-delete-order";
           deleteButton.type = "button";

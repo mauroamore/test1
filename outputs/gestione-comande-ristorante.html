@@ -7890,20 +7890,19 @@
         row.dataset.key = line.key;
         const lineLocked = line.kitchenStatus === "Completo";
         const lineStatus = line.kitchenStatus ? ` title="${escapeHtml(line.kitchenStatus)}"` : "";
-        // Il bar non ha ingredienti da aggiungere/togliere: niente bottone "Apri variazioni",
-        // solo il nome e la quantita' (quel tasto aprirebbe uno schermo di variazioni vuoto o,
-        // peggio, pieno di ingredienti di piatti che con un drink non c'entrano nulla).
         row.innerHTML = `
           <span class="qty">${line.qty}</span>
-          <span class="line-detail-static"${lineStatus}><strong>${line.name}</strong></span>
+          <button class="line-detail" title="${line.kitchenStatus ? escapeHtml(line.kitchenStatus) + " - " : ""}Apri variazioni"><strong>${line.name}</strong>${lineNoteHtml(line)}${lineVariationHtml(line)}</button>
           <div class="row">
             <button class="ghost" title="Diminuisci">-</button>
             <button class="ghost" title="Aumenta">+</button>
           </div>
         `;
-        const [minus, plus] = row.querySelectorAll("button");
+        const [detail, minus, plus] = row.querySelectorAll("button");
+        detail.addEventListener("click", () => editVariation(line.key));
         minus.addEventListener("click", () => changeQty(line.key, -1));
         plus.addEventListener("click", () => changeQty(line.key, 1));
+        if (REMOTE_MODE) detail.classList.add("remote-blocked");
         minus.disabled = lineLocked;
         plus.disabled = lineLocked;
         root.appendChild(row);

@@ -8601,10 +8601,17 @@
         const normalSize = `\x1d\x21${String.fromCharCode(escPosScale)}`;
         const smallSize = "\x1bM\x01\x1d\x21\x00";
         const resetSize = `\x1bM\x00${normalSize}`;
+        const hasSequences = lines.some(line => lineUsesTurns(line));
+        let previousSequence = null;
         const text = lines.map(line => {
           const main = `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`;
           const variations = lineVariationLabel(line);
-          return variations ? `${main}\n${smallSize}  ${variations}${resetSize}` : main;
+          const sequence = courseNumber(line.course);
+          const sequenceHeader = hasSequences && sequence !== previousSequence
+            ? `Sequenza ${sequence}\n`
+            : "";
+          previousSequence = sequence;
+          return variations ? `${sequenceHeader}${main}\n${smallSize}  ${variations}${resetSize}` : `${sequenceHeader}${main}`;
         }).join("\n");
         const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n${normalSize}${text}\n\x1d\x21\x00\n`;
         try {

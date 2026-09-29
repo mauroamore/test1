@@ -8593,7 +8593,9 @@
         grouped.get(printer.name).lines.push(line);
       });
       for (const { printer, lines } of grouped.values()) {
-        const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine");
+        const tableLabel = order.source
+          ? `TakeAway - ${order.customerName || order.name || order.id || "Ordine"}`
+          : (order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine"));
         const fontSize = Math.max(1, Math.min(4, Number(printer.fontSize || 1)));
         const escPosScale = (fontSize - 1) * 0x11;
         const normalSize = `\x1d\x21${String.fromCharCode(escPosScale)}`;

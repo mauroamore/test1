@@ -6243,7 +6243,9 @@
       if (!dismissedCoursesForMonitor(order, monitorName).some(value => courseNumber(value) === normalizedCourse)) return false;
       const lines = (order?.items || []).filter(line =>
         monitorForLine(line) === monitorName
-        && courseNumber(line.course) === normalizedCourse
+        // I monitor senza sequenze raggruppano sempre le righe nella sequenza
+        // tecnica 1, anche se la riga conserva course=0 nello state condiviso.
+        && courseNumber(lineUsesTurns(line) ? line.course : 1) === normalizedCourse
         && Number(line.sentQty || line.tho?.sent_quantity || 0) > 0
       );
       return !lines.length || lines.every(line => String(line.kitchenStatus || line.tho?.kitchen_status || "Da preparare") === "Completo");

@@ -8594,10 +8594,17 @@
       });
       for (const { printer, lines } of grouped.values()) {
         const tableLabel = order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine");
-        const text = lines.map(line => `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`).join("\n");
         const fontSize = Math.max(1, Math.min(4, Number(printer.fontSize || 1)));
         const escPosScale = (fontSize - 1) * 0x11;
-        const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n\x1d\x21${String.fromCharCode(escPosScale)}${text}\n\x1d\x21\x00\n`;
+        const normalSize = `\x1d\x21${String.fromCharCode(escPosScale)}`;
+        const smallSize = "\x1bM\x01\x1d\x21\x00";
+        const resetSize = `\x1bM\x00${normalSize}`;
+        const text = lines.map(line => {
+          const main = `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`;
+          const variations = lineVariationLabel(line);
+          return variations ? `${main}\n${smallSize}  ${variations}${resetSize}` : main;
+        }).join("\n");
+        const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n${normalSize}${text}\n\x1d\x21\x00\n`;
         try {
           const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "order", printer, payload }) });
           if (!response.ok) {

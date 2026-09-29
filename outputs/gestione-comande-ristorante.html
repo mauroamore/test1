@@ -8176,6 +8176,7 @@
       const historyOrders = [...state.tables, ...deliveryOrdersSentToKitchen]
         .filter(order => order.kitchenClosed === true)
         .map(order => ({ ...order, items: compactMonitorLines((order.items || [])
+          .filter(line => monitorForLine(line) === selectedKitchenMonitor)
           .map(line => ({ ...line, qty: Number(line.qty || line.sentQty || 0) }))
           .filter(line => line.qty > 0)) }))
         .filter(order => order.items.length);

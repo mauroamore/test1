@@ -8594,7 +8594,7 @@
       });
       for (const { printer, lines } of grouped.values()) {
         const tableLabel = order.source
-          ? `TakeAway - ${order.customerName || order.name || order.id || "Ordine"}`
+          ? `TakeAway - ${order.customerName || order.name || order.id || "Ordine"} - ${order.pickupTime || "Subito"}`
           : (order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine"));
         const fontSize = Math.max(1, Math.min(4, Number(printer.fontSize || 1)));
         const escPosScale = (fontSize - 1) * 0x11;

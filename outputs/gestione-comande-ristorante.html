@@ -4719,11 +4719,15 @@
       lastStateSyncStartedAt = now;
       try {
         if (!force && !ENABLE_STATE_POLLING) return;
-        if (!platformConfigReady) {
-          const config = await loadPlatformConfig();
-          if (config) applyPlatformConfig(config);
-          if (!platformConfigReady) return;
+        // La configurazione dei monitor e' separata dallo state operativo.
+        // Rileggiamola anche durante il polling: puo' essere stata modificata
+        // da un altro browser mentre questo monitor era gia' aperto.
+        const config = await loadPlatformConfig();
+        if (config) {
+          const configJson = JSON.stringify(config);
+          if (configJson !== lastPlatformConfigJson) applyPlatformConfig(config);
         }
+        if (!platformConfigReady) return;
         const response = await fetch(REMOTE_MODE ? `${REMOTE_SYNC_URL}?mode=state` : "/api/state", REMOTE_MODE
           ? { headers: { "X-Restaurant-Sync-Key": REMOTE_KEY } }
           : undefined);
@@ -8289,7 +8293,9 @@
 
     function monitorForLine(line) {
       const mappings = state.settings.categoryMonitors || {};
-      const monitorName = mappings[line.category] || "Cucina";
+      const category = String(line.category || "").trim();
+      const mappedCategory = Object.keys(mappings).find(key => key.trim().toLowerCase() === category.toLowerCase());
+      const monitorName = mappedCategory ? mappings[mappedCategory] : "Cucina";
       const monitor = (state.settings.monitors || []).find(item => item.name === monitorName);
       return monitor && monitor.active === false ? "" : monitorName;
     }

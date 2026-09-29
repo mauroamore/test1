@@ -8499,13 +8499,14 @@
         });
       }
       const printerRoot = document.getElementById("setupPrinterList");
-        printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width" title="Larghezza carta"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><select data-printer-field="fontSize" title="Dimensione caratteri articoli"><option value="1" ${Number(printer.fontSize || 1) === 1 ? "selected" : ""}>Caratteri 1x</option><option value="2" ${Number(printer.fontSize || 1) === 2 ? "selected" : ""}>Caratteri 2x</option><option value="3" ${Number(printer.fontSize || 1) === 3 ? "selected" : ""}>Caratteri 3x</option><option value="4" ${Number(printer.fontSize || 1) === 4 ? "selected" : ""}>Caratteri 4x</option></select><select data-printer-field="protocol" title="Protocollo di stampa"><option value="escpos" ${printer.protocol !== "epson-pcpos" ? "selected" : ""}>ESC/POS</option><option value="epson-pcpos" ${printer.protocol === "epson-pcpos" ? "selected" : ""}>Epson PC-POS</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><label class="checkbox-label"><input class="printer-preview" type="checkbox" ${printer.preview !== false ? "checked" : ""}> Anteprima</label><button class="ghost printer-test" type="button">Prova</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
+        printerRoot.innerHTML = state.settings.printers.map((printer, index) => `<div class="setup-row printer-row" data-printer-index="${index}"><input data-printer-field="name" value="${escapeHtml(printer.name)}"><input data-printer-field="host" placeholder="IP stampante" value="${escapeHtml(printer.host || "")}"><input data-printer-field="port" type="number" min="1" max="65535" value="${Number(printer.port || 9100)}"><select data-printer-field="width" title="Larghezza carta"><option ${printer.width === 58 ? "selected" : ""}>58</option><option ${printer.width !== 58 ? "selected" : ""}>80</option></select><select data-printer-field="fontSize" title="Dimensione caratteri articoli"><option value="1" ${Number(printer.fontSize || 1) === 1 ? "selected" : ""}>Normale</option><option value="5" ${Number(printer.fontSize || 1) === 5 ? "selected" : ""}>Largo</option><option value="6" ${Number(printer.fontSize || 1) === 6 ? "selected" : ""}>Alto</option><option value="2" ${Number(printer.fontSize || 1) === 2 ? "selected" : ""}>Grande 2x</option><option value="3" ${Number(printer.fontSize || 1) === 3 ? "selected" : ""}>Grande 3x</option><option value="4" ${Number(printer.fontSize || 1) === 4 ? "selected" : ""}>Grande 4x</option></select><select data-printer-field="protocol" title="Protocollo di stampa"><option value="escpos" ${printer.protocol !== "epson-pcpos" ? "selected" : ""}>ESC/POS</option><option value="epson-pcpos" ${printer.protocol === "epson-pcpos" ? "selected" : ""}>Epson PC-POS</option></select><label class="checkbox-label"><input class="preconto-printer" type="checkbox" ${state.settings.precontoPrinter === printer.name ? "checked" : ""}> Preconto</label><label class="checkbox-label"><input class="printer-preview" type="checkbox" ${printer.preview !== false ? "checked" : ""}> Anteprima</label><button class="ghost printer-test" type="button">Prova</button><button class="ghost printer-format-test" type="button">Formati</button><span class="printer-test-status small" role="status" aria-live="polite"></span><button class="ghost printer-remove" type="button">×</button></div>`).join("") || `<div class="empty">Nessuna stampante configurata.</div>`;
       printerRoot.querySelectorAll(".setup-row").forEach(row => {
         const index = Number(row.dataset.printerIndex);
         row.querySelectorAll("[data-printer-field]").forEach(input => input.addEventListener("change", () => { state.settings.printers[index][input.dataset.printerField] = ["width", "port", "fontSize"].includes(input.dataset.printerField) ? Number(input.value) : input.value; saveState(); }));
         row.querySelector(".preconto-printer")?.addEventListener("change", event => { state.settings.precontoPrinter = event.target.checked ? state.settings.printers[index].name : ""; saveState(); renderSetup(); });
         row.querySelector(".printer-preview")?.addEventListener("change", event => { state.settings.printers[index].preview = event.target.checked; saveState(); });
         row.querySelector(".printer-test").addEventListener("click", () => simulatePrinterTest(state.settings.printers[index], row));
+        row.querySelector(".printer-format-test").addEventListener("click", () => simulatePrinterFormatTest(state.settings.printers[index], row));
         row.querySelector(".printer-remove").addEventListener("click", () => { state.settings.printers.splice(index, 1); saveState(); renderSetup(); });
       });
     }
@@ -8572,12 +8573,72 @@
       renderSetup();
     }
 
+    function printerTextScale(fontSize) {
+      switch (Number(fontSize)) {
+        case 5: return 0x10; // doppia larghezza, altezza normale
+        case 6: return 0x01; // larghezza normale, doppia altezza
+        case 2: return 0x11;
+        case 3: return 0x22;
+        case 4: return 0x33;
+        default: return 0x00;
+      }
+    }
+
+    function printerTextSizeLabel(fontSize) {
+      return ({ 1: "Normale", 2: "Grande 2x", 3: "Grande 3x", 4: "Grande 4x", 5: "Largo", 6: "Alto" })[Number(fontSize)] || "Normale";
+    }
+
     function escPosTest(printer) {
       const width = Number(printer.width) === 58 ? 32 : 48;
       const line = "-".repeat(width);
-      const fontSize = Math.max(1, Math.min(4, Number(printer.fontSize || 1)));
-      const escPosScale = (fontSize - 1) * 0x11;
-      return `\x1b@\x1ba\x01\x1bE\x01RISTORANTE\x1bE\x00\n${line}\nSTAMPA DI PROVA\n\nStampante: ${printer.name}\nIP: ${printer.host || "non configurato"}\nPorta: ${printer.port || 9100}\nLarghezza: ${printer.width || 80} mm\nDimensione articoli: ${fontSize}x\n${line}\n\n\x1d\x21${String.fromCharCode(escPosScale)}ARTICOLO DI PROVA\n\x1d\x21\x00\n\n\x1dV\x00`;
+      const fontSize = Math.max(1, Math.min(6, Number(printer.fontSize || 1)));
+      const escPosScale = printerTextScale(fontSize);
+      return `\x1b@\x1ba\x01\x1bE\x01RISTORANTE\x1bE\x00\n${line}\nSTAMPA DI PROVA\n\nStampante: ${printer.name}\nIP: ${printer.host || "non configurato"}\nPorta: ${printer.port || 9100}\nLarghezza: ${printer.width || 80} mm\nDimensione articoli: ${printerTextSizeLabel(fontSize)}\n${line}\n\n\x1d\x21${String.fromCharCode(escPosScale)}ARTICOLO DI PROVA\n\x1d\x21\x00\n\n\x1dV\x00`;
+    }
+
+    function escPosFormatTest(printer) {
+      const width = Number(printer.width) === 58 ? 32 : 48;
+      const line = "-".repeat(width);
+      const normal = "\x1d\x21\x00";
+      const wide = "\x1d\x21\x10";
+      const high = "\x1d\x21\x01";
+      const double = "\x1d\x21\x11";
+      const triple = "\x1d\x21\x22";
+      const small = "\x1bM\x01\x1d\x21\x00";
+      return `\x1b@\x1ba\x00\x1bE\x01TEST FORMATI MONITOR\x1bE\x00\n${line}\n`+
+        `${high}SEQUENZA 0${normal}\n`+
+        `${wide}Sequenza 1 - formato largo${normal}\n`+
+        `${double}ARTICOLO 2x - Pad Thai${normal}\n`+
+        `${triple}ARTICOLO 3x - Tom Yum${normal}\n`+
+        `${normal}1 x Articolo formato normale\n`+
+        `${small}  Variante: senza cipolla / piccante${normal}\n`+
+        `${wide}ARTICOLO LARGO - larghezza doppia${normal}\n`+
+        `${high}ARTICOLO ALTO - altezza doppia${normal}\n`+
+        `${line}\nFINE TEST FORMATI\n\n\x1dV\x00`;
+    }
+
+    async function simulatePrinterFormatTest(printer, row) {
+      const button = row?.querySelector(".printer-format-test");
+      const status = row?.querySelector(".printer-test-status");
+      const previewStatus = document.getElementById("printPreviewStatus");
+      if (!printer.host) { if (status) status.textContent = "Inserisci l'IP"; return; }
+      if (button) button.disabled = true;
+      if (status) { status.textContent = "Invio formati..."; status.style.color = ""; }
+      const payload = escPosFormatTest(printer);
+      document.getElementById("printPreviewText").textContent = payload.replace(/\x1b/g, "<ESC>").replace(/\x1d/g, "<GS>");
+      document.getElementById("printPreviewModal").showModal();
+      try {
+        const response = await fetch("/api/print/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ printer, payload }) });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.ok === false) throw new Error(result.error || `Errore HTTP ${response.status}`);
+        if (status) { status.textContent = "Formati inviati"; status.style.color = "#176b4a"; }
+        if (previewStatus) { previewStatus.textContent = `Test formati inviato a ${printer.host}:${printer.port || 9100}.`; previewStatus.style.color = "#176b4a"; }
+      } catch (error) {
+        if (status) { status.textContent = `Errore: ${error.message}`; status.style.color = "#a33b32"; }
+        if (previewStatus) { previewStatus.textContent = `Test formati non riuscito: ${error.message}`; previewStatus.style.color = "#a33b32"; }
+      } finally {
+        if (button) button.disabled = false;
+      }
     }
 
     async function printOrderToConfiguredMonitors(order) {
@@ -8596,8 +8657,8 @@
         const tableLabel = order.source
           ? `TakeAway - ${order.customerName || order.name || order.id || "Ordine"} - ${order.pickupTime || "Subito"}`
           : (order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine"));
-        const fontSize = Math.max(1, Math.min(4, Number(printer.fontSize || 1)));
-        const escPosScale = (fontSize - 1) * 0x11;
+        const fontSize = Math.max(1, Math.min(6, Number(printer.fontSize || 1)));
+        const escPosScale = printerTextScale(fontSize);
         const normalSize = `\x1d\x21${String.fromCharCode(escPosScale)}`;
         const smallSize = "\x1bM\x01\x1d\x21\x00";
         const resetSize = `\x1bM\x00${normalSize}`;

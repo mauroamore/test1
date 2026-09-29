@@ -8072,6 +8072,17 @@
     function renderKitchen() {
       captureKitchenScrollPositions();
       const kitchenScreen = document.getElementById("kitchenScreen");
+      // In modalita' monitor dedicato l'hash e' la fonte di verita' per il
+      // monitor visualizzato. La configurazione puo' arrivare dopo il primo
+      // render: riallineiamo la selezione prima di filtrare le righe.
+      const hashMonitor = decodeURIComponent(window.location.hash.slice(1));
+      if (/^monitor-/i.test(hashMonitor)) {
+        const requestedName = hashMonitor.slice(8).trim().toLowerCase();
+        const configuredMonitor = (state.settings.monitors || []).find(monitor =>
+          String(monitor.name || "").trim().toLowerCase() === requestedName
+        );
+        if (configuredMonitor) selectedKitchenMonitor = configuredMonitor.name;
+      }
       if (PALMARE_MODE) {
         const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase().includes("bar"));
         if (barMonitor) selectedKitchenMonitor = barMonitor.name;

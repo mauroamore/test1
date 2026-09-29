@@ -8387,14 +8387,16 @@
       const compacted = [];
       const byGroup = new Map();
       lines.forEach(line => {
+        const kitchenStatus = line.kitchenStatus || line.tho?.kitchen_status || "";
         const monitorKey = lineUsesTurns(line) ? line.key : line.key.replace(/::course=\d+::/, "::course=1::");
-        const groupKey = `${lineUsesTurns(line) ? courseNumber(line.course) : 1}::${monitorKey}`;
+        // Una riga completata e una nuova riga dello stesso articolo non sono
+        // intercambiabili: il monitor deve conservarle come due righe distinte.
+        const groupKey = `${lineUsesTurns(line) ? courseNumber(line.course) : 1}::${monitorKey}::status=${kitchenStatus}`;
         const existing = byGroup.get(groupKey);
         if (existing) {
           existing.qty += Number(line.qty || 0);
-          if (existing.kitchenStatus !== "Completo" && line.kitchenStatus === "Completo") existing.kitchenStatus = "Completo";
         } else {
-          const copy = { ...line, course: lineUsesTurns(line) ? courseNumber(line.course) : 1, splitAccount: "" };
+          const copy = { ...line, kitchenStatus, course: lineUsesTurns(line) ? courseNumber(line.course) : 1, splitAccount: "" };
           byGroup.set(groupKey, copy);
           compacted.push(copy);
         }

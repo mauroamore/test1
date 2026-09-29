@@ -702,7 +702,10 @@
     }
 
     .kitchen-screen-head h1 { font-size: 24px; }
-    .monitor-diagnostics { display: inline-flex; align-items: center; max-width: min(52vw, 760px); margin-left: 8px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.75); color: var(--muted); font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+    .kitchen-screen-head > .row:first-child { min-width: 0; flex: 1 1 auto; }
+    .kitchen-title-block { flex: 0 0 auto; min-width: 150px; }
+    .kitchen-title-block .badge { min-width: 118px; text-align: center; }
+    .monitor-diagnostics { display: inline-flex; align-items: center; flex: 0 1 clamp(240px, 30vw, 520px); width: clamp(240px, 30vw, 520px); min-width: 240px; box-sizing: border-box; margin-left: 8px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.75); color: var(--muted); font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
     .monitor-diagnostics.ok { color: var(--ready); }
     .monitor-diagnostics.error { color: var(--danger); }
     .monitor-debug-panel { margin: 8px 12px 12px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.8); font-size: 12px; }

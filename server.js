@@ -407,11 +407,32 @@ function persistStateFiles() {
   writeJsonFileAtomic(STATE_FILE, JSON.stringify(stateForStorage(sharedState), null, 2));
 }
 
+function hasIncompleteKitchenWork(order) {
+  return Array.isArray(order?.items) && order.items.some(item =>
+    Number(item.sentQty || item.tho?.sent_quantity || 0) > 0
+    && String(item.kitchenStatus || item.tho?.kitchen_status || "Da preparare") !== "Completo"
+  );
+}
+
 const persistedState = readJsonFile(STATE_FILE);
 const persistedMenu = readJsonFile(MENU_CACHE_FILE);
 const persistedConfig = readJsonFile(CONFIG_FILE);
 let sharedState = persistedState ? migrateStateToHubRiseShape(persistedState) : null;
 if (sharedState) delete sharedState.history;
+if (sharedState) {
+  let reopenedOrders = 0;
+  for (const order of [...(sharedState.tables || []), ...(sharedState.deliveryOrders || [])]) {
+    if (order.kitchenClosed === true && hasIncompleteKitchenWork(order)) {
+      order.kitchenClosed = false;
+      delete order.kitchenClosedAt;
+      reopenedOrders += 1;
+    }
+  }
+  if (reopenedOrders) {
+    appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} reopened ${reopenedOrders} closed orders with incomplete kitchen work\n`);
+    persistStateFiles();
+  }
+}
 let fiscalReceipts = readJsonFile(FISCAL_RECEIPTS_FILE, []);
 if (!Array.isArray(fiscalReceipts)) fiscalReceipts = [];
 let fiscalReceiptSync = readJsonFile(FISCAL_RECEIPT_SYNC_FILE, {});

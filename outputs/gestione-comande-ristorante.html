@@ -6238,6 +6238,17 @@
       return map && Array.isArray(map[monitorName]) ? map[monitorName] : [];
     }
 
+    function monitorCourseIsHidden(order, course, monitorName = selectedKitchenMonitor) {
+      const normalizedCourse = courseNumber(course);
+      if (!dismissedCoursesForMonitor(order, monitorName).some(value => courseNumber(value) === normalizedCourse)) return false;
+      const lines = (order?.items || []).filter(line =>
+        monitorForLine(line) === monitorName
+        && courseNumber(line.course) === normalizedCourse
+        && Number(line.sentQty || line.tho?.sent_quantity || 0) > 0
+      );
+      return !lines.length || lines.every(line => String(line.kitchenStatus || line.tho?.kitchen_status || "Da preparare") === "Completo");
+    }
+
     function reopenMonitorCourseForLine(order, line) {
       if (!order || !line || !order.dismissedCoursesByMonitor) return;
       const monitorName = state.settings.categoryMonitors?.[line.category] || "Cucina";
@@ -8154,7 +8165,7 @@
       const active = [...state.tables, ...deliveryOrdersSentToKitchen]
         .map(table => ({
           ...table,
-          items: monitorLines(table).filter(line => !dismissedCoursesForMonitor(table).includes(courseNumber(line.course)))
+          items: monitorLines(table).filter(line => !monitorCourseIsHidden(table, line.course))
         }))
         .filter(table => table.items.length && table.status !== "Servita" && !table.kitchenClosed);
       const historyOrders = [...state.tables, ...deliveryOrdersSentToKitchen]
@@ -8170,7 +8181,7 @@
       const monitorDebug = monitorDebugOrders.map(order => ({
         orderId: order.id,
         selectedMonitor: selectedKitchenMonitor,
-        hiddenCourses: dismissedCoursesForMonitor(order),
+        hiddenCourses: dismissedCoursesForMonitor(order).filter(course => monitorCourseIsHidden(order, course)),
         lines: (order.items || []).map(line => ({
           name: line.name,
           category: line.category,
@@ -8178,7 +8189,7 @@
           course: courseNumber(line.course),
           sentQty: Number(line.sentQty || 0),
           status: line.kitchenStatus || null,
-          visible: monitorForLine(line) === selectedKitchenMonitor && Number(line.sentQty || 0) > 0 && !dismissedCoursesForMonitor(order).includes(courseNumber(line.course))
+          visible: monitorForLine(line) === selectedKitchenMonitor && Number(line.sentQty || 0) > 0 && !monitorCourseIsHidden(order, line.course)
         }))
       }));
       window.__monitorFilterDebug = monitorDebug;
@@ -8223,7 +8234,7 @@
       const tickets = source.flatMap((order, orderIndex) => {
         const groups = linesByCourse(Array.isArray(order.items) ? order.items : []);
         return (groups.length ? groups : [{ course: 0, items: [] }])
-          .filter(group => !dismissedCoursesForMonitor(order).includes(courseNumber(group.course)))
+          .filter(group => !monitorCourseIsHidden(order, group.course))
           .map(group => ({ order, group, orderIndex }));
       });
       const kitchenOrderAge = order => {

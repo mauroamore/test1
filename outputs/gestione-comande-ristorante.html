@@ -8198,7 +8198,10 @@
           </div>
           <span class="ticket-continuation" role="button" tabindex="0" aria-live="polite"></span>
         `;
-        if (!kitchenHistoryMode && allOrderLinesComplete) {
+        // Con le sequenze il monitor deve archiviare solo il gruppo corrente:
+        // non mostrare "Libera comanda/tavolo", che chiuderebbe l'intero ordine
+        // anche quando altri monitor devono ancora lavorare sulle proprie righe.
+        if (!kitchenHistoryMode && allOrderLinesComplete && !groupUsesTurns) {
           const deleteButton = document.createElement("button");
           deleteButton.className = "ghost kitchen-delete-order";
           deleteButton.type = "button";

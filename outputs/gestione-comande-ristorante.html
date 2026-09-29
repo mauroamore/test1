@@ -8071,10 +8071,6 @@
 
     function renderKitchen() {
       captureKitchenScrollPositions();
-      try {
-        const localKitchen = JSON.parse(localStorage.getItem("vorrei-kitchen-layout") || "null");
-        if (localKitchen) Object.assign(state.settings, localKitchen);
-      } catch {}
       const kitchenScreen = document.getElementById("kitchenScreen");
       if (PALMARE_MODE) {
         const barMonitor = (state.settings.monitors || []).find(monitor => monitor.name.toLowerCase().includes("bar"));
@@ -8332,10 +8328,6 @@
 
     function renderMonitorSetup() {
       const root = document.getElementById("setupMonitorSetup");
-      try {
-        const localKitchen = JSON.parse(localStorage.getItem("vorrei-kitchen-layout") || "null");
-        if (localKitchen) Object.assign(state.settings, localKitchen);
-      } catch {}
       const categories = menuCategories();
       const monitors = state.settings.monitors || [];
       monitors.forEach(monitor => {

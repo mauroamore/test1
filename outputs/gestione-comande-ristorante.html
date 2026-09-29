@@ -8242,6 +8242,8 @@
           .filter(group => !monitorCourseIsHidden(order, group.course))
           .map(group => ({ order, group, orderIndex }));
       });
+      const selectedMonitorDefinition = (state.settings.monitors || []).find(monitor => monitor.name === selectedKitchenMonitor);
+      const selectedMonitorUsesTurns = selectedMonitorDefinition ? selectedMonitorDefinition.turns !== false : true;
       const kitchenOrderAge = order => {
         const candidates = [order.coversEnteredAt, order.createdAt, order.created, order.sentAt, order.updatedAt];
         for (const value of candidates) {
@@ -8252,8 +8254,8 @@
         return Number.isFinite(numericId) ? numericId : Number.MAX_SAFE_INTEGER;
       };
       tickets.sort((a, b) => {
-        const aActive = courseNumber(a.group.course) === monitorActiveCourse(a.order);
-        const bActive = courseNumber(b.group.course) === monitorActiveCourse(b.order);
+        const aActive = !selectedMonitorUsesTurns || courseNumber(a.group.course) === monitorActiveCourse(a.order);
+        const bActive = !selectedMonitorUsesTurns || courseNumber(b.group.course) === monitorActiveCourse(b.order);
         if (aActive !== bActive) return aActive ? -1 : 1;
         const ageOrder = kitchenOrderAge(a.order) - kitchenOrderAge(b.order);
         if (ageOrder !== 0) return ageOrder;
@@ -8265,8 +8267,8 @@
       tickets.forEach(({ order, group }) => {
         const ticket = document.createElement("div");
         ticket.dataset.scrollKey = kitchenScrollKey(order.id, group.course, selectedKitchenMonitor);
-        const courseIsActive = !kitchenHistoryMode && (Boolean(order.source) || courseNumber(group.course) === monitorActiveCourse(order));
         const groupUsesTurns = group.items.some(line => lineUsesTurns(line));
+        const courseIsActive = !kitchenHistoryMode && (Boolean(order.source) || !selectedMonitorUsesTurns || courseNumber(group.course) === monitorActiveCourse(order));
         const fullOrder = findOrderById(order.id) || order;
         const readyDeliveryStatus = ["ready_for_pickup", "awaiting_collection", "pronta", "ready", "completed", "completato", "consegnato", "collected", "ritirato"].includes(String(fullOrder.status || "").toLowerCase());
         const finalOrderStatus = ["completato", "completed", "pagato", "paid", "consegnato", "collected", "ritirato"].includes(String(fullOrder.status || "").toLowerCase());

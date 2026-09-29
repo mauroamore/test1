@@ -7840,12 +7840,12 @@
         renderSplitControls(order);
       }
       document.getElementById("precontoBtn").hidden = isDeliveryOrder;
-      document.getElementById("precontoBtn").disabled = !order || orderHasUnsentChangesForSend(order);
+      document.getElementById("precontoBtn").disabled = !order || hasUnsentChanges(order);
       document.getElementById("total").textContent = money.format(visibleOrderTotal(order));
 
       // "Invia" ha senso solo se c'e' qualcosa di nuovo da mandare in cucina rispetto
       // all'ultimo invio (altrimenti sarebbe un reinvio a vuoto) - vale ovunque, locale e remoto.
-      document.getElementById("sendBtn").disabled = !orderHasUnsentChangesForSend(order);
+      document.getElementById("sendBtn").disabled = !hasUnsentChanges(order);
 
       // Modalita' esterna: tavoli-uniti/split/"Pronta"/"Consegnato" restano sempre solo LAN; su
       // un Pick-up manuale restano attivi anche piatti/quantita'/note/Invia (comunque composti

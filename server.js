@@ -402,6 +402,7 @@ function configForStorage(state) {
 
 function persistStateFiles() {
   if (!sharedState) return;
+  normalizeDismissedMonitorCourses(sharedState);
   if (sharedState.menu) writeJsonFileAtomic(MENU_CACHE_FILE, JSON.stringify(sharedState.menu, null, 2));
   writeJsonFileAtomic(CONFIG_FILE, JSON.stringify(configForStorage(sharedState), null, 2));
   writeJsonFileAtomic(STATE_FILE, JSON.stringify(stateForStorage(sharedState), null, 2));
@@ -427,6 +428,32 @@ function reopenDismissedMonitorCoursesForNewLines(currentOrder, incomingOrder, s
       incomingOrder.dismissedCoursesByMonitor[monitorName] = courses.filter(value => Number(value) !== Number(line.course || 0));
     }
   }
+}
+
+function normalizeDismissedMonitorCourses(state) {
+  if (!state || typeof state !== "object") return false;
+  const settings = state.settings || {};
+  let changed = false;
+  for (const order of [...(state.tables || []), ...(state.deliveryOrders || [])]) {
+    const map = order && order.dismissedCoursesByMonitor;
+    if (!map || typeof map !== "object" || Array.isArray(map)) continue;
+    const items = Array.isArray(order.items) ? order.items : [];
+    for (const [monitorName, values] of Object.entries(map)) {
+      if (!Array.isArray(values)) continue;
+      const remaining = values.filter(course => {
+        const lines = items.filter(line => {
+          const lineMonitor = settings.categoryMonitors?.[line.category] || "Cucina";
+          return lineMonitor === monitorName && Number(line.course || 0) === Number(course);
+        });
+        return !lines.length || lines.every(line => String(line.kitchenStatus || line.tho?.kitchen_status || "Da preparare") === "Completo");
+      });
+      if (remaining.length !== values.length) {
+        map[monitorName] = remaining;
+        changed = true;
+      }
+    }
+  }
+  return changed;
 }
 
 const persistedState = readJsonFile(STATE_FILE);

@@ -6220,6 +6220,14 @@
       return map && Array.isArray(map[monitorName]) ? map[monitorName] : [];
     }
 
+    function reopenMonitorCourseForLine(order, line) {
+      if (!order || !line || !order.dismissedCoursesByMonitor) return;
+      const monitorName = state.settings.categoryMonitors?.[line.category] || "Cucina";
+      const courses = order.dismissedCoursesByMonitor[monitorName];
+      if (!Array.isArray(courses)) return;
+      order.dismissedCoursesByMonitor[monitorName] = courses.filter(value => courseNumber(value) !== courseNumber(line.course));
+    }
+
     function courseIsClosed(order, course) {
       const normalized = courseNumber(course);
       const lines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === normalized);
@@ -9399,6 +9407,7 @@
         && lineCanBeCompacted(line));
       if (existing) existing.qty += 1;
       else order.items.push({ ...item, key, originalName: item.name, minusVariations: [], plusVariations: [], lineNote: "", course, splitAccount, qty: 1, sentQty: 0, noTurns: isDeliveryOrder });
+      reopenMonitorCourseForLine(order, existing || order.items[order.items.length - 1]);
       compactOrderLines(order);
       if (order.splitMode && order.selectedSplit !== "T" && order.paidSplits) order.paidSplits[order.selectedSplit] = false;
       order.occupied = true;

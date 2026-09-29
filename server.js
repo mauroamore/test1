@@ -414,6 +414,21 @@ function hasIncompleteKitchenWork(order) {
   );
 }
 
+function reopenDismissedMonitorCoursesForNewLines(currentOrder, incomingOrder, settings) {
+  if (!currentOrder || !incomingOrder || !incomingOrder.dismissedCoursesByMonitor || typeof incomingOrder.dismissedCoursesByMonitor !== "object") return;
+  const currentByKey = new Map((Array.isArray(currentOrder.items) ? currentOrder.items : []).map(line => [String(line.key), line]));
+  for (const line of Array.isArray(incomingOrder.items) ? incomingOrder.items : []) {
+    const previous = currentByKey.get(String(line.key));
+    const isNew = !previous || Number(line.qty || 0) > Number(previous.qty || 0);
+    if (!isNew) continue;
+    const monitorName = settings?.categoryMonitors?.[line.category] || "Cucina";
+    const courses = incomingOrder.dismissedCoursesByMonitor[monitorName];
+    if (Array.isArray(courses)) {
+      incomingOrder.dismissedCoursesByMonitor[monitorName] = courses.filter(value => Number(value) !== Number(line.course || 0));
+    }
+  }
+}
+
 const persistedState = readJsonFile(STATE_FILE);
 const persistedMenu = readJsonFile(MENU_CACHE_FILE);
 const persistedConfig = readJsonFile(CONFIG_FILE);
@@ -1979,6 +1994,7 @@ const server = http.createServer((request, response) => {
           const target = isManualPickup ? sharedState.deliveryOrders : sharedState.tables;
           const index = target.findIndex(order => String(order.id) === orderId);
           if (currentOrder) {
+            reopenDismissedMonitorCoursesForNewLines(currentOrder, incomingOrder, sharedState.settings);
             mergeMonitorFields(currentOrder, incomingOrder);
           }
           if (index >= 0) target[index] = incomingOrder;

@@ -2048,7 +2048,7 @@ const server = http.createServer((request, response) => {
             .catch(error => appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} commit_order background sync ${error.message}\n`));
           return;
         }
-        if (["monitor_cycle_line", "monitor_activate_course", "monitor_force_activate_course", "monitor_close_course", "monitor_close_order"].includes(operation)) {
+        if (["monitor_cycle_line", "monitor_activate_course", "monitor_force_activate_course", "monitor_close_course", "monitor_restore_courses", "monitor_close_order"].includes(operation)) {
           if (expectedRevision && expectedRevision !== currentRevision) {
             return sendJson(response, 409, { ok: false, stale: true, state: stateForClient(sharedState), stateRevision: currentRevision });
           }
@@ -2108,6 +2108,16 @@ const server = http.createServer((request, response) => {
             order.kitchenClosedAt = new Date().toISOString();
             if (order.source && ["ready_for_pickup", "awaiting_collection", "pronta", "ready", "completed", "completato", "consegnato", "collected", "ritirato"].includes(String(order.status || "").toLowerCase())) {
               order.deliveryDismissed = true;
+            }
+          } else if (operation === "monitor_restore_courses") {
+            const monitorName = String(payload.monitorName || "Cucina").trim() || "Cucina";
+            const courses = Array.isArray(payload.courses)
+              ? payload.courses.map(Number).filter(Number.isFinite)
+              : [Number(payload.course)].filter(Number.isFinite);
+            if (!courses.length) return sendJson(response, 400, { ok: false, error: "Sequenze non valide" });
+            const map = order.dismissedCoursesByMonitor;
+            if (map && Array.isArray(map[monitorName])) {
+              map[monitorName] = map[monitorName].filter(value => !courses.includes(Number(value)));
             }
           } else {
             const course = Number(payload.course);

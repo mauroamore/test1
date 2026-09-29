@@ -9253,9 +9253,21 @@
       clearTimeout(historyReturnTimer);
       const order = findOrderById(orderId);
       if (!order) return;
-      order.kitchenClosed = false;
-      delete order.kitchenClosedAt;
-      saveState();
+      const courses = dismissedCoursesForMonitor(order)
+        .filter(course => monitorCourseIsHidden(order, course))
+        .map(course => courseNumber(course));
+      if (!courses.length) return;
+      if (!order.dismissedCoursesByMonitor || typeof order.dismissedCoursesByMonitor !== "object") order.dismissedCoursesByMonitor = {};
+      order.dismissedCoursesByMonitor[selectedKitchenMonitor] = dismissedCoursesForMonitor(order)
+        .filter(course => !courses.includes(courseNumber(course)));
+      sendLocalMonitorOperation("monitor_restore_courses", {
+        orderId: order.id,
+        monitorName: selectedKitchenMonitor,
+        courses
+      }).catch(async error => {
+        await syncFromServer({ force: true });
+        window.alert(`Ripristino sequenza non riuscito: ${error.message}`);
+      });
       returnToKitchenMonitor();
       renderTables();
     }

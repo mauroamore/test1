@@ -2059,16 +2059,15 @@ const server = http.createServer((request, response) => {
           } else {
             const course = Number(payload.course);
             if (!Number.isFinite(course)) return sendJson(response, 400, { ok: false, error: "Sequenza non valida" });
-            if (!Array.isArray(order.dismissedCourses)) order.dismissedCourses = [];
-            if (!order.dismissedCourses.some(value => Number(value) === course)) order.dismissedCourses.push(course);
+            const monitorName = String(payload.monitorName || "Cucina").trim() || "Cucina";
+            if (!order.dismissedCoursesByMonitor || typeof order.dismissedCoursesByMonitor !== "object" || Array.isArray(order.dismissedCoursesByMonitor)) order.dismissedCoursesByMonitor = {};
+            if (!Array.isArray(order.dismissedCoursesByMonitor[monitorName])) order.dismissedCoursesByMonitor[monitorName] = [];
+            if (!order.dismissedCoursesByMonitor[monitorName].some(value => Number(value) === course)) order.dismissedCoursesByMonitor[monitorName].push(course);
+            // Rimuove l'eventuale vecchio tombstone globale: la chiusura di una
+            // sequenza appartiene al solo monitor che l'ha eseguita.
+            if (Array.isArray(order.dismissedCourses)) order.dismissedCourses = order.dismissedCourses.filter(value => Number(value) !== course);
             order.activeCourse = -1;
-            const lines = order.items.filter(item => Number(item.course || 1) === course);
-            const allCourses = [...new Set(order.items.map(item => Number(item.course || 1)))];
-            if (lines.length && order.items.every(item => item.kitchenStatus === "Completo") && allCourses.every(value => order.dismissedCourses.some(item => Number(item) === value))) {
-              order.status = "Completato";
-              order.kitchenClosed = true;
-              order.kitchenClosedAt = new Date().toISOString();
-            }
+            // La chiusura di una sequenza non chiude mai la comanda globale.
           }
           sharedState.stateRevision = currentRevision + 1;
           persistStateFiles();

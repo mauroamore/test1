@@ -6215,6 +6215,11 @@
       return `Sequenza ${courseNumber(value)}`;
     }
 
+    function dismissedCoursesForMonitor(order, monitorName = selectedKitchenMonitor) {
+      const map = order && order.dismissedCoursesByMonitor;
+      return map && Array.isArray(map[monitorName]) ? map[monitorName] : [];
+    }
+
     function courseIsClosed(order, course) {
       const normalized = courseNumber(course);
       const lines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === normalized);
@@ -8098,7 +8103,7 @@
       const active = [...state.tables, ...deliveryOrdersSentToKitchen]
         .map(table => ({
           ...table,
-          items: monitorLines(table).filter(line => !(table.dismissedCourses || []).includes(courseNumber(line.course)))
+          items: monitorLines(table).filter(line => !dismissedCoursesForMonitor(table).includes(courseNumber(line.course)))
         }))
         .filter(table => table.items.length && table.status !== "Servita" && !table.kitchenClosed);
       const historyOrders = [...state.tables, ...deliveryOrdersSentToKitchen]
@@ -8147,7 +8152,7 @@
       const tickets = source.flatMap((order, orderIndex) => {
         const groups = linesByCourse(Array.isArray(order.items) ? order.items : []);
         return (groups.length ? groups : [{ course: 0, items: [] }])
-          .filter(group => !(order.dismissedCourses || []).includes(courseNumber(group.course)))
+          .filter(group => !dismissedCoursesForMonitor(order).includes(courseNumber(group.course)))
           .map(group => ({ order, group, orderIndex }));
       });
       const kitchenOrderAge = order => {
@@ -8935,19 +8940,14 @@
         if (!currentOrder) return;
         const currentLines = Array.isArray(currentOrder.items) ? currentOrder.items : [];
         currentOrder.items = currentLines;
-        if (!Array.isArray(currentOrder.dismissedCourses)) currentOrder.dismissedCourses = [];
-        if (!currentOrder.dismissedCourses.includes(courseValue)) currentOrder.dismissedCourses.push(courseValue);
+        if (!currentOrder.dismissedCoursesByMonitor || typeof currentOrder.dismissedCoursesByMonitor !== "object") currentOrder.dismissedCoursesByMonitor = {};
+        if (!Array.isArray(currentOrder.dismissedCoursesByMonitor[selectedKitchenMonitor])) currentOrder.dismissedCoursesByMonitor[selectedKitchenMonitor] = [];
+        if (!currentOrder.dismissedCoursesByMonitor[selectedKitchenMonitor].includes(courseValue)) currentOrder.dismissedCoursesByMonitor[selectedKitchenMonitor].push(courseValue);
         advanceActiveCourseAfterClose(currentOrder, courseValue);
-        const turnCourses = [...new Set(currentLines.filter(line => lineUsesTurns(line)).map(line => courseNumber(line.course)))];
-          if (currentLines.length > 0 && currentLines.every(line => line.kitchenStatus === "Completo") && turnCourses.every(value => currentOrder.dismissedCourses.includes(value))) {
-            currentOrder.status = "Completato";
-            currentOrder.kitchenClosed = true;
-            currentOrder.kitchenClosedAt = new Date().toISOString();
-        }
         // La chiusura della sequenza e' una mutazione atomica del monitor.
         // Non inviare uno snapshot completo: potrebbe sovrascrivere modifiche
         // piu' recenti effettuate dalla gestione comande o da un altro monitor.
-        sendLocalMonitorOperation("monitor_close_course", { orderId, course: courseValue }).catch(error => {
+        sendLocalMonitorOperation("monitor_close_course", { orderId, course: courseValue, monitorName: selectedKitchenMonitor }).catch(error => {
           window.alert(`Chiusura sequenza non riuscita: ${error.message}`);
           syncFromServer({ force: true });
         });

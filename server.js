@@ -415,6 +415,16 @@ function hasIncompleteKitchenWork(order) {
   );
 }
 
+function monitorLineCourse(line, monitorName, settings) {
+  const category = String(line?.category || "").trim();
+  const mappedMonitor = settings?.categoryMonitors?.[category] || "Cucina";
+  const monitor = (settings?.monitors || []).find(item => item && item.name === mappedMonitor);
+  const usesTurns = settings?.categoryTurns && Object.prototype.hasOwnProperty.call(settings.categoryTurns, category)
+    ? settings.categoryTurns[category] !== false
+    : monitor ? monitor.turns !== false : mappedMonitor !== "Bar";
+  return usesTurns ? Number(line?.course || 0) : 1;
+}
+
 function reopenDismissedMonitorCoursesForNewLines(currentOrder, incomingOrder, settings) {
   if (!currentOrder || !incomingOrder || !incomingOrder.dismissedCoursesByMonitor || typeof incomingOrder.dismissedCoursesByMonitor !== "object") return;
   const currentByKey = new Map((Array.isArray(currentOrder.items) ? currentOrder.items : []).map(line => [String(line.key), line]));
@@ -425,7 +435,7 @@ function reopenDismissedMonitorCoursesForNewLines(currentOrder, incomingOrder, s
     const monitorName = settings?.categoryMonitors?.[line.category] || "Cucina";
     const courses = incomingOrder.dismissedCoursesByMonitor[monitorName];
     if (Array.isArray(courses)) {
-      incomingOrder.dismissedCoursesByMonitor[monitorName] = courses.filter(value => Number(value) !== Number(line.course || 0));
+      incomingOrder.dismissedCoursesByMonitor[monitorName] = courses.filter(value => Number(value) !== monitorLineCourse(line, monitorName, settings));
     }
   }
 }
@@ -443,7 +453,7 @@ function normalizeDismissedMonitorCourses(state) {
       const remaining = values.filter(course => {
         const lines = items.filter(line => {
           const lineMonitor = settings.categoryMonitors?.[line.category] || "Cucina";
-          return lineMonitor === monitorName && Number(line.course || 0) === Number(course);
+          return lineMonitor === monitorName && monitorLineCourse(line, monitorName, settings) === Number(course);
         });
         return !lines.length || lines.every(line => String(line.kitchenStatus || line.tho?.kitchen_status || "Da preparare") === "Completo");
       });

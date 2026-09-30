@@ -686,8 +686,8 @@ if (sharedState && (sharedState.menu || !persistedConfig)) persistStateFiles();
 let sigonellaMenuCatalog = new Map();
 let sharedMenuPayload = null;
 
-async function loadSharedMenuCatalog() {
-  if (sigonellaMenuCatalog.size) return sigonellaMenuCatalog;
+async function loadSharedMenuCatalog({ forceRefresh = false } = {}) {
+  if (!forceRefresh && sigonellaMenuCatalog.size) return sigonellaMenuCatalog;
   const response = await fetch(SIGONELLA_MENU_URL, { method: "POST", headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json" }, body: "{}" });
   if (!response.ok) throw new Error("Menu HTTP " + response.status);
   const text = await response.text();
@@ -706,6 +706,13 @@ async function loadSharedMenuCatalog() {
       .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
       .replace(/&amp;/g, "&"));
   }
+  if (!Array.isArray(categories) || categories.length === 0) {
+    throw new Error("Il menu remoto non contiene categorie");
+  }
+  const itemCount = categories.reduce((count, category) =>
+    count + (Array.isArray(category.items) ? category.items.length : 0), 0);
+  if (itemCount === 0) throw new Error("Il menu remoto non contiene articoli; cache locale mantenuta");
+
   const catalog = new Map();
   for (const category of Array.isArray(categories) ? categories : []) {
     for (const item of Array.isArray(category.items) ? category.items : []) {
@@ -719,7 +726,10 @@ async function loadSharedMenuCatalog() {
   }
   sigonellaMenuCatalog = catalog;
   sharedMenuPayload = categories;
-  if (sharedState && (!Array.isArray(sharedState.menu) || sharedState.menu.length === 0) && categories.length > 0) {
+  if (forceRefresh && sharedState) sharedState.menu = categories;
+  if (forceRefresh) {
+    fs.writeFileSync(MENU_CACHE_FILE, JSON.stringify(categories, null, 2));
+  } else if (sharedState && (!Array.isArray(sharedState.menu) || sharedState.menu.length === 0)) {
     sharedState.menu = categories;
     persistStateFiles();
   }
@@ -1958,6 +1968,20 @@ const server = http.createServer((request, response) => {
         error: "Menu online non disponibile",
         detail: error.message,
         hint: "Verifica che il PC/server locale possa raggiungere https://servizi.thaiprincess.it"
+      }));
+    return;
+  }
+  if (request.url === "/api/menu/refresh" && request.method === "POST") {
+    loadSharedMenuCatalog({ forceRefresh: true })
+      .then(catalog => sendJson(response, 200, {
+        ok: true,
+        itemCount: catalog.size,
+        categories: sharedMenuPayload || []
+      }))
+      .catch(error => sendJson(response, 502, {
+        ok: false,
+        error: "Aggiornamento menu non riuscito",
+        detail: error.message
       }));
     return;
   }

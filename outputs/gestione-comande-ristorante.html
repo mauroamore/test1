@@ -2817,7 +2817,7 @@
   <section class="setup-screen" id="setupScreen" hidden>
     <div class="setup-head"><div><h1>Setup</h1><div class="date">Configurazione del ristorante</div></div><button class="ghost" id="closeSetupBtn">Torna alla sala</button></div>
     <div class="setup-tabs"><button class="ghost active" data-setup-tab="categories">Menu</button><button class="ghost" data-setup-tab="common-variations">Varianti comuni</button><button class="ghost" data-setup-tab="general">Generale</button><button class="ghost" data-setup-tab="device">Dispositivo</button><button class="ghost" data-setup-tab="monitors">Monitor</button><button class="ghost" data-setup-tab="printers">Stampanti</button><button class="ghost" data-setup-tab="fiscal">Fiscale</button><button class="ghost" data-setup-tab="pos">POS e cassa</button><button class="ghost" data-setup-tab="update">Aggiornamento</button></div>
-    <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
+    <section class="panel setup-tab-panel" data-setup-panel="categories"><div class="panel-header"><div><h2>Menu</h2><span class="small">Categorie sincronizzate dal menu online</span></div><div class="row"><span class="small" id="menuRefreshStatus" role="status" aria-live="polite"></span><button class="ghost" id="refreshMenuBtn" type="button">Aggiorna dal server</button></div></div><div class="panel-body"><div class="setup-list" id="setupCategoryList"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="common-variations" hidden><div class="panel-header"><h2>Varianti comuni</h2><button class="primary" id="addCommonVariationBtn" type="button">Aggiungi variante</button></div><div class="panel-body"><div class="setup-list" id="commonVariationsList"></div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="general" hidden><div class="panel-header"><h2>Impostazioni generali</h2><span class="small">Valori condivisi dal ristorante</span></div><div class="panel-body stack"><label>Costo coperto (EUR) <input id="generalCoverChargeInput" type="number" min="0" max="50" step="0.1"></label><div class="setup-section-note">Il costo viene applicato ai coperti e compare nel preconto e nel conto.</div></div></section>
     <section class="panel setup-tab-panel" data-setup-panel="device" hidden><div class="panel-header"><h2>Dispositivo</h2><span class="small">Impostazioni locali di questa macchina</span></div><div class="panel-body"><div class="setup-device-view"><h3>Visualizzazione sala</h3><span class="setup-section-note">Queste impostazioni non cambiano le altre postazioni.</span><label class="checkbox-label"><input id="compactRoomModeInput" type="checkbox"> Modalità compatta per schermi piccoli</label><label class="checkbox-label"><input id="deliveryPanelVisibleInput" type="checkbox"> Mostra Delivery e Pick-up</label><label class="checkbox-label"><input id="orderPanelCollapsibleInput" type="checkbox"> Comanda principale a scomparsa</label><label>Nascondi comanda dopo (secondi) <input id="compactOrderTimeoutInput" type="number" min="0" max="600" step="1" style="width:90px"></label><div class="setup-section-note">La comanda compare a destra quando selezioni un tavolo e si chiude dopo il tempo impostato o cliccando fuori.</div></div><div class="setup-device-view"><h3>Dimensioni prima pagina</h3><span class="setup-section-note">Le tre colonne mantengono la stessa altezza.</span><label>Altezza colonne (px) <input id="mainPanelHeightInput" type="number" min="360" max="1600" step="20"></label><label>Larghezza area tavoli (px) <input id="roomColumnWidthInput" type="number" min="640" max="2200" step="20"></label><label>Larghezza Delivery/Pick-up (px) <input id="deliveryColumnWidthInput" type="number" min="220" max="600" step="10"></label><label>Larghezza comanda (px) <input id="orderColumnWidthInput" type="number" min="260" max="700" step="10"></label><label>Dimensione carattere generale (px) <input id="mainFontSizeInput" type="number" min="12" max="22" step="1"></label></div><div class="setup-device-view"><h3>Operatività</h3><label for="deviceModeInput">Profilo del dispositivo <select id="deviceModeInput"><option value="full">Completo</option><option value="kitchen">Solo monitor cucina</option><option value="cash">Solo sala e cassa</option></select></label></div><div class="setup-device-view"><h3>Snapshot settaggi locali</h3><span class="setup-section-note">Salva o richiama layout e preferenze di questo dispositivo dal server remoto.</span><div class="row"><button class="ghost" id="saveDeviceSnapshotBtn" type="button">Salva settaggi</button><button class="ghost" id="loadDeviceSnapshotBtn" type="button">Carica settaggi</button></div></div></div></section>
@@ -8612,17 +8612,24 @@
       });
     }
 
-    async function syncExternalMenu() {
+    async function syncExternalMenu({ forceRefresh = false } = {}) {
       try {
         let response;
         let payload;
         try {
           if (!REMOTE_MODE) {
-            response = await fetch("/api/menu");
+            response = forceRefresh
+              ? await fetch("/api/menu/refresh", { method: "POST", cache: "no-store" })
+              : await fetch("/api/menu", { cache: "no-store" });
             if (!response.ok) throw new Error(`Menu locale HTTP ${response.status}`);
             payload = await response.json();
+            if (forceRefresh) {
+              if (payload?.ok !== true) throw new Error(payload?.detail || payload?.error || "Aggiornamento menu non riuscito");
+              payload = payload.categories;
+            }
           } else {
             response = await fetch("/MenuService.asmx/GetMenu");
+            if (!response.ok) throw new Error(`Menu remoto HTTP ${response.status}`);
             const xml = new DOMParser().parseFromString(await response.text(), "text/xml");
             const value = xml.querySelector("string")?.textContent;
             if (!value) throw new Error("Risposta menu vuota");
@@ -8647,13 +8654,15 @@
           ingredients: Array.isArray(item.ingredients) && item.ingredients.length ? item.ingredients : ingredientsFromDescription(item.it || item.eng),
           spiciness: Number(item.spiciness || 0)
         })));
-        if (!menu.length) return;
+        if (!menu.length) throw new Error("Il menu ricevuto non contiene articoli; menu attuale mantenuto");
         state.menu = menu;
         const loadedCategories = menuCategories();
         if (!loadedCategories.includes(state.category)) state.category = loadedCategories[0] || "";
         persistBrowserState();
         render();
+        return menu.length;
       } catch (error) {
+        if (forceRefresh) throw error;
         // Offline: keep the last locally cached menu.
       }
     }
@@ -10856,6 +10865,22 @@
       if (tab === "device" || tab === "common-variations" || tab === "monitors" || tab === "printers" || tab === "fiscal" || tab === "pos") renderSetup();
       if (tab === "update") loadUpdateVersion();
     }));
+
+    document.getElementById("refreshMenuBtn").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      const status = document.getElementById("menuRefreshStatus");
+      button.disabled = true;
+      status.textContent = "Scaricamento menu in corso…";
+      try {
+        const itemCount = await syncExternalMenu({ forceRefresh: true });
+        renderSetup();
+        status.textContent = `Menu aggiornato: ${itemCount} articoli.`;
+      } catch (error) {
+        status.textContent = `Aggiornamento non riuscito: ${error.message}`;
+      } finally {
+        button.disabled = false;
+      }
+    });
 
     async function loadUpdateVersion() {
       const target = document.getElementById("updateVersionInfo");

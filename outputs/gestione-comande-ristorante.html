@@ -188,8 +188,7 @@
       font-size: 13px;
     }
     .selected-order-course-action { width: 30px; min-height: 30px; padding: 0; }
-    .selected-order-line { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: start; }
-    .selected-order-line .qty { font-weight: 700; color: var(--accent); }
+    .selected-order-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: start; }
     .selected-order-line .price { white-space: nowrap; color: var(--muted); }
     .selected-order-notes { margin-top: 12px; padding: 10px; background: #f6f7f8; border-radius: 6px; font-size: 13px; }
     .selected-order-total { display: flex; justify-content: space-between; margin-top: 14px; font-weight: 700; font-size: 17px; }
@@ -750,12 +749,13 @@
     .common-variation-switch { justify-content: center; align-self: end; padding-bottom: 5px; }
     .common-variation-color { align-self: end; padding-bottom: 5px; }
     .common-variations-table-wrap { overflow-x: auto; }
-    .common-variations-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+    .common-variations-table { width: 100%; min-width: 980px; border-collapse: collapse; }
     .common-variations-table th, .common-variations-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
     .common-variations-table th { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .common-variations-table tbody tr:hover { background: rgba(232, 243, 239, .45); }
-    .common-variations-table .common-name { width: 50%; font-weight: 700; }
+    .common-variations-table .common-name { width: 34%; font-weight: 700; }
     .common-variations-table .common-price { width: 120px; white-space: nowrap; }
+    .common-variations-table .common-scope { min-width: 190px; }
     .common-variations-table .common-color { width: 90px; }
     .common-color-swatch { display: inline-block; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 5px; vertical-align: middle; background-color: var(--common-color, #e8f3ef) !important; }
     .common-edit-field[data-common-field="color"] {
@@ -805,6 +805,16 @@
     .monitor-local-layout { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
     .monitor-local-layout label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
     .monitor-local-layout input { width: 100%; }
+    .monitor-local-layout input[type="color"],
+    .monitor-color-options input[type="color"] { appearance: none; -webkit-appearance: none; box-sizing: border-box; width: 48px; min-width: 48px; height: 36px; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
+    .monitor-local-layout input[type="color"]::-webkit-color-swatch-wrapper,
+    .monitor-color-options input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    .monitor-local-layout input[type="color"]::-webkit-color-swatch,
+    .monitor-color-options input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 3px; }
+    .monitor-local-layout input[type="color"]::-moz-color-swatch,
+    .monitor-color-options input[type="color"]::-moz-color-swatch { border: 0; border-radius: 3px; }
+    .monitor-local-layout input[type="color"]:focus-visible,
+    .monitor-color-options input[type="color"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
     .monitor-categories { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
     .setup-tab-panel > .panel-header { gap: 12px; flex-wrap: wrap; }
     .setup-tab-panel > .panel-header h2 { margin: 0; }
@@ -998,9 +1008,9 @@
     .kitchen-layout-preview { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; padding:10px; background:#f6f2ea; border:1px solid var(--line); border-radius:8px; min-height:180px; }
     .kitchen-layout-preview { background: var(--preview-area-background, #f6f2ea); color: var(--preview-text-color, var(--ink)); }
     .kitchen-layout-preview .preview-ticket { background:var(--preview-ticket-background, #fff); color:var(--preview-text-color, var(--ink)); border:1px solid var(--line); border-radius:6px; overflow:hidden; min-height:var(--preview-height, 180px); }
-    .monitor-color-options { display:grid; grid-template-columns:repeat(3, minmax(120px, 1fr)); gap:10px; }
+    .monitor-color-options { display:grid; grid-template-columns:repeat(4, minmax(76px, 1fr)); gap:10px; }
     .monitor-color-options label { display:grid; gap:4px; font-size:12px; color:var(--muted); }
-    .monitor-color-options input { width:100%; height:34px; padding:2px; }
+    @media (max-width: 700px) { .monitor-color-options { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
     .kitchen-layout-preview .preview-head { padding:8px; background:#dbf6e8; font-weight:800; font-size:var(--preview-font, 16px); }
     .kitchen-layout-preview .preview-line { margin:6px; padding:7px; border-left:4px solid #98a2b3; background:#fafafa; font-size:var(--preview-font, 16px); }
     .kitchen-layout-preview .preview-total { margin:8px; padding:7px; border-top:2px solid var(--line); font-size:var(--preview-total-font, 16px); font-weight:800; }
@@ -2881,7 +2891,7 @@
         <label class="layout-range">Larghezza totali<input id="layoutTotalsWidthRange" type="range" min="160" max="600" step="10"><output id="layoutTotalsWidthValue"></output></label>
         <label class="layout-range">Carattere totali<input id="layoutTotalsFontRange" type="range" min="10" max="36" step="1"><output id="layoutTotalsFontValue"></output></label>
         <label class="layout-range">Altezza comanda<input id="layoutTicketHeightRange" type="range" min="180" max="1000" step="10"><output id="layoutTicketHeightValue"></output></label>
-        <div class="monitor-color-options"><label>Sfondo area<input id="layoutAreaBackgroundInput" type="color"></label><label>Sfondo comande<input id="layoutTicketBackgroundInput" type="color"></label><label>Testo comande<input id="layoutTextColorInput" type="color"></label></div>
+        <div class="monitor-color-options"><label>Sfondo area<input id="layoutAreaBackgroundInput" type="color"></label><label>Sfondo comande<input id="layoutTicketBackgroundInput" type="color"></label><label>Testo comande<input id="layoutTextColorInput" type="color"></label><label>Sfondo categorie<input id="layoutCategoryBackgroundInput" type="color"></label></div>
         <label class="checkbox-label"><input id="layoutBarMobileInput" type="checkbox"> Vista mobile Bar (una comanda per riga)</label>
         <strong>Anteprima</strong>
         <div class="kitchen-layout-preview" id="kitchenLayoutPreview"></div>
@@ -3971,6 +3981,63 @@
       return luminance < 150 ? "#ffffff" : "#17212b";
     }
 
+    function commonVariationScopeKey(variation) {
+      const type = variation?.scopeType;
+      if (type !== "monitor" && type !== "category") return "all";
+      return `${type}:${encodeURIComponent(String(variation.scopeTarget || ""))}`;
+    }
+
+    function parseCommonVariationScope(key) {
+      if (!key || key === "all") return { scopeType: "all", scopeTarget: "" };
+      const separator = key.indexOf(":");
+      if (separator < 0) return { scopeType: "all", scopeTarget: "" };
+      const scopeType = key.slice(0, separator);
+      if (scopeType !== "monitor" && scopeType !== "category") return { scopeType: "all", scopeTarget: "" };
+      try {
+        return { scopeType, scopeTarget: decodeURIComponent(key.slice(separator + 1)) };
+      } catch {
+        return { scopeType: "all", scopeTarget: "" };
+      }
+    }
+
+    function commonVariationScopeLabel(variation) {
+      const type = variation?.scopeType;
+      const target = String(variation?.scopeTarget || "").trim();
+      if (type === "monitor" && target) return `Monitor: ${target}`;
+      if (type === "category" && target) return `Categoria: ${target}`;
+      return "Tutte";
+    }
+
+    function commonVariationScopeOptions(variation) {
+      const currentKey = commonVariationScopeKey(variation);
+      const entries = [
+        { value: "all", label: "Tutte" },
+        ...(state.settings.monitors || []).map(monitor => ({
+          value: `monitor:${encodeURIComponent(String(monitor.name || ""))}`,
+          label: `Monitor: ${monitor.name}`
+        })),
+        ...menuCategories().map(category => ({
+          value: `category:${encodeURIComponent(category)}`,
+          label: `Categoria: ${category}`
+        }))
+      ];
+      if (!entries.some(entry => entry.value === currentKey) && currentKey !== "all") {
+        entries.push({ value: currentKey, label: `Non disponibile: ${commonVariationScopeLabel(variation)}` });
+      }
+      return entries.map(entry => `<option value="${escapeHtml(entry.value)}" ${entry.value === currentKey ? "selected" : ""}>${escapeHtml(entry.label)}</option>`).join("");
+    }
+
+    function commonVariationAppliesToLine(variation, line, menuItem) {
+      const type = variation?.scopeType;
+      const target = String(variation?.scopeTarget || "").trim();
+      if (type === "monitor") return target && monitorForLine({ ...line, category: line.category || menuItem?.category }) === target;
+      if (type === "category") {
+        const category = String(line.category || menuItem?.category || "").trim();
+        return target && category.toLowerCase() === target.toLowerCase();
+      }
+      return true;
+    }
+
     function persistPlatformConfig(source = state) {
       localStorage.setItem(PLATFORM_CONFIG_STORAGE_KEY, JSON.stringify(platformConfigForSync(source)));
     }
@@ -4069,13 +4136,15 @@
 
     function kitchenLayoutFor(monitorName) {
       const saved = kitchenLayouts[monitorName] || {};
+      const areaBackground = /^#[0-9a-f]{6}$/i.test(saved.areaBackground || "") ? saved.areaBackground : DEFAULT_KITCHEN_LAYOUT.areaBackground;
       return {
         columns: clamp(Number(saved.columns || saved.kitchenColumns || DEFAULT_KITCHEN_LAYOUT.columns), 1, 12),
         itemFontSize: clamp(Number(saved.itemFontSize || saved.kitchenFontSize || DEFAULT_KITCHEN_LAYOUT.itemFontSize), 10, 36),
         totalsWidth: clamp(Number(saved.totalsWidth || saved.kitchenSummaryWidth || DEFAULT_KITCHEN_LAYOUT.totalsWidth), 160, 600),
         totalsFontSize: clamp(Number(saved.totalsFontSize || DEFAULT_KITCHEN_LAYOUT.totalsFontSize), 10, 36),
         ticketHeight: clamp(Number(saved.ticketHeight || DEFAULT_KITCHEN_LAYOUT.ticketHeight), 180, 1000),
-        areaBackground: /^#[0-9a-f]{6}$/i.test(saved.areaBackground || "") ? saved.areaBackground : DEFAULT_KITCHEN_LAYOUT.areaBackground,
+        areaBackground,
+        categoryBackground: /^#[0-9a-f]{6}$/i.test(saved.categoryBackground || "") ? saved.categoryBackground : areaBackground,
         ticketBackground: /^#[0-9a-f]{6}$/i.test(saved.ticketBackground || "") ? saved.ticketBackground : DEFAULT_KITCHEN_LAYOUT.ticketBackground,
         textColor: /^#[0-9a-f]{6}$/i.test(saved.textColor || "") ? saved.textColor : DEFAULT_KITCHEN_LAYOUT.textColor,
         barMobile: saved.barMobile === true
@@ -4104,6 +4173,7 @@
       modal.querySelector("#layoutAreaBackgroundInput").value = layout.areaBackground;
       modal.querySelector("#layoutTicketBackgroundInput").value = layout.ticketBackground;
       modal.querySelector("#layoutTextColorInput").value = layout.textColor;
+      modal.querySelector("#layoutCategoryBackgroundInput").value = layout.categoryBackground;
       const preview = modal.querySelector("#kitchenLayoutPreview");
       preview.style.setProperty("--preview-font", layout.itemFontSize + "px");
       preview.style.setProperty("--preview-total-font", layout.totalsFontSize + "px");
@@ -5057,7 +5127,7 @@
         return `<section class="selected-order-course"><div class="selected-order-course-head ${course === activeCourse ? "active" : ""}"><strong>${courseLabel(course)}</strong>${activeLabel}${action}</div>${group.items.map(line => {
           const statusClass = line.kitchenStatus === "Completo" ? "completo" : line.kitchenStatus === "In preparazione" ? "in-preparazione" : "";
           const statusLabel = line.kitchenStatus || "Da preparare";
-          return `<div class="selected-order-line ${statusClass}" title="${escapeHtml(statusLabel)}"><span class="qty">${Number(line.qty || 0)}x</span><span>${escapeHtml(line.name || line.id || "Articolo")}${line.lineNote ? `<br><small>${escapeHtml(line.lineNote)}</small>` : ""}</span><span class="price">${money.format(Number(line.qty || 0) * lineUnitPrice(line))}</span></div>`;
+          return `<div class="selected-order-line ${statusClass}" title="${escapeHtml(statusLabel)}"><span>${escapeHtml(line.name || line.id || "Articolo")}${line.lineNote ? `<br><small>${escapeHtml(line.lineNote)}</small>` : ""}</span><span class="price">${money.format(Number(line.qty || 0) * lineUnitPrice(line))}</span></div>`;
         }).join("")}</section>`;
       }).join("");
       const meta = order.source ? `${order.channel || "Delivery"} · ${order.status || ""}` : `${order.status || "Nuova"} · ${Number(order.covers || 0)} coperti`;
@@ -7550,7 +7620,7 @@
           .reduce((total, line) => total + Number(line.qty || 0), 0);
         button.className = `menu-item${justAdded ? " just-added" : ""}`;
         button.dataset.itemId = item.id;
-      button.innerHTML = `<strong><span class="item-quantity">${quantity ? `${quantity}x` : ""}</span><span>${escapeHtml(item.name)}</span></strong><span class="small">${escapeHtml(item.category)}</span><span class="price">${money.format(item.price)}</span>`;
+      button.innerHTML = `<strong><span class="item-quantity">${PALMARE_MODE && quantity ? `${quantity}x` : ""}</span><span>${escapeHtml(item.name)}</span></strong><span class="small">${escapeHtml(item.category)}</span><span class="price">${money.format(item.price)}</span>`;
         let longPressTimer = null;
         let longPressed = false;
         let pressStartX = 0;
@@ -7735,6 +7805,7 @@
         .filter(extra => !presentNames.has(extra.name.toLowerCase()));
       const commonOptions = (Array.isArray(state.variations?.common) ? state.variations.common : [])
         .filter(variation => variation.active !== false && String(variation.name || "").trim())
+        .filter(variation => commonVariationAppliesToLine(variation, line, menuItem))
         .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name).localeCompare(String(right.name), "it", { sensitivity: "base", numeric: true }))
         .filter(variation => !presentNames.has(String(variation.name).toLowerCase()))
         .map(variation => ({ name: variation.name, price: Number(variation.price || 0), common: true, color: normalizeCommonVariationColor(variation) }));
@@ -8424,7 +8495,7 @@
           <div class="monitor-config-section"><h3>Stato e utilizzo</h3><div class="monitor-config-options"><label class="checkbox-label"><input class="monitor-active" type="checkbox" ${monitor.active !== false ? "checked" : ""}> Attivo</label><label class="checkbox-label"><input class="monitor-mobile" type="checkbox" ${monitor.mobile ? "checked" : ""}> Disponibile su mobile</label><label class="checkbox-label"><input class="monitor-turns" type="checkbox" ${monitor.turns !== false ? "checked" : ""}> Usa sequenze</label><label class="checkbox-label"><input class="monitor-complete-only" type="checkbox" ${monitor.statusMode === "completeOnly" ? "checked" : ""}> Solo pulsante completato</label><label class="checkbox-label"><input class="kitchen-bell" type="checkbox" ${monitor.bellEnabled !== false ? "checked" : ""}> Campanella nuove comande e sequenze</label></div></div>
           <div class="monitor-config-section"><h3>Assegnazione</h3><div class="monitor-config-routing"><label>Stampante collegata<select class="monitor-printer">${[`<option value="">Nessuna stampante</option>`, ...((state.settings.printers || []).map(printer => `<option value="${escapeHtml(printer.name)}" ${monitor.printer === printer.name ? "selected" : ""}>${escapeHtml(printer.name)}</option>`))].join("")}</select></label><span class="setup-section-note">Le categorie si gestiscono con il pulsante Categorie.</span></div></div>
           <div class="monitor-config-section"><h3>Accesso dispositivo</h3><div class="monitor-config-routing"><label>Chiave monitor<input class="monitor-access-key" type="text" autocomplete="off" value="${escapeHtml(monitor.accessKey || "")}" placeholder="Es. THAI-BAR-01-7K"></label><span class="setup-section-note">Usala nell'URL: ?monitorKey=CHIAVE#monitor-nome</span></div></div>
-          <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label><label>Sfondo area <input type="color" class="kitchen-color-setting" data-layout-key="areaBackground" value="${layout.areaBackground}"></label><label>Sfondo comande <input type="color" class="kitchen-color-setting" data-layout-key="ticketBackground" value="${layout.ticketBackground}"></label><label>Testo comande <input type="color" class="kitchen-color-setting" data-layout-key="textColor" value="${layout.textColor}"></label></div></div>
+          <div class="monitor-config-section"><h3>Layout del monitor</h3><div class="monitor-local-layout"><label>Comande per riga <input type="number" min="1" max="12" class="kitchen-setting" data-layout-key="columns" value="${layout.columns}"></label><label>Carattere piatti (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="itemFontSize" value="${layout.itemFontSize}"></label><label>Larghezza totali (px) <input type="number" min="160" max="600" class="kitchen-setting" data-layout-key="totalsWidth" value="${layout.totalsWidth}"></label><label>Carattere totali (px) <input type="number" min="10" max="36" class="kitchen-setting" data-layout-key="totalsFontSize" value="${layout.totalsFontSize}"></label><label>Altezza comanda (px) <input type="number" min="180" max="1000" class="kitchen-setting" data-layout-key="ticketHeight" value="${layout.ticketHeight}"></label><label>Sfondo area <input type="color" class="kitchen-color-setting" data-layout-key="areaBackground" value="${layout.areaBackground}"></label><label>Sfondo comande <input type="color" class="kitchen-color-setting" data-layout-key="ticketBackground" value="${layout.ticketBackground}"></label><label>Testo comande <input type="color" class="kitchen-color-setting" data-layout-key="textColor" value="${layout.textColor}"></label><label>Sfondo categorie <input type="color" class="kitchen-color-setting" data-layout-key="categoryBackground" value="${layout.categoryBackground}"></label></div></div>
         </div>
       `; }).join("");
       root.querySelectorAll(".kitchen-setting").forEach(input => input.addEventListener("change", event => {
@@ -8445,6 +8516,7 @@
         layout[event.target.dataset.layoutKey] = event.target.value;
         saveKitchenLayout(monitor.name, layout);
         renderKitchen();
+        if (event.target.dataset.layoutKey === "categoryBackground") renderTabs();
       }));
       root.querySelectorAll(".monitor-config").forEach(config => {
         const index = Number(config.dataset.monitorIndex);
@@ -8532,7 +8604,8 @@
             const name = fields.name?.value.trim() || "";
             if (!name) { fields.name?.focus(); return; }
             const color = normalizeCommonVariationColor({ color: fields.color?.value });
-            state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price?.value || 0), color, active: fields.active?.checked !== false };
+            const scope = parseCommonVariationScope(fields.scope?.value);
+            state.variations.common[index] = { ...state.variations.common[index], name, price: Number(fields.price?.value || 0), color, active: fields.active?.checked !== false, ...scope };
             saveButton.disabled = true;
             try {
               saveState();
@@ -8548,10 +8621,11 @@
         }
         state.variations.common.sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name || "").localeCompare(String(right.name || ""), "it", { sensitivity: "base", numeric: true }));
         state.variations.common.forEach((variation, index) => { variation.order = index; });
-        commonRoot.innerHTML = state.variations.common.length ? `<div class="common-variations-table-wrap"><table class="common-variations-table"><thead><tr><th>Nome</th><th>Prezzo extra</th><th>Colore</th><th>Attiva</th><th>Ordine</th><th>Azioni</th></tr></thead><tbody>${state.variations.common.map((variation, index) => {
+        commonRoot.innerHTML = state.variations.common.length ? `<div class="common-variations-table-wrap"><table class="common-variations-table"><thead><tr><th>Nome</th><th>Disponibilità</th><th>Prezzo extra</th><th>Colore</th><th>Attiva</th><th>Ordine</th><th>Azioni</th></tr></thead><tbody>${state.variations.common.map((variation, index) => {
           const color = normalizeCommonVariationColor(variation);
           return `<tr class="common-variation-row ${editingCommonVariationIndex === index ? "is-editing" : ""}" data-common-index="${index}">
             <td class="common-name"><span class="common-display-value common-name-preview" style="--common-variation-color:${color};--common-variation-text-color:${commonVariationTextColor(variation)}">${escapeHtml(variation.name || "(senza nome)")}</span><input class="common-edit-field common-name-preview" data-common-field="name" value="${escapeHtml(variation.name || "")}" placeholder="Es. Senza cipolla" style="--common-variation-color:${color};--common-variation-text-color:${commonVariationTextColor(variation)}"></td>
+            <td class="common-scope"><span class="common-display-value">${escapeHtml(commonVariationScopeLabel(variation))}</span><select class="common-edit-field" data-common-field="scope">${commonVariationScopeOptions(variation)}</select></td>
             <td class="common-price"><span class="common-display-value">+${money.format(Number(variation.price || 0))}</span><input class="common-edit-field" data-common-field="price" type="number" min="0" step="0.1" value="${Number(variation.price || 0)}"></td>
             <td class="common-color"><span class="common-display-value common-color-swatch" style="--common-color:${color};" title="${color}"></span><input class="common-edit-field" data-common-field="color" type="color" value="${color}" title="Colore pulsante"></td>
             <td class="common-active"><label class="switch-label common-edit-field common-edit-active" title="${variation.active !== false ? "Attiva" : "Disattiva"}"><input data-common-field="active" type="checkbox" ${variation.active !== false ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></td>
@@ -9289,16 +9363,11 @@
       }
       const categories = menuCategories();
       if (categories.length && !categories.includes(state.category)) state.category = categories[0];
-      const order = currentOrder();
-      const categoryCounts = new Map();
-      (order?.items || []).forEach(line => {
-        const menuItem = state.menu.find(item => String(item.id) === String(line.id));
-        const category = line.category || menuItem?.category || "";
-        categoryCounts.set(category, (categoryCounts.get(category) || 0) + Number(line.qty || 0));
-      });
       tabs.innerHTML = categories.map(category => {
-        const count = categoryCounts.get(category) || 0;
-        return `<button data-category="${escapeHtml(category)}" class="${category === state.category ? "active" : ""}">${escapeHtml(category)}${count ? `<span class="category-count">${count}</span>` : ""}</button>`;
+        const monitorName = monitorForCategory(category);
+        const background = kitchenLayoutFor(monitorName).categoryBackground;
+        const color = commonVariationTextColor({ color: background });
+        return `<button data-category="${escapeHtml(category)}" class="${category === state.category ? "active" : ""}" style="background-color:${background};border-color:${background};color:${color}">${escapeHtml(category)}</button>`;
       }).join("");
     }
 
@@ -10707,12 +10776,13 @@
       saveKitchenLayout(kitchenLayoutModalMonitor, layout);
       if (selectedKitchenMonitor === kitchenLayoutModalMonitor) renderKitchen();
     });
-    [["layoutAreaBackgroundInput", "areaBackground"], ["layoutTicketBackgroundInput", "ticketBackground"], ["layoutTextColorInput", "textColor"]].forEach(([id, key]) => document.getElementById(id).addEventListener("input", event => {
+    [["layoutAreaBackgroundInput", "areaBackground"], ["layoutTicketBackgroundInput", "ticketBackground"], ["layoutTextColorInput", "textColor"], ["layoutCategoryBackgroundInput", "categoryBackground"]].forEach(([id, key]) => document.getElementById(id).addEventListener("input", event => {
       const layout = kitchenLayoutFor(kitchenLayoutModalMonitor);
       layout[key] = event.target.value;
       saveKitchenLayout(kitchenLayoutModalMonitor, layout);
       renderKitchenLayoutPreview();
       if (selectedKitchenMonitor === kitchenLayoutModalMonitor) renderKitchen();
+      if (key === "categoryBackground") renderTabs();
     }));
 
     document.getElementById("setupBtn").addEventListener("click", () => {
@@ -10941,7 +11011,7 @@
     document.getElementById("addCommonVariationBtn").addEventListener("click", () => {
       state.variations ||= {};
       state.variations.common ||= [];
-      state.variations.common.push({ name: "", price: 0, order: state.variations.common.length, color: "#e8f3ef", active: true });
+      state.variations.common.push({ name: "", price: 0, order: state.variations.common.length, color: "#e8f3ef", active: true, scopeType: "all", scopeTarget: "" });
       editingCommonVariationIndex = state.variations.common.length - 1;
       saveState();
       renderSetup();

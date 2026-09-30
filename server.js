@@ -1628,10 +1628,18 @@ function applyExternalCommand(command) {
       if (!Array.isArray(order.items)) order.items = [];
       const name = String(command.itemName || "").trim();
       const price = Number(command.itemPrice || 0);
-      // Stesso formato di lineKey() nel frontend (course=1, nessuna variazione: i Pick-up
-      // manuali non hanno sequenze/opzioni), cosi' un'interazione LAN successiva sulla stessa
-      // riga la riconosce come la stessa voce invece di duplicarla.
-      const key = `${command.itemId}::name=${name.toLowerCase()}::price=${price.toFixed(2)}::course=1::minus=::plus=`;
+      const choiceName = String(command.choice?.name || "").trim();
+      const choicePrice = Number(command.choice?.price || 0);
+      const plusVariations = choiceName
+        ? [{ name: choiceName, price: Number.isFinite(choicePrice) ? choicePrice : 0, common: true }]
+        : [];
+      const plusKey = plusVariations
+        .map(extra => `${extra.name.toLowerCase()}:${Number(extra.price || 0).toFixed(2)}`)
+        .sort()
+        .join("|");
+      // Stesso formato di lineKey() nel frontend; includi anche la scelta del prodotto
+      // per mantenere distinte le opzioni e compattare solo righe equivalenti.
+      const key = `${command.itemId}::name=${name.toLowerCase()}::price=${price.toFixed(2)}::course=1::minus=::plus=${plusKey}`;
       const existing = order.items.find(line => line.key === key);
       if (existing) {
         existing.qty += 1;
@@ -1644,7 +1652,7 @@ function applyExternalCommand(command) {
           category: command.itemCategory || "",
           price,
           minusVariations: [],
-          plusVariations: [],
+          plusVariations,
           lineNote: "",
           course: 1,
           splitAccount: "",

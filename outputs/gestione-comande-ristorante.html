@@ -2318,6 +2318,22 @@
       box-shadow: 0 22px 70px rgba(31, 41, 51, 0.25);
     }
 
+    .product-choice-options { display: grid; gap: 8px; }
+    .product-choice-option {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .product-choice-option:has(input:checked) { background: #e8f4f1; border-color: #4c9486; }
+    .product-choice-option input { width: 20px; height: 20px; }
+    .product-choice-option strong { min-width: 0; overflow-wrap: anywhere; }
+    .product-choice-option .price { white-space: nowrap; }
+
     .label-modal.payment-modal {
       width: min(1000px, calc(100vw - 32px));
       max-width: calc(100vw - 32px);
@@ -2952,6 +2968,10 @@
   <dialog class="label-modal" id="splitAccountChoiceModal">
     <div class="modal-head"><h2>Sottoconto</h2><button class="icon-btn" id="splitAccountChoiceCloseBtn" type="button" title="Annulla">×</button></div>
     <div class="modal-content stack"><p>Scegli il sottoconto per questo articolo.</p><div class="split-account-choice-buttons" id="splitAccountChoiceButtons"></div></div>
+  </dialog>
+  <dialog class="label-modal" id="productChoiceModal">
+    <div class="modal-head"><h2 id="productChoiceTitle">Scegli un'opzione</h2><button class="icon-btn" id="productChoiceCloseBtn" type="button" title="Annulla">×</button></div>
+    <div class="modal-content stack"><div id="productChoiceOptions" class="product-choice-options"></div><div class="row"><button class="ghost" id="productChoiceCancelBtn" type="button">Annulla</button><button class="primary" id="productChoiceConfirmBtn" type="button" disabled>Aggiungi</button></div></div>
   </dialog>
   <dialog class="label-modal" id="reservationMatchModal">
     <div class="modal-head"><h2>Prenotazione presente</h2><button class="icon-btn" id="reservationMatchCloseBtn" type="button" title="Annulla">×</button></div>
@@ -7576,6 +7596,50 @@
       });
     }
 
+    function productChoiceOptions(item) {
+      const rawOptions = item?.data?.scelta;
+      if (!Array.isArray(rawOptions)) return [];
+      return rawOptions.map(option => ({
+        name: normalizeVariation(option?.nome || option?.name || option?.label),
+        price: Number(option?.prezzoAggiuntivo ?? option?.prezzo_aggiuntivo ?? option?.additionalPrice ?? option?.additional_price ?? option?.prezzo ?? option?.price ?? 0)
+      })).filter(option => option.name && Number.isFinite(option.price) && option.price >= 0);
+    }
+
+    function chooseProductOption(item) {
+      const options = productChoiceOptions(item);
+      if (!options.length) return Promise.resolve(null);
+      const modal = document.getElementById("productChoiceModal");
+      const root = document.getElementById("productChoiceOptions");
+      const confirm = document.getElementById("productChoiceConfirmBtn");
+      document.getElementById("productChoiceTitle").textContent = item.name;
+      root.innerHTML = options.map((option, index) => `
+        <label class="product-choice-option">
+          <input type="radio" name="productChoice" value="${index}" ${index === 0 ? "checked" : ""}>
+          <strong>${escapeHtml(option.name)}</strong>
+          <span class="price">${option.price > 0 ? `+${money.format(option.price)}` : money.format(0)}</span>
+        </label>`).join("");
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = selected => {
+          if (settled) return;
+          settled = true;
+          modal.close();
+          resolve(selected);
+        };
+        const selectedOption = () => {
+          const selected = root.querySelector('input[name="productChoice"]:checked');
+          return selected ? options[Number(selected.value)] || null : null;
+        };
+        confirm.disabled = !selectedOption();
+        root.onchange = () => { confirm.disabled = !selectedOption(); };
+        confirm.onclick = () => finish(selectedOption());
+        document.getElementById("productChoiceCancelBtn").onclick = () => finish(null);
+        document.getElementById("productChoiceCloseBtn").onclick = () => finish(null);
+        modal.addEventListener("cancel", event => { event.preventDefault(); finish(null); }, { once: true });
+        modal.showModal();
+      });
+    }
+
     function renderMenu() {
       const root = document.getElementById("menu");
       if (!Array.isArray(state.menu)) state.menu = [];
@@ -7641,8 +7705,10 @@
               const orderNow = currentOrder();
               const splitAccount = await chooseSplitAccount(orderNow);
               if (orderNow?.splitMode && orderNow.selectedSplit === "T" && !splitAccount) return;
+              const choice = await chooseProductOption(item);
+              if (productChoiceOptions(item).length && !choice) return;
               markItemJustAdded(item.id);
-              const addedKey = addItem(item, splitAccount);
+              const addedKey = addItem(item, splitAccount, choice);
               if (addedKey) requestAnimationFrame(() => editVariation(addedKey));
             })();
           }, 700);
@@ -7660,11 +7726,13 @@
           const orderNow = currentOrder();
           const splitAccount = await chooseSplitAccount(orderNow);
           if (orderNow?.splitMode && orderNow.selectedSplit === "T" && !splitAccount) return;
+          const choice = await chooseProductOption(item);
+          if (productChoiceOptions(item).length && !choice) return;
           resetMenuSearch();
           // Registra il flash PRIMA di addItem(): quando il suo render() ricrea questo stesso
           // bottone, lo ritrova gia' segnato e lo crea direttamente con la classe attiva.
           markItemJustAdded(item.id);
-          addItem(item, splitAccount);
+          addItem(item, splitAccount, choice);
           playAddFeedback();
         });
         root.appendChild(button);
@@ -8725,6 +8793,7 @@
           it: item.it || "",
           image: item.image || "",
           is_delivery: item.is_delivery !== false,
+          data: item.data ?? {},
           ingredients: Array.isArray(item.ingredients) && item.ingredients.length ? item.ingredients : ingredientsFromDescription(item.it || item.eng),
           spiciness: Number(item.spiciness || 0)
         })));
@@ -9556,7 +9625,7 @@
       notifyHubRiseStatus(order, "accepted").then(() => notifyHubRiseStatus(order, "in_preparation", confirmedTime));
     }
 
-    function addItem(item, splitAccountOverride = null) {
+    function addItem(item, splitAccountOverride = null, productChoice = null) {
       const order = currentOrder();
       if (REMOTE_MODE && !isRemoteEditableOrder(order)) return;
       const isDeliveryOrder = Boolean(order.source);
@@ -9574,12 +9643,14 @@
       const splitAccount = order.splitMode
         ? (splitAccountOverride || (order.selectedSplit !== "T" ? order.selectedSplit : ""))
         : "";
-      const key = lineKey(item.id, [], [], item.name, item.price, course);
+      const selectedChoice = productChoice ? { name: productChoice.name, price: Number(productChoice.price || 0), common: true } : null;
+      const plusVariations = selectedChoice ? [selectedChoice] : [];
+      const key = lineKey(item.id, [], plusVariations, item.name, item.price, course);
       const existing = order.items.find(line => line.key === key
         && (line.splitAccount || "") === splitAccount
         && lineCanBeCompacted(line));
       if (existing) existing.qty += 1;
-      else order.items.push({ ...item, key, originalName: item.name, minusVariations: [], plusVariations: [], lineNote: "", course, splitAccount, qty: 1, sentQty: 0, noTurns: isDeliveryOrder });
+      else order.items.push({ ...item, key, originalName: item.name, minusVariations: [], plusVariations, lineNote: "", course, splitAccount, qty: 1, sentQty: 0, noTurns: isDeliveryOrder });
       reopenMonitorCourseForLine(order, existing || order.items[order.items.length - 1]);
       compactOrderLines(order);
       if (order.splitMode && order.selectedSplit !== "T" && order.paidSplits) order.paidSplits[order.selectedSplit] = false;
@@ -9597,7 +9668,7 @@
       // (vedi sendPickupOrderRemote): niente comando per ogni piatto aggiunto in fase di
       // composizione, solo un'unica trasmissione completa all'invio.
       if (REMOTE_MODE && !unsyncedRemoteOrders.has(order.id)) {
-        sendRemoteCommand("addOrderLine", { orderId: order.id, itemId: item.id, itemName: item.name, itemPrice: item.price, itemCategory: item.category });
+        sendRemoteCommand("addOrderLine", { orderId: order.id, itemId: item.id, itemName: item.name, itemPrice: item.price, itemCategory: item.category, choice: selectedChoice });
       }
       return key;
     }

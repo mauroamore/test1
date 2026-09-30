@@ -127,6 +127,69 @@ public class StandardOrderService : WebService
         get { return ConfigurationManager.ConnectionStrings["MySqlConnectionString"].ConnectionString; }
     }
 
+    private static string AbsoluteImageUrl(object value)
+    {
+        if (value == null || value == DBNull.Value) return "";
+
+        var raw = Convert.ToString(value).Trim();
+        if (String.IsNullOrEmpty(raw)) return "";
+        if (Uri.IsWellFormedUriString(raw, UriKind.Absolute)) return raw;
+
+        var request = HttpContext.Current == null ? null : HttpContext.Current.Request;
+        if (request == null || request.Url == null) return raw;
+
+        return new Uri(request.Url.GetLeftPart(UriPartial.Authority) + "/" + raw.TrimStart('/')).ToString();
+    }
+
+    [WebMethod]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
+    public string SaveProduct(object product)
+    {
+        var prod = product as Dictionary<string, object>;
+        if (prod == null) throw new ArgumentException("product non valido");
+
+        int id = prod.ContainsKey("id") ? Convert.ToInt32(prod["id"]) : 0;
+        int categoryId = prod.ContainsKey("category_id") ? Convert.ToInt32(prod["category_id"]) : 0;
+        string name = prod.ContainsKey("name") ? Convert.ToString(prod["name"]) : "";
+        string description = prod.ContainsKey("description") ? Convert.ToString(prod["description"]) : "";
+        string descriptionIt = prod.ContainsKey("description_it") ? Convert.ToString(prod["description_it"]) : "";
+        string image = prod.ContainsKey("image") ? Convert.ToString(prod["image"]) : "";
+        decimal price = prod.ContainsKey("price")
+            ? Convert.ToDecimal(prod["price"], System.Globalization.CultureInfo.InvariantCulture)
+            : 0m;
+        bool delivery = !prod.ContainsKey("is_delivery") || Convert.ToBoolean(prod["is_delivery"]);
+        string rawData = prod.ContainsKey("grape_data") && prod["grape_data"] != null
+            ? new JavaScriptSerializer().Serialize(prod["grape_data"])
+            : null;
+
+        using (var conn = new MySqlConnection(ConnectionString))
+        {
+            conn.Open();
+            using (var cmd = id == 0
+                ? new MySqlCommand("INSERT INTO v2_products (category_id,name,description_en,description_it,price,image_url,is_delivery,is_active,data) VALUES (@cat,@name,@desc,@descit,@price,@image,@delivery,1,@data)", conn)
+                : new MySqlCommand("UPDATE v2_products SET category_id=@cat,name=@name,description_en=@desc,description_it=@descit,price=@price,image_url=@image,is_delivery=@delivery,is_active=@active,data=COALESCE(@data,data,JSON_OBJECT()) WHERE id=@id", conn))
+            {
+                if (id != 0) cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@cat", categoryId);
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@desc", description);
+                cmd.Parameters.AddWithValue("@descit", descriptionIt);
+                cmd.Parameters.AddWithValue("@price", price);
+                cmd.Parameters.AddWithValue("@image", image);
+                cmd.Parameters.AddWithValue("@delivery", delivery);
+                if (id != 0)
+                    cmd.Parameters.AddWithValue("@active", !prod.ContainsKey("is_active") || Convert.ToBoolean(prod["is_active"]));
+                cmd.Parameters.AddWithValue("@data", rawData == null ? (object)"{}" : rawData);
+                int affected = cmd.ExecuteNonQuery();
+                if (id != 0 && affected == 0)
+                    throw new InvalidOperationException("Product not found: id=" + id);
+                if (id == 0) id = Convert.ToInt32(cmd.LastInsertedId);
+            }
+        }
+
+        return new JavaScriptSerializer().Serialize(new Dictionary<string, object> { { "ok", true }, { "id", id } });
+    }
+
     [WebMethod]
     [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
     public string GetMenu()
@@ -148,7 +211,7 @@ public class StandardOrderService : WebService
                 }
             }
 
-            var productCommand = new MySqlCommand("SELECT id, category_id, name, description_en, description_it, image_url, price, spiciness_level, is_delivery FROM v2_products WHERE is_active = 1", conn);
+            var productCommand = new MySqlCommand("SELECT id, category_id, name, description_en, description_it, image_url, price, spiciness_level, is_delivery, CAST(data AS CHAR) AS data FROM v2_products WHERE is_active = 1", conn);
             using (var reader = productCommand.ExecuteReader())
             {
                 while (reader.Read())
@@ -160,10 +223,24 @@ public class StandardOrderService : WebService
                     product["name"] = reader["name"];
                     product["eng"] = reader["description_en"] == DBNull.Value ? "" : reader["description_en"];
                     product["it"] = reader["description_it"] == DBNull.Value ? "" : reader["description_it"];
-                    product["image"] = reader["image_url"] == DBNull.Value ? "" : reader["image_url"];
+                    product["image"] = AbsoluteImageUrl(reader["image_url"]);
                     product["price"] = reader["price"];
                     product["spiciness"] = reader["spiciness_level"];
                     product["is_delivery"] = reader["is_delivery"] == DBNull.Value || Convert.ToBoolean(reader["is_delivery"]);
+                    var rawData = reader["data"] == DBNull.Value ? "" : Convert.ToString(reader["data"]);
+                    object productData = new Dictionary<string, object>();
+                    if (!String.IsNullOrWhiteSpace(rawData))
+                    {
+                        try
+                        {
+                            productData = new JavaScriptSerializer().DeserializeObject(rawData) ?? productData;
+                        }
+                        catch
+                        {
+                            // Ignore malformed optional product metadata and keep the menu available.
+                        }
+                    }
+                    product["data"] = productData;
                     product["ingredients"] = new List<string>();
                     ((List<object>)category["items"]).Add(product);
                 }

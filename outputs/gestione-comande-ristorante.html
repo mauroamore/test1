@@ -2325,12 +2325,17 @@
       align-items: center;
       gap: 10px;
       padding: 12px;
+      width: 100%;
       border: 1px solid var(--line);
       border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      text-align: left;
       cursor: pointer;
     }
-    .product-choice-option:has(input:checked) { background: #e8f4f1; border-color: #4c9486; }
-    .product-choice-option input { width: 20px; height: 20px; }
+    .product-choice-option:hover,
+    .product-choice-option:focus-visible { background: #e8f4f1; border-color: #4c9486; }
     .product-choice-option strong { min-width: 0; overflow-wrap: anywhere; }
     .product-choice-option .price { white-space: nowrap; }
 
@@ -2971,7 +2976,7 @@
   </dialog>
   <dialog class="label-modal" id="productChoiceModal">
     <div class="modal-head"><h2 id="productChoiceTitle">Scegli un'opzione</h2><button class="icon-btn" id="productChoiceCloseBtn" type="button" title="Annulla">×</button></div>
-    <div class="modal-content stack"><div id="productChoiceOptions" class="product-choice-options"></div><div class="row"><button class="ghost" id="productChoiceCancelBtn" type="button">Annulla</button><button class="primary" id="productChoiceConfirmBtn" type="button" disabled>Aggiungi</button></div></div>
+    <div class="modal-content stack"><div id="productChoiceOptions" class="product-choice-options"></div><div class="row"><button class="ghost" id="productChoiceCancelBtn" type="button">Annulla</button></div></div>
   </dialog>
   <dialog class="label-modal" id="reservationMatchModal">
     <div class="modal-head"><h2>Prenotazione presente</h2><button class="icon-btn" id="reservationMatchCloseBtn" type="button" title="Annulla">×</button></div>
@@ -7610,14 +7615,12 @@
       if (!options.length) return Promise.resolve(null);
       const modal = document.getElementById("productChoiceModal");
       const root = document.getElementById("productChoiceOptions");
-      const confirm = document.getElementById("productChoiceConfirmBtn");
       document.getElementById("productChoiceTitle").textContent = item.name;
       root.innerHTML = options.map((option, index) => `
-        <label class="product-choice-option">
-          <input type="radio" name="productChoice" value="${index}" ${index === 0 ? "checked" : ""}>
+        <button class="product-choice-option" type="button" data-choice-index="${index}">
           <strong>${escapeHtml(option.name)}</strong>
           <span class="price">${option.price > 0 ? `+${money.format(option.price)}` : money.format(0)}</span>
-        </label>`).join("");
+        </button>`).join("");
       return new Promise(resolve => {
         let settled = false;
         const finish = selected => {
@@ -7626,13 +7629,9 @@
           modal.close();
           resolve(selected);
         };
-        const selectedOption = () => {
-          const selected = root.querySelector('input[name="productChoice"]:checked');
-          return selected ? options[Number(selected.value)] || null : null;
-        };
-        confirm.disabled = !selectedOption();
-        root.onchange = () => { confirm.disabled = !selectedOption(); };
-        confirm.onclick = () => finish(selectedOption());
+        root.querySelectorAll("[data-choice-index]").forEach(button => {
+          button.addEventListener("click", () => finish(options[Number(button.dataset.choiceIndex)] || null), { once: true });
+        });
         document.getElementById("productChoiceCancelBtn").onclick = () => finish(null);
         document.getElementById("productChoiceCloseBtn").onclick = () => finish(null);
         modal.addEventListener("cancel", event => { event.preventDefault(); finish(null); }, { once: true });

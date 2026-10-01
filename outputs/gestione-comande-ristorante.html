@@ -492,6 +492,9 @@
     body.palmare-mode .menu-item:not(.variation-item) .small {
       display: none;
     }
+    body:not(.palmare-mode) .menu-item:not(.variation-item) > .small {
+      display: none;
+    }
     /* Flash verde sul piatto appena aggiunto: feedback visivo del tap. Transizione sullo
        sfondo cosi' la scomparsa e' una dissolvenza percepibile, non uno scatto secco. */
     body.palmare-mode .menu-item {

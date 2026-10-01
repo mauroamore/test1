@@ -6299,7 +6299,7 @@
 
     function normalizeExtras(value) {
       return (Array.isArray(value) ? value : [])
-        .map(extra => ({ name: normalizeVariation(extra.name), price: Number(extra.price || 0), common: extra.common === true }))
+        .map(extra => ({ name: normalizeVariation(extra.name), price: Number(extra.price || 0), common: extra.common === true, productSpecific: extra.productSpecific === true }))
         .filter(extra => extra.name);
     }
 
@@ -6321,7 +6321,7 @@
       const minus = normalizeList(line.minusVariations);
       const plus = normalizeExtras(line.plusVariations);
       const parts = [];
-      if (plus.length) parts.push(...plus.map(extra => `${extra.common ? "" : "+ "}${escapeHtml(extra.name)}`));
+      if (plus.length) parts.push(...plus.map(extra => `${extra.common || extra.productSpecific ? "" : "+ "}${escapeHtml(extra.name)}`));
       if (minus.length) parts.push(...minus.map(item => `- ${escapeHtml(item.replace(/^senza\s+/i, ""))}`));
       return parts.length ? `<div class="variation">${parts.join(" ")}</div>` : "";
     }
@@ -6330,7 +6330,7 @@
       const minus = normalizeList(line.minusVariations);
       const plus = normalizeExtras(line.plusVariations);
       const parts = [];
-      if (plus.length) parts.push(...plus.map(extra => `${extra.common ? "" : "+ "}${extra.name}`));
+      if (plus.length) parts.push(...plus.map(extra => `${extra.common || extra.productSpecific ? "" : "+ "}${extra.name}`));
       if (minus.length) parts.push(...minus.map(item => `- ${item.replace(/^senza\s+/i, "")}`));
       return parts.join(" ");
     }
@@ -7630,6 +7630,15 @@
       })).filter(option => option.name && Number.isFinite(option.price) && option.price >= 0);
     }
 
+    function productVariationOptions(item) {
+      const rawOptions = item?.data?.v;
+      if (!Array.isArray(rawOptions)) return [];
+      return rawOptions.map(option => ({
+        name: normalizeVariation(option?.nome || option?.name || option?.label),
+        price: Number(option?.prezzoAggiuntivo ?? option?.prezzo_aggiuntivo ?? option?.additionalPrice ?? option?.additional_price ?? option?.prezzo ?? option?.price ?? 0)
+      })).filter(option => option.name && Number.isFinite(option.price) && option.price >= 0);
+    }
+
     function chooseProductOption(item) {
       const options = productChoiceOptions(item);
       if (!options.length) return Promise.resolve(null);
@@ -7896,10 +7905,16 @@
         .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || String(left.name).localeCompare(String(right.name), "it", { sensitivity: "base", numeric: true }))
         .filter(variation => !presentNames.has(String(variation.name).toLowerCase()))
         .map(variation => ({ name: variation.name, price: Number(variation.price || 0), common: true, color: normalizeCommonVariationColor(variation) }));
+      const productOptions = productVariationOptions(menuItem)
+        .filter(variation => !presentNames.has(variation.name.toLowerCase()))
+        .map(variation => ({ ...variation, productSpecific: true }));
 
       const commonSection = document.createElement("div");
       commonSection.className = "variation-section variation-common-section";
       root.appendChild(commonSection);
+      const productSection = document.createElement("div");
+      productSection.className = "variation-section variation-product-section";
+      root.appendChild(productSection);
       const normalSection = document.createElement("div");
       normalSection.className = "variation-section variation-normal-section";
       root.appendChild(normalSection);
@@ -7921,6 +7936,19 @@
         commonSection.appendChild(button);
       };
       commonOptions.forEach(appendCommonVariation);
+
+      productOptions.forEach(extra => {
+        const selected = normalizeExtras(line.plusVariations).some(item => item.name === extra.name);
+        const button = document.createElement("button");
+        button.className = `menu-item variation-item product-specific-variation ${selected ? "selected" : ""}`;
+        button.disabled = lineLocked;
+        button.innerHTML = `<strong>${escapeHtml(extra.name)}</strong><span class="price">+${money.format(extra.price)}</span>`;
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          togglePlusVariation(line, extra);
+        });
+        productSection.appendChild(button);
+      });
 
       if (variationMode === "minus") {
         const minusOptions = ingredientNames.map(name => `Senza ${name}`)
@@ -9939,7 +9967,7 @@
       if (!current.some(item => item.name === extra.name)) isolateVariationPortion(line);
       line.plusVariations = current.some(item => item.name === extra.name)
         ? current.filter(item => item.name !== extra.name)
-        : [...current, { name: extra.name, price: Number(extra.price || 0), common: extra.common === true }];
+        : [...current, { name: extra.name, price: Number(extra.price || 0), common: extra.common === true, productSpecific: extra.productSpecific === true }];
       replaceLineKey(line);
     }
 

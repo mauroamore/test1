@@ -21,4 +21,35 @@ function activateCourse(order, course) {
   return { activeCourse: normalizedCourse };
 }
 
-module.exports = { activateCourse, lineUsesTurns };
+function completeAndArchivePreviousCourse(order, course, settings) {
+  const normalizedCourse = Number(course);
+  if (!order || !Array.isArray(order.items) || !Number.isInteger(normalizedCourse) || normalizedCourse < 1 || normalizedCourse > 3) {
+    throw new Error("Sequenza successiva non valida");
+  }
+
+  const previousCourse = normalizedCourse - 1;
+  const previousLines = order.items.filter(line =>
+    lineUsesTurns(line, order, settings) && Number(line.course || 0) === previousCourse
+  );
+  const affectedMonitors = new Set();
+  previousLines.forEach(line => {
+    line.kitchenStatus = "Completo";
+    line.tho = { ...(line.tho || {}), kitchen_status: "Completo" };
+    affectedMonitors.add(settings?.categoryMonitors?.[String(line.category || "").trim()] || "Cucina");
+  });
+
+  if (!order.dismissedCoursesByMonitor || typeof order.dismissedCoursesByMonitor !== "object" || Array.isArray(order.dismissedCoursesByMonitor)) {
+    order.dismissedCoursesByMonitor = {};
+  }
+  affectedMonitors.forEach(monitorName => {
+    if (!Array.isArray(order.dismissedCoursesByMonitor[monitorName])) order.dismissedCoursesByMonitor[monitorName] = [];
+    if (!order.dismissedCoursesByMonitor[monitorName].some(value => Number(value) === previousCourse)) {
+      order.dismissedCoursesByMonitor[monitorName].push(previousCourse);
+    }
+  });
+
+  const activation = activateCourse(order, normalizedCourse);
+  return { ...activation, previousCourse, completedLines: previousLines.length, monitors: [...affectedMonitors] };
+}
+
+module.exports = { activateCourse, completeAndArchivePreviousCourse, lineUsesTurns };

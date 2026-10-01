@@ -6,7 +6,7 @@ const childProcess = require("child_process");
 const crypto = require("crypto");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const { mergeMonitorFields, mergeMonitorFieldsInCollections } = require("./src/monitor-state-merge");
-const { activateCourse } = require("./src/monitor-course-operations");
+const { activateCourse, completeAndArchivePreviousCourse } = require("./src/monitor-course-operations");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
 let buildGraphicPreconto;
@@ -2124,7 +2124,7 @@ const server = http.createServer((request, response) => {
           } else if (operation === "monitor_force_activate_course") {
             const course = Number(payload.course);
             try {
-              activateCourse(order, course);
+              completeAndArchivePreviousCourse(order, course, sharedState.settings || {});
             } catch (error) {
               return sendJson(response, 400, { ok: false, error: error.message });
             }

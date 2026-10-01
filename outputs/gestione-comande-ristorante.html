@@ -2418,6 +2418,16 @@
       overflow: visible;
     }
 
+    .force-course-actions {
+      display: grid;
+      gap: 8px;
+    }
+
+    .force-course-actions button {
+      width: 100%;
+      white-space: normal;
+    }
+
     .confirm-close-actions {
       display: flex;
       justify-content: flex-end;
@@ -2954,8 +2964,8 @@
     <div class="modal-content"><pre id="debugSelectedOrderJson" style="max-height:65vh;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0;font-size:12px"></pre><div class="row"><button class="ghost" id="debugSelectedOrderCopyBtn" type="button">Copia JSON</button><button class="primary" id="debugSelectedOrderDoneBtn" type="button">Chiudi</button></div></div>
   </dialog>
   <dialog class="label-modal" id="forceCourseModal">
-    <div class="modal-head"><h2>Attiva sequenza successiva</h2><button class="icon-btn" id="forceCourseCloseBtn" type="button" title="Annulla">×</button></div>
-    <div class="modal-content"><p id="forceCourseText"></p><div class="row"><button class="ghost" id="forceCourseCancelBtn" type="button">Annulla</button><button class="primary" id="forceCourseConfirmBtn" type="button">Attiva comunque</button></div></div>
+    <div class="modal-head"><h2>Avanza sequenza</h2><button class="icon-btn" id="forceCourseCloseBtn" type="button" title="Annulla">×</button></div>
+    <div class="modal-content"><p id="forceCourseText"></p><div class="force-course-actions"><button class="ghost" id="forceCourseDeliveredBtn" type="button">Già consegnata: completa e storicizza</button><button class="primary" id="forceCourseTogetherBtn" type="button">Tutto appena pronto: attiva senza storicizzare</button><button class="ghost" id="forceCourseCancelBtn" type="button">Annulla</button></div></div>
   </dialog>
   <dialog class="label-modal" id="pickupDetailsModal">
     <div class="modal-head"><h2>Nuovo ordine Pick-up</h2></div>
@@ -5161,7 +5171,7 @@
           && !courseComplete
           && hasCourse
           && course === nextCourseToActivate(order);
-        const action = order.source || !hasCourse ? "" : `<button class="course-activate selected-order-course-action ${course === activeCourse ? "active" : ""}" type="button" ${canActivate ? "" : "disabled"} data-course="${course}" title="${canActivate ? previousReady ? `Attiva ${courseLabel(course)} in cucina` : `Attiva ${courseLabel(course)} e completa la precedente` : "Invia prima le modifiche o completa le sequenze successive"}">▶</button>`;
+        const action = order.source || !hasCourse ? "" : `<button class="course-activate selected-order-course-action ${course === activeCourse ? "active" : ""}" type="button" ${canActivate ? "" : "disabled"} data-course="${course}" title="${canActivate ? previousReady ? `Attiva ${courseLabel(course)} in cucina` : `Scegli come avanzare dalla ${courseLabel(course - 1)}` : "Invia prima le modifiche o completa le sequenze successive"}">▶</button>`;
         const activeLabel = hasCourse && course === activeCourse ? `<span class="selected-order-course-current">ATTIVA</span>` : "";
         const groupLabel = hasCourse ? courseLabel(course) : "Senza sequenza";
         return `<section class="selected-order-course"><div class="selected-order-course-head ${hasCourse && course === activeCourse ? "active" : ""}"><strong>${groupLabel}</strong>${activeLabel}${action}</div>${group.items.map(line => {
@@ -6730,26 +6740,29 @@
       const previousLines = itemsForCourse(order, previousCourse);
       const incompleteCount = previousLines.filter(line => line.kitchenStatus !== "Completo").length;
       if (!incompleteCount) {
-        activateCourse(order, course, false);
+        activateCourse(order, course);
         return;
       }
       const modal = document.getElementById("forceCourseModal");
       const closeButton = document.getElementById("forceCourseCloseBtn");
       const cancelButton = document.getElementById("forceCourseCancelBtn");
-      const confirmButton = document.getElementById("forceCourseConfirmBtn");
-      document.getElementById("forceCourseText").textContent = `La ${courseLabel(previousCourse)} ha ${incompleteCount} ${incompleteCount === 1 ? "piatto non completato" : "piatti non completati"}. Vuoi attivare comunque la ${courseLabel(course)}? I piatti precedenti resteranno non completati e la sequenza non verrà storicizzata.`;
+      const deliveredButton = document.getElementById("forceCourseDeliveredBtn");
+      const togetherButton = document.getElementById("forceCourseTogetherBtn");
+      document.getElementById("forceCourseText").textContent = `La ${courseLabel(previousCourse)} ha ${incompleteCount} ${incompleteCount === 1 ? "piatto non completato" : "piatti non completati"}. Scegli come avanzare:`;
       const cancel = () => modal.close();
       closeButton.onclick = cancel;
       cancelButton.onclick = cancel;
-      confirmButton.onclick = () => {
+      const choose = mode => {
         modal.close();
         const currentOrder = findOrderById(orderId);
-        if (currentOrder) activateCourse(currentOrder, course, true);
+        if (currentOrder) activateCourse(currentOrder, course, mode);
       };
+      deliveredButton.onclick = () => choose("delivered");
+      togetherButton.onclick = () => choose("together");
       modal.showModal();
     }
 
-    function activateCourse(order, course, forcePrevious = false) {
+    function activateCourse(order, course, advanceMode = "normal") {
       const normalized = courseNumber(course);
       const previousCourse = normalized - 1;
       const currentLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === normalized);
@@ -6759,15 +6772,16 @@
         ? (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === previousCourse)
         : [];
       const previousIncomplete = previousLines.some(line => line.kitchenStatus !== "Completo");
-      if (previousIncomplete && !forcePrevious) {
+      if (previousIncomplete && advanceMode === "normal") {
         requestForceCourseActivation(order.id, normalized);
         return;
       }
       if (REMOTE_MODE) {
-        if (isRemoteEditableOrder(order) && !(previousIncomplete && forcePrevious)) sendRemoteCommand("activateCourse", { orderId: order.id, course: normalized });
+        if (isRemoteEditableOrder(order) && !(previousIncomplete && advanceMode === "delivered")) sendRemoteCommand("activateCourse", { orderId: order.id, course: normalized });
         return;
       }
-      return sendLocalMonitorOperation(previousIncomplete && forcePrevious ? "monitor_force_activate_course" : "monitor_activate_course", { orderId: order.id, course: normalized })
+      const operation = previousIncomplete && advanceMode === "delivered" ? "monitor_force_activate_course" : "monitor_activate_course";
+      return sendLocalMonitorOperation(operation, { orderId: order.id, course: normalized })
         .catch(error => alert(`Attivazione sequenza non riuscita: ${error.message}`));
     }
 

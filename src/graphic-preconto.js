@@ -12,6 +12,10 @@ const WIDTH_80 = 512;
 const MARGIN = 24;
 const LINE = 34;
 
+function graphicFontScale(fontSize) {
+  return ({ 5: [2, 1], 6: [1, 2], 2: [2, 2], 3: [3, 3], 4: [4, 4] })[Number(fontSize)] || [1, 1];
+}
+
 function euro(value) {
   return `${Number(value || 0).toFixed(2).replace(".", ",")} EUR`;
 }
@@ -113,6 +117,94 @@ function buildGraphicPreconto(order, settings = {}) {
 
 async function printGraphicPreconto(order, printer, settings = {}) {
   const canvas = buildGraphicPreconto(order, settings);
+  return printGraphicCanvas(canvas, printer);
+}
+
+function buildGraphicOrder(order, printerSettings = {}) {
+  const width = Number(printerSettings.width) === 80 ? WIDTH_80 : WIDTH_58;
+  const [scaleX, scaleY] = graphicFontScale(printerSettings.fontSize);
+  const logicalWidth = width / scaleX;
+  const margin = 20;
+  const font = 19;
+  const lineHeight = 25;
+  const rows = [];
+  const textContext = createCanvas(1, 1).getContext("2d");
+  const addText = (text, size = font, bold = false, kind = "text") => {
+    textContext.font = `${bold ? "bold " : ""}${size}px ReceiptMono`;
+    const maxWidth = logicalWidth - margin * 2;
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    let current = "";
+    const wrapped = [];
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (current && textContext.measureText(candidate).width > maxWidth) {
+        wrapped.push(current);
+        current = word;
+      } else {
+        current = candidate;
+      }
+    }
+    if (current) wrapped.push(current);
+    (wrapped.length ? wrapped : [""]).forEach(value => rows.push({ text: value, size, bold, kind }));
+  };
+  const addRule = () => rows.push({ kind: "rule" });
+
+  addText("Thai Princess", font, true, "center");
+  addText("ORDINE", font + 1, true, "center");
+  if (order.source) {
+    addText(`TakeAway - ${order.customerName || order.name || order.id || "Ordine"}`, font, true);
+    addText(order.pickupTime || "Subito", font - 1, false);
+  } else {
+    addText(order.tableName || order.table || `Tavolo ${order.id || ""}`, font, true);
+  }
+  addRule();
+
+  let previousSequence = null;
+  for (const item of Array.isArray(order.items) ? order.items : []) {
+    if (item.usesTurns) {
+      const sequence = Math.max(0, Number(item.course) || 0);
+      if (sequence !== previousSequence) {
+        addText(`Sequenza ${sequence}`, font, true, "sequence");
+        previousSequence = sequence;
+      }
+    } else {
+      previousSequence = null;
+    }
+    addText(`${Number(item.qty || 0)} x ${item.name || "Articolo"}`, font, true, "item");
+    if (item.lineNote) addText(item.lineNote, font - 2, false, "note");
+    if (item.variations) addText(item.variations, Math.max(12, font - 4), false, "variation");
+  }
+
+  const physicalHeight = Math.ceil((margin + rows.reduce((total, row) => total + (row.kind === "rule" ? 14 : lineHeight), 0) + margin) * scaleY);
+  const canvas = createCanvas(width, physicalHeight);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, physicalHeight);
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.fillStyle = "#000";
+  ctx.textBaseline = "top";
+  let y = margin;
+  for (const row of rows) {
+    if (row.kind === "rule") {
+      ctx.fillRect(margin, y + 7, logicalWidth - margin * 2, 2);
+      y += 14;
+      continue;
+    }
+    ctx.font = `${row.bold ? "bold " : ""}${row.size}px ReceiptMono`;
+    ctx.textAlign = row.kind === "center" ? "center" : "left";
+    ctx.fillText(row.text, row.kind === "center" ? logicalWidth / 2 : margin, y);
+    y += lineHeight;
+  }
+  ctx.restore();
+  return canvas;
+}
+
+async function printGraphicOrder(order, printer) {
+  return printGraphicCanvas(buildGraphicOrder(order, printer), printer);
+}
+
+async function printGraphicCanvas(canvas, printer) {
   const png = canvas.toBuffer("image/png");
   const { Image, Printer } = await import("@node-escpos/core");
   const { default: Network } = await import("@node-escpos/network-adapter");
@@ -139,4 +231,4 @@ async function printGraphicPreconto(order, printer, settings = {}) {
   return { pngBase64: png.toString("base64"), width: canvas.width, height: canvas.height };
 }
 
-module.exports = { buildGraphicPreconto, buildPcPosPrecontoLines, printGraphicPreconto };
+module.exports = { buildGraphicOrder, buildGraphicPreconto, buildPcPosPrecontoLines, printGraphicOrder, printGraphicPreconto };

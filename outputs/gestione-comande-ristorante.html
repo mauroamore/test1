@@ -8926,32 +8926,26 @@
         grouped.get(printer.name).lines.push(line);
       });
       for (const { printer, lines } of grouped.values()) {
-        const tableLabel = order.source
-          ? `TakeAway - ${order.customerName || order.name || order.id || "Ordine"} - ${order.pickupTime || "Subito"}`
-          : (order.tableName || order.table || (order.id ? `Tavolo ${order.id}` : "Ordine"));
-        const fontSize = Math.max(1, Math.min(6, Number(printer.fontSize || 1)));
-        const escPosScale = printerTextScale(fontSize);
-        const normalSize = `\x1d\x21${String.fromCharCode(escPosScale)}`;
-        const smallSize = "\x1bM\x01\x1d\x21\x00";
-        const resetSize = `\x1bM\x00${normalSize}`;
-        const hasSequences = lines.some(line => lineUsesTurns(line));
-        let previousSequence = null;
-        const text = lines.map(line => {
-          const main = `${Number(line.qty || 0)} x ${line.name || "Articolo"}${line.lineNote ? ` - ${line.lineNote}` : ""}`;
-          const variations = lineVariationLabel(line);
-          const sequence = courseNumber(line.course);
-          const sequenceHeader = hasSequences && sequence !== previousSequence
-            ? `Sequenza ${sequence}\n`
-            : "";
-          previousSequence = sequence;
-          return variations ? `${sequenceHeader}${main}\n${smallSize}  ${variations}${resetSize}` : `${sequenceHeader}${main}`;
-        }).join("\n");
-        const payload = `\x1b@\x1ba\x01ORDINE\n${tableLabel}\n\n${normalSize}${text}\n\x1d\x21\x00\n`;
         try {
-          const response = await fetch("/api/print/raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job: "order", printer, payload }) });
+          const graphicOrder = {
+            ...order,
+            items: lines.map(line => ({
+              name: line.name || "Articolo",
+              qty: Number(line.qty || 0),
+              lineNote: line.lineNote || "",
+              variations: lineVariationLabel(line),
+              usesTurns: lineUsesTurns(line),
+              course: courseNumber(line.course)
+            }))
+          };
+          const response = await fetch("/api/print/order-graphic", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ job: "order", printer, order: graphicOrder })
+          });
           if (!response.ok) {
-            const detail = await response.text();
-            reportPrinterFailureOnce(detail || `HTTP ${response.status}`);
+            const result = await response.json().catch(() => ({}));
+            reportPrinterFailureOnce(result.error || `HTTP ${response.status}`);
           }
         } catch (error) { reportPrinterFailureOnce(error?.message || error); }
       }

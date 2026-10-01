@@ -10,6 +10,8 @@ const { activateCourse, completeAndArchivePreviousCourse } = require("./src/moni
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
 let buildGraphicPreconto;
+let printGraphicOrder;
+let buildGraphicOrder;
 const { buildPcPosPrecontoLines } = require("./src/pcpos-preconto.js");
 let nexiEcrModulePromise;
 let nexiEcrClient;
@@ -2876,6 +2878,30 @@ const server = http.createServer((request, response) => {
         const result = await printGraphicPreconto(input.order || {}, printer, input.settings || {});
         return sendJson(response, 200, { ok: true, ...result });
       } catch (error) {
+        return sendJson(response, 502, { ok: false, error: String(error.message || error) });
+      }
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
+    return;
+  }
+  if (request.url === "/api/print/order-graphic" && request.method === "POST") {
+    readRequestBody(request).then(async body => {
+      try {
+        const input = JSON.parse(body || "{}");
+        const printer = input.printer && typeof input.printer === "object" ? input.printer : {};
+        if (!printer.host) return sendJson(response, 400, { ok: false, error: "Stampante non configurata" });
+        if (!/^[A-Za-z0-9.-]+$/.test(String(printer.host))) return sendJson(response, 400, { ok: false, error: "Stampante non valida" });
+        const port = Number(printer.port || 9100);
+        if (!Number.isInteger(port) || port < 1 || port > 65535) return sendJson(response, 400, { ok: false, error: "Porta stampante non valida" });
+        if (!printGraphicOrder || !buildGraphicOrder) ({ printGraphicOrder, buildGraphicOrder } = require("./src/graphic-preconto.js"));
+        if (input.previewOnly) {
+          const canvas = buildGraphicOrder(input.order || {}, printer);
+          return sendJson(response, 200, { ok: true, previewOnly: true, pngBase64: canvas.toBuffer("image/png").toString("base64"), width: canvas.width, height: canvas.height });
+        }
+        const result = await printGraphicOrder(input.order || {}, printer);
+        appendLog(PRINT_LOG, `${new Date().toISOString()} graphic order ${printer.host}:${printer.port || 9100}\n`);
+        return sendJson(response, 200, { ok: true, ...result });
+      } catch (error) {
+        appendLog(PRINT_LOG, `${new Date().toISOString()} graphic order ERROR ${error.stack || error}\n`);
         return sendJson(response, 502, { ok: false, error: String(error.message || error) });
       }
     }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));

@@ -2953,6 +2953,10 @@
     <div class="modal-head"><h2>JSON tavolo selezionato</h2><button class="icon-btn" id="debugSelectedOrderCloseBtn" type="button" title="Chiudi">×</button></div>
     <div class="modal-content"><pre id="debugSelectedOrderJson" style="max-height:65vh;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0;font-size:12px"></pre><div class="row"><button class="ghost" id="debugSelectedOrderCopyBtn" type="button">Copia JSON</button><button class="primary" id="debugSelectedOrderDoneBtn" type="button">Chiudi</button></div></div>
   </dialog>
+  <dialog class="label-modal" id="forceCourseModal">
+    <div class="modal-head"><h2>Attiva sequenza successiva</h2><button class="icon-btn" id="forceCourseCloseBtn" type="button" title="Annulla">×</button></div>
+    <div class="modal-content"><p id="forceCourseText"></p><div class="row"><button class="ghost" id="forceCourseCancelBtn" type="button">Annulla</button><button class="primary" id="forceCourseConfirmBtn" type="button">Attiva comunque</button></div></div>
+  </dialog>
   <dialog class="label-modal" id="pickupDetailsModal">
     <div class="modal-head"><h2>Nuovo ordine Pick-up</h2></div>
     <div class="modal-content stack">
@@ -3685,6 +3689,7 @@
               }
               if (Number.isFinite(Number(result.stateRevision))) state.stateRevision = Number(result.stateRevision);
               renderKitchen();
+              renderSelectedOrder();
               if (status) {
                 status.textContent = "Monitor: aggiornamento salvato";
                 status.classList.remove("error");
@@ -5139,20 +5144,27 @@
       }
       if (compactRoomMode() || orderPanelCollapsible()) showCompactOrder(order.id);
       const lines = Array.isArray(order.items) ? order.items : [];
-      const grouped = order.source ? [{ course: 1, items: lines }] : linesByCourse(lines);
+      const grouped = order.source
+        ? [{ course: 1, items: lines }]
+        : [
+            { course: null, items: lines.filter(line => !lineUsesTurns(line)) },
+            ...linesByCourse(lines.filter(line => lineUsesTurns(line)))
+          ].filter(group => group.items.length);
       const groupedMarkup = grouped.filter(group => group.items.length).map(group => {
-        const course = courseNumber(group.course);
-        const previousItems = course > 0 ? itemsForCourse(order, course - 1) : [];
-        const previousReady = course === 0 || (previousItems.length > 0 && previousItems.every(item => item.kitchenStatus === "Completo"));
+        const hasCourse = group.course !== null;
+        const course = hasCourse ? courseNumber(group.course) : null;
+        const previousItems = hasCourse && course > 0 ? itemsForCourse(order, course - 1) : [];
+        const previousReady = !hasCourse || course === 0 || previousItems.length === 0 || previousItems.every(item => item.kitchenStatus === "Completo");
         const courseComplete = group.items.every(item => item.kitchenStatus === "Completo");
         const activeCourse = activeCourseNumber(order.activeCourse);
         const canActivate = !orderHasUnsentChangesForSend(order)
           && !courseComplete
-          && course === nextCourseToActivate(order)
-          && previousReady;
-        const action = order.source ? "" : `<button class="course-activate selected-order-course-action ${course === activeCourse ? "active" : ""}" type="button" ${canActivate ? "" : "disabled"} data-course="${course}" title="${canActivate ? `Attiva ${courseLabel(course)} in cucina` : "Completa la sequenza precedente o invia prima le modifiche"}">▶</button>`;
-        const activeLabel = course === activeCourse ? `<span class="selected-order-course-current">ATTIVA</span>` : "";
-        return `<section class="selected-order-course"><div class="selected-order-course-head ${course === activeCourse ? "active" : ""}"><strong>${courseLabel(course)}</strong>${activeLabel}${action}</div>${group.items.map(line => {
+          && hasCourse
+          && course === nextCourseToActivate(order);
+        const action = order.source || !hasCourse ? "" : `<button class="course-activate selected-order-course-action ${course === activeCourse ? "active" : ""}" type="button" ${canActivate ? "" : "disabled"} data-course="${course}" title="${canActivate ? previousReady ? `Attiva ${courseLabel(course)} in cucina` : `Attiva ${courseLabel(course)} e completa la precedente` : "Invia prima le modifiche o completa le sequenze successive"}">▶</button>`;
+        const activeLabel = hasCourse && course === activeCourse ? `<span class="selected-order-course-current">ATTIVA</span>` : "";
+        const groupLabel = hasCourse ? courseLabel(course) : "Senza sequenza";
+        return `<section class="selected-order-course"><div class="selected-order-course-head ${hasCourse && course === activeCourse ? "active" : ""}"><strong>${groupLabel}</strong>${activeLabel}${action}</div>${group.items.map(line => {
           const statusClass = line.kitchenStatus === "Completo" ? "completo" : line.kitchenStatus === "In preparazione" ? "in-preparazione" : "";
           const statusLabel = line.kitchenStatus || "Da preparare";
           return `<div class="selected-order-line ${statusClass}" title="${escapeHtml(statusLabel)}"><span>${escapeHtml(line.name || line.id || "Articolo")}${line.lineNote ? `<br><small>${escapeHtml(line.lineNote)}</small>` : ""}</span><span class="price">${money.format(Number(line.qty || 0) * lineUnitPrice(line))}</span></div>`;
@@ -5179,8 +5191,6 @@
       body.innerHTML = `<div class="selected-order-meta"><strong>${escapeHtml(orderTicketLabel(order))}</strong><br>${escapeHtml(meta)}</div>${activeCourseMarkup}<div class="selected-order-lines">${groupedMarkup || `<div class="selected-order-empty">Nessun articolo.</div>`}</div>${order.notes ? `<div class="selected-order-notes">${escapeHtml(order.notes)}</div>` : ""}${discountMarkup}${paymentMarkup}<div class="selected-order-total"><span>Totale</span><span>${money.format(orderTotal(order) - discountCents / 100)}</span></div>`;
       body.querySelectorAll(".selected-order-course-action").forEach(button => button.addEventListener("click", () => {
         activateCourse(order, Number(button.dataset.course));
-        saveState();
-        render();
       }));
     }
 
@@ -6709,62 +6719,55 @@
         renderMenu();
         renderOrder();
       });
-      const activate = document.createElement("button");
-      activate.type = "button";
-      const courseNumberValue = courseNumber(course);
-      const previousCourse = courseNumberValue - 1;
-      const previousLines = previousCourse < 0
-        ? []
-        : (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === previousCourse);
-      const previousReady = previousCourse < 0 || (previousLines.length > 0 && previousLines.every(line => line.kitchenStatus === "Completo"));
-      const courseLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === courseNumberValue);
-      const courseCompleted = courseLines.length > 0 && courseLines.every(line => line.kitchenStatus === "Completo");
-      const hasUnsentChanges = orderHasUnsentChangesForSend(order);
-      const canActivate = !hasUnsentChanges
-        && !courseCompleted
-        && courseNumberValue === nextCourseToActivate(order)
-        && (courseNumberValue === 0 || previousLines.length > 0);
-      activate.className = `course-activate ${courseNumberValue === currentActive ? "active" : ""}`;
-      activate.disabled = !canActivate;
-      activate.textContent = "▶";
-      activate.title = canActivate
-        ? (previousReady ? `Comunica alla cucina: attiva ${courseLabel(course)}` : `Forza ${courseLabel(course)} e chiudi la precedente`)
-        : hasUnsentChanges
-          ? "Invia prima le modifiche per poter attivare una sequenza"
-        : previousCourse >= 0 && !previousReady
-          ? `Completa tutti i piatti della ${courseLabel(previousCourse)}`
-          : `Attiva prima ${courseLabel(currentActive + 1)}`;
-      activate.setAttribute("aria-label", `Attiva ${courseLabel(course)} in cucina`);
-      activate.addEventListener("click", () => {
-        activateCourse(order, course, !previousReady);
-        saveState();
-        // I tasti sequenza rapidi accanto a "Piatti" si sbloccano fino a activeCourse+1: senza
-        // richiamare anche renderMenu() qui, il nuovo tasto (es. "3" dopo aver attivato la
-        // sequenza 2) non compare finche' non capita un altro render() per tutt'altro motivo.
-        renderMenu();
-        renderOrder();
-      });
-      controls.append(button, activate);
+      controls.append(button);
       return controls;
+    }
+
+    function requestForceCourseActivation(orderId, course) {
+      const order = findOrderById(orderId);
+      if (!order) return;
+      const previousCourse = courseNumber(course) - 1;
+      const previousLines = itemsForCourse(order, previousCourse);
+      const incompleteCount = previousLines.filter(line => line.kitchenStatus !== "Completo").length;
+      if (!incompleteCount) {
+        activateCourse(order, course, false);
+        return;
+      }
+      const modal = document.getElementById("forceCourseModal");
+      const closeButton = document.getElementById("forceCourseCloseBtn");
+      const cancelButton = document.getElementById("forceCourseCancelBtn");
+      const confirmButton = document.getElementById("forceCourseConfirmBtn");
+      document.getElementById("forceCourseText").textContent = `La ${courseLabel(previousCourse)} ha ${incompleteCount} ${incompleteCount === 1 ? "piatto non completato" : "piatti non completati"}. Vuoi attivare comunque la ${courseLabel(course)}? I piatti precedenti resteranno non completati e la sequenza non verrà storicizzata.`;
+      const cancel = () => modal.close();
+      closeButton.onclick = cancel;
+      cancelButton.onclick = cancel;
+      confirmButton.onclick = () => {
+        modal.close();
+        const currentOrder = findOrderById(orderId);
+        if (currentOrder) activateCourse(currentOrder, course, true);
+      };
+      modal.showModal();
     }
 
     function activateCourse(order, course, forcePrevious = false) {
       const normalized = courseNumber(course);
-      const currentActive = activeCourseNumber(order.activeCourse);
       const previousCourse = normalized - 1;
       const currentLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === normalized);
       if (currentLines.length > 0 && currentLines.every(line => line.kitchenStatus === "Completo")) return;
       if (normalized !== nextCourseToActivate(order)) return;
-      if (normalized > currentActive && previousCourse >= 0 && !forcePrevious) {
-        const previousLines = (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === previousCourse);
-        if (!previousLines.length || !previousLines.every(line => line.kitchenStatus === "Completo")) return;
-      }
-      if (forcePrevious && !window.confirm(`La ${courseLabel(previousCourse)} contiene ancora piatti non completati. Vuoi marcarli come fatti, storicizzarla e attivare la ${courseLabel(normalized)}?`)) return;
-      if (REMOTE_MODE) {
-        if (isRemoteEditableOrder(order)) sendRemoteCommand("activateCourse", { orderId: order.id, course: normalized });
+      const previousLines = previousCourse >= 0
+        ? (order.items || []).filter(line => lineUsesTurns(line) && courseNumber(line.course) === previousCourse)
+        : [];
+      const previousIncomplete = previousLines.some(line => line.kitchenStatus !== "Completo");
+      if (previousIncomplete && !forcePrevious) {
+        requestForceCourseActivation(order.id, normalized);
         return;
       }
-      sendLocalMonitorOperation(forcePrevious ? "monitor_force_activate_course" : "monitor_activate_course", { orderId: order.id, course: normalized })
+      if (REMOTE_MODE) {
+        if (isRemoteEditableOrder(order) && !(previousIncomplete && forcePrevious)) sendRemoteCommand("activateCourse", { orderId: order.id, course: normalized });
+        return;
+      }
+      return sendLocalMonitorOperation(previousIncomplete && forcePrevious ? "monitor_force_activate_course" : "monitor_activate_course", { orderId: order.id, course: normalized })
         .catch(error => alert(`Attivazione sequenza non riuscita: ${error.message}`));
     }
 

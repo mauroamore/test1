@@ -6,6 +6,7 @@ const childProcess = require("child_process");
 const crypto = require("crypto");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
 const { mergeMonitorFields, mergeMonitorFieldsInCollections } = require("./src/monitor-state-merge");
+const { activateCourse } = require("./src/monitor-course-operations");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
 let buildGraphicPreconto;
@@ -2122,19 +2123,11 @@ const server = http.createServer((request, response) => {
             order.courseSequence.push(course);
           } else if (operation === "monitor_force_activate_course") {
             const course = Number(payload.course);
-            if (!Number.isFinite(course) || course < 1) return sendJson(response, 400, { ok: false, error: "Sequenza successiva non valida" });
-            const previousCourse = course - 1;
-            const previousLines = order.items.filter(item => Number(item.course || 0) === previousCourse);
-            previousLines.forEach(item => {
-              item.kitchenStatus = "Completo";
-              item.tho = { ...(item.tho || {}), kitchen_status: "Completo" };
-            });
-            if (!Array.isArray(order.dismissedCourses)) order.dismissedCourses = [];
-            if (!order.dismissedCourses.some(value => Number(value) === previousCourse)) order.dismissedCourses.push(previousCourse);
-            order.activeCourse = course;
-            if (!Array.isArray(order.courseSequence)) order.courseSequence = [];
-            order.courseSequence = order.courseSequence.filter(value => Number(value) !== course);
-            order.courseSequence.push(course);
+            try {
+              activateCourse(order, course);
+            } catch (error) {
+              return sendJson(response, 400, { ok: false, error: error.message });
+            }
           } else if (operation === "monitor_close_order") {
             order.kitchenClosed = true;
             order.kitchenClosedAt = new Date().toISOString();

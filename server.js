@@ -768,7 +768,7 @@ function runUpdateScript() {
 
 function scheduleServiceRestart() {
   setTimeout(() => {
-    childProcess.execFile("sudo", ["-n", "systemctl", "restart", SERVICE_NAME], { cwd: ROOT, timeout: 30000 }, error => {
+    childProcess.execFile("sudo", ["-n", "/usr/local/sbin/restart-gestione-comande"], { cwd: ROOT, timeout: 30000 }, error => {
       if (error) appendLog(path.join(ROOT, "update.log"), `${new Date().toISOString()} riavvio fallito: ${error.message}\n`);
     });
   }, 1500).unref();

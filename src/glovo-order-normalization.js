@@ -75,7 +75,7 @@ function normalizeGlovoOrder(order, catalog) {
 
     const originalName = String(item.originalName || item.name || item.product_name || item.dishName || "Articolo Glovo");
     const dishNumber = item.dishNumber || (originalName.match(/^\s*(\d{1,3})\s+(.+)$/) || [])[1] || null;
-    const name = item.originalName || (dishNumber ? `${dishNumber} ${item.dishName || originalName}` : originalName);
+    const name = String(item.originalName || item.dishName || item.name || item.product_name || "Articolo Glovo");
     const notes = [item.comment, item.note, item.specialInstructions, item.instructions]
       .filter(value => typeof value === "string" && value.trim());
     const modifiers = Array.isArray(item.variations) ? item.variations

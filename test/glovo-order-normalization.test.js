@@ -57,6 +57,18 @@ test("matches zero-padded Glovo dish numbers to the menu's numeric code", () => 
   assert.equal(order.items[0].price, 7);
 });
 
+test("uses the supplied Glovo item name without prepending its dish code", () => {
+  const order = normalizeGlovoOrder({
+    orderId: "abc",
+    items: [{ dishNumber: "48", dishName: "48 Keng Kariii kai", quantity: 1 }]
+  }, new Map([[
+    "48",
+    { id: 48, name: "48 Keng Kariii kai", price: 14, category: "Curry" }
+  ]]));
+
+  assert.equal(order.items[0].name, "48 Keng Kariii kai");
+});
+
 test("accepts Glovo's nested pricing payload and final order total", () => {
   const order = normalizeGlovoOrder({
     order_id: "uuid",

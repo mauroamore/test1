@@ -5,6 +5,7 @@ const path = require("path");
 const childProcess = require("child_process");
 const crypto = require("crypto");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
+const { normalizeGlovoOrder } = require("./src/glovo-order-normalization");
 const { mergeMonitorFields, mergeMonitorFieldsInCollections } = require("./src/monitor-state-merge");
 const { activateCourse, completeAndArchivePreviousCourse } = require("./src/monitor-course-operations");
 const epsonFiscal = require("./EpsonFiscalClient.js");
@@ -1170,55 +1171,6 @@ function mergeDeliveryOrders(newOrders) {
   }
 }
 
-function normalizeGlovoOrder(order) {
-  const externalId = String(order.externalId || order.id || "");
-  if (!externalId) throw new Error("Ordine Glovo senza identificativo");
-  const lines = Array.isArray(order.items) ? order.items.map((item, index) => {
-    const originalName = String(item.name || item.product_name || "Articolo Glovo");
-    const match = originalName.match(/^\s*(\d{1,3})\s+(.+)$/);
-    const dishNumber = match ? match[1] : null;
-    const name = match ? `${match[1]} ${match[2]}` : originalName;
-    const notes = [item.comment, item.note, item.specialInstructions].filter(value => typeof value === "string" && value.trim());
-    const variations = Array.isArray(item.modifiers) ? item.modifiers.map(modifier => modifier.name).filter(Boolean) : [];
-    return {
-      key: `glovo-${externalId}-${index}`,
-      id: dishNumber || `glovo-item-${index}`,
-      name,
-      category: "Glovo",
-      price: Number(item.price || item.unit_price || 0),
-      originalPrice: Number(item.price || item.unit_price || 0),
-      qty: Number(item.amount || item.quantity || item.qty || 1),
-      sentQty: 0,
-      course: 1,
-      noTurns: true,
-      kitchenStatus: undefined,
-      minusVariations: [],
-      plusVariations: [],
-      lineNote: [...variations, ...notes].join(", ")
-    };
-  }) : [];
-  return {
-    id: `glovo-${externalId}`,
-    externalOrderId: externalId,
-    source: "glovo",
-    customerName: "Ordine Glovo",
-    serviceType: "delivery",
-    status: order.state || "new",
-    total: Number(order.total || 0),
-    currency: "EUR",
-    channel: "Glovo",
-    collectionCode: order.shortCode || externalId,
-    pickupTime: order.transport?.pickupTime || order.deliverAt || null,
-    notes: order.comment || "",
-    items: lines,
-    selectedCourse: 1,
-    activeCourse: 1,
-    kitchenClosed: false,
-    receivedAt: new Date().toISOString(),
-    glovoPayload: order
-  };
-}
-
 function setHubRiseFeedStatus(ok, error) {
   if (!sharedState) return;
   sharedState.hubriseFeedStatus = { ok, error: error || null, checkedAt: new Date().toISOString() };
@@ -2035,12 +1987,13 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.url === "/api/glovo/orders" && request.method === "POST") {
-    readRequestBody(request).then(body => {
+    readRequestBody(request).then(async body => {
       if (!GLOVO_ORDERS_KEY) return sendJson(response, 503, { ok: false, error: "GLOVO_ORDERS_KEY non impostata" });
       if (request.headers["x-glovo-key"] !== GLOVO_ORDERS_KEY) return sendJson(response, 401, { ok: false, error: "Chiave Glovo non valida" });
       const event = JSON.parse(body);
       const sourceOrders = Array.isArray(event.payload) ? event.payload : [];
-      const orders = sourceOrders.filter(order => order && typeof order === "object").map(normalizeGlovoOrder);
+      const catalog = await loadSharedMenuCatalog();
+      const orders = sourceOrders.filter(order => order && typeof order === "object").map(order => normalizeGlovoOrder(order, catalog));
       mergeDeliveryOrders(orders);
       if (orders.length) {
         sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
@@ -2048,7 +2001,10 @@ const server = http.createServer((request, response) => {
         broadcast("delivery.updated", { source: "glovo", count: orders.length });
       }
       sendJson(response, 201, { ok: true, received: orders.length, ids: orders.map(order => order.id) });
-    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
+    }).catch(error => sendJson(response,
+      error.code === "REQUEST_TOO_LARGE" ? 413 : error.message.startsWith("Prezzo non trovato") ? 422 : 502,
+      { ok: false, error: error.message }
+    ));
     return;
   }
   if (request.url === "/api/menu/refresh" && request.method === "POST") {

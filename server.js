@@ -78,6 +78,7 @@ const DELIVEROO_WEBHOOK_LOG = path.join(ROOT, "deliveroo-webhook.log");
 const HUBRISE_FEED_LOG = path.join(ROOT, "hubrise-feed.log");
 const HUBRISE_FEED_URL = process.env.HUBRISE_FEED_URL || `${REMOTE_BASE_URL}/HubRiseOrdersFeed.ashx`;
 const HUBRISE_FEED_KEY = process.env.HUBRISE_FEED_KEY || "";
+const GLOVO_ORDERS_KEY = process.env.GLOVO_ORDERS_KEY || process.env.RESTAURANT_SYNC_KEY || "";
 const HUBRISE_POLL_INTERVAL_MS = Number(process.env.HUBRISE_POLL_INTERVAL_MS || 20000);
 // Keep this aligned with the published Sigonella admin dashboard.
 const SIGONELLA_ORDERS_URL = process.env.SIGONELLA_ORDERS_URL || `${REMOTE_BASE_URL}/StandardOrderService.asmx/GetOrders`;
@@ -175,6 +176,7 @@ function readRequestBody(request, maxBytes = MAX_REQUEST_BODY_BYTES) {
 function corsOrigin(request) {
   const origin = request.headers.origin;
   if (!origin) return null;
+  if (request.url.split("?")[0] === "/api/glovo/orders" && origin.startsWith("chrome-extension://")) return origin;
   if (ALLOWED_ORIGINS.has(origin)) return origin;
   const host = request.headers.host;
   return host && (origin === `http://${host}` || origin === `https://${host}`) ? origin : "";
@@ -218,6 +220,7 @@ function mutationAuthorized(request, response) {
   // La chiave monitor abilita esclusivamente le operazioni atomiche del monitor;
   // non deve poter autorizzare pagamenti, configurazione o altre mutazioni.
   if (request.url === "/api/operations" && monitorAuthorized(request)) return true;
+  if (request.url === "/api/glovo/orders" && GLOVO_ORDERS_KEY && constantTimeKeyEquals(request.headers["x-glovo-key"], GLOVO_ORDERS_KEY)) return true;
   if (LOCAL_API_KEY && constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY)) return true;
   return !LOCAL_API_KEY && ALLOW_INSECURE_LOCAL_API;
 }
@@ -1167,6 +1170,55 @@ function mergeDeliveryOrders(newOrders) {
   }
 }
 
+function normalizeGlovoOrder(order) {
+  const externalId = String(order.externalId || order.id || "");
+  if (!externalId) throw new Error("Ordine Glovo senza identificativo");
+  const lines = Array.isArray(order.items) ? order.items.map((item, index) => {
+    const originalName = String(item.name || item.product_name || "Articolo Glovo");
+    const match = originalName.match(/^\s*(\d{1,3})\s+(.+)$/);
+    const dishNumber = match ? match[1] : null;
+    const name = match ? `${match[1]} ${match[2]}` : originalName;
+    const notes = [item.comment, item.note, item.specialInstructions].filter(value => typeof value === "string" && value.trim());
+    const variations = Array.isArray(item.modifiers) ? item.modifiers.map(modifier => modifier.name).filter(Boolean) : [];
+    return {
+      key: `glovo-${externalId}-${index}`,
+      id: dishNumber || `glovo-item-${index}`,
+      name,
+      category: "Glovo",
+      price: Number(item.price || item.unit_price || 0),
+      originalPrice: Number(item.price || item.unit_price || 0),
+      qty: Number(item.amount || item.quantity || item.qty || 1),
+      sentQty: 0,
+      course: 1,
+      noTurns: true,
+      kitchenStatus: undefined,
+      minusVariations: [],
+      plusVariations: [],
+      lineNote: [...variations, ...notes].join(", ")
+    };
+  }) : [];
+  return {
+    id: `glovo-${externalId}`,
+    externalOrderId: externalId,
+    source: "glovo",
+    customerName: "Ordine Glovo",
+    serviceType: "delivery",
+    status: order.state || "new",
+    total: Number(order.total || 0),
+    currency: "EUR",
+    channel: "Glovo",
+    collectionCode: order.shortCode || externalId,
+    pickupTime: order.transport?.pickupTime || order.deliverAt || null,
+    notes: order.comment || "",
+    items: lines,
+    selectedCourse: 1,
+    activeCourse: 1,
+    kitchenClosed: false,
+    receivedAt: new Date().toISOString(),
+    glovoPayload: order
+  };
+}
+
 function setHubRiseFeedStatus(ok, error) {
   if (!sharedState) return;
   sharedState.hubriseFeedStatus = { ok, error: error || null, checkedAt: new Date().toISOString() };
@@ -1980,6 +2032,23 @@ const server = http.createServer((request, response) => {
         detail: error.message,
         hint: "Verifica che il PC/server locale possa raggiungere https://servizi.thaiprincess.it"
       }));
+    return;
+  }
+  if (request.url === "/api/glovo/orders" && request.method === "POST") {
+    readRequestBody(request).then(body => {
+      if (!GLOVO_ORDERS_KEY) return sendJson(response, 503, { ok: false, error: "GLOVO_ORDERS_KEY non impostata" });
+      if (request.headers["x-glovo-key"] !== GLOVO_ORDERS_KEY) return sendJson(response, 401, { ok: false, error: "Chiave Glovo non valida" });
+      const event = JSON.parse(body);
+      const sourceOrders = Array.isArray(event.payload) ? event.payload : [];
+      const orders = sourceOrders.filter(order => order && typeof order === "object").map(normalizeGlovoOrder);
+      mergeDeliveryOrders(orders);
+      if (orders.length) {
+        sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
+        persistStateFiles();
+        broadcast("delivery.updated", { source: "glovo", count: orders.length });
+      }
+      sendJson(response, 201, { ok: true, received: orders.length, ids: orders.map(order => order.id) });
+    }).catch(error => sendJson(response, error.code === "REQUEST_TOO_LARGE" ? 413 : 400, { ok: false, error: error.message }));
     return;
   }
   if (request.url === "/api/menu/refresh" && request.method === "POST") {

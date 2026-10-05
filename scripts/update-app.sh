@@ -16,9 +16,13 @@ git merge-base --is-ancestor HEAD origin/main || {
 
 state_backup="$backup_dir/ristorante-state.json"
 if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-  git checkout -- ristorante-state.json
+  if git ls-files --error-unmatch -- ristorante-state.json >/dev/null 2>&1; then
+    git checkout -- ristorante-state.json
+  fi
   git pull --ff-only origin main
-  cp -p "$state_backup" ristorante-state.json 2>/dev/null || true
+  if [[ -f "$state_backup" ]]; then
+    cp -p "$state_backup" ristorante-state.json
+  fi
 fi
 
 npm install --omit=dev

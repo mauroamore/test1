@@ -1168,6 +1168,10 @@ function mergeDeliveryOrders(newOrders) {
         : existing.source === "deliveroo" && order.source === "deliveroo"
           ? {
               ...existing,
+              deliveryDismissed: ["delivered", "consegnato", "collected", "ritirato", "completed", "completato"]
+                .includes(String(order.status || "").toLowerCase())
+                ? Boolean(existing.deliveryDismissed)
+                : false,
               status: order.status || existing.status,
               total: order.total ?? existing.total,
               currency: order.currency || existing.currency,

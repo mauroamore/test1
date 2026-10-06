@@ -167,3 +167,43 @@ test("uses Deliveroo's captured normalized prices when raw prices are absent", (
   assert.equal(order.total, 9);
   assert.equal(order.items[0].price, 9);
 });
+
+test("normalizes the real Deliveroo categories payload using restaurant subtotal and ASAP time", () => {
+  const payload = {
+    id: "51215730904",
+    drn_id: "d56ef371-cc32-40c2-a60a-bd0f875f30b9",
+    status: "accepted",
+    order_number: "0904",
+    subtotal: 21,
+    subtotal_after_substitutions: 21,
+    total: 26.01,
+    currency_code: "EUR",
+    ready_by: "2026-10-06T17:37:49Z",
+    placed_at: "2026-10-06T17:21:46Z",
+    asap: true,
+    allergy_note: "NO POSATE",
+    delivery_note: "Hôtel Agathae",
+    cutlery_requested: false,
+    categories: [
+      { name: "Antipasti", order_items: [{ id: 52790241647, quantity: 1, name: "3 Phopie Sod", unit_price: 7, total_unit_price: 7 }] },
+      { name: "Noodles", order_items: [{ id: 52790241648, quantity: 1, name: "16 Pad Si Yuu", unit_price: 14, total_unit_price: 14 }] }
+    ]
+  };
+  const catalog = new Map([
+    ["3", { id: 3, name: "3 Phopie Sod", price: 7, category: "Antipasti" }],
+    ["16", { id: 16, name: "16 Pad Si Yuu", price: 14, category: "Noodles" }]
+  ]);
+
+  const normalized = normalizeDeliverooOrder(payload, catalog);
+
+  assert.equal(normalized.externalOrderId, "d56ef371-cc32-40c2-a60a-bd0f875f30b9");
+  assert.equal(normalized.collectionCode, "0904");
+  assert.equal(normalized.total, 21);
+  assert.equal(normalized.currency, "EUR");
+  assert.equal(normalized.pickupTime, "Subito");
+  assert.deepEqual(normalized.items.map(item => item.name), ["3 Phopie Sod", "16 Pad Si Yuu"]);
+  assert.deepEqual(normalized.items.map(item => item.price), [7, 14]);
+  assert.deepEqual(normalized.items.map(item => item.category), ["Antipasti", "Noodles"]);
+  assert.match(normalized.notes, /NO POSATE/);
+  assert.match(normalized.notes, /Hôtel Agathae/);
+});

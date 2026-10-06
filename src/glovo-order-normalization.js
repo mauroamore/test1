@@ -57,11 +57,25 @@ function findCatalogItem(item, catalog, source = "Glovo") {
 }
 
 function normalizeDeliverooOrder(order, catalog, captured = {}) {
-  const externalId = String(order.id || order.drn_id || captured.sourceOrderId || "");
+  const externalId = String(order.drn_id || order.id || captured.sourceOrderId || "");
   if (!externalId) throw new Error("Ordine Deliveroo senza identificativo");
 
   const capturedItems = Array.isArray(captured.items) ? captured.items : [];
-  const sourceItems = Array.isArray(order.items) ? order.items : [];
+  const sourceItems = Array.isArray(order.items)
+    ? order.items
+    : (Array.isArray(order.categories) ? order.categories : []).flatMap(category =>
+      (Array.isArray(category.order_items) ? category.order_items : []).map(item => ({
+        ...item,
+        category: item.category || category.name
+      }))
+    );
+  const readMoney = value => {
+    if (value && typeof value === "object") {
+      const fractional = firstFiniteNumber(value.fractional);
+      return fractional === null ? null : fractional / 100;
+    }
+    return firstFiniteNumber(value);
+  };
   const lines = sourceItems.map((item, index) => {
     const capturedItem = capturedItems[index] || {};
     const originalName = String(item.name || capturedItem.sourceName || capturedItem.itemName || "Articolo Deliveroo");
@@ -70,10 +84,18 @@ function normalizeDeliverooOrder(order, catalog, captured = {}) {
     const dishName = String(capturedItem.itemName || (parsedName && parsedName[2]) || originalName);
     const catalogItem = findCatalogItem({ dishNumber, dishName, originalName }, catalog, "Deliveroo");
     const quantity = firstFiniteNumber(item.quantity, capturedItem.quantity, 1) || 1;
-    const totalCents = firstFiniteNumber(item.total_price?.fractional, capturedItem.totalPriceCents);
-    const unitCents = firstFiniteNumber(item.unit_price?.fractional, item.total_unit_price?.fractional, capturedItem.unitPriceCents);
-    let price = unitCents === null ? null : unitCents / 100;
-    if (price === null && totalCents !== null && quantity) price = totalCents / 100 / quantity;
+    const lineTotal = firstFiniteNumber(
+      readMoney(item.total_price),
+      readMoney(item.total_unit_price),
+      capturedItem.totalPriceCents === undefined ? null : Number(capturedItem.totalPriceCents) / 100
+    );
+    const unitPrice = firstFiniteNumber(
+      readMoney(item.unit_price),
+      readMoney(item.total_unit_price),
+      capturedItem.unitPriceCents === undefined ? null : Number(capturedItem.unitPriceCents) / 100
+    );
+    let price = unitPrice;
+    if (price === null && lineTotal !== null && quantity) price = lineTotal / quantity;
     if (price === null && catalogItem) price = Number(catalogItem.price);
     if (price === null || !Number.isFinite(price)) {
       throw new Error(`Prezzo non trovato nel menu Deliveroo: ${originalName}`);
@@ -95,7 +117,7 @@ function normalizeDeliverooOrder(order, catalog, captured = {}) {
       key: `deliveroo-${externalId}-${index}`,
       id: catalogItem ? catalogItem.id : dishNumber || item.id || `deliveroo-item-${index}`,
       name: originalName,
-      category: catalogItem && catalogItem.category || item.category_name || "Deliveroo",
+      category: catalogItem && catalogItem.category || item.category || item.category_name || "Deliveroo",
       price: Number(price.toFixed(4)),
       originalPrice: Number(price.toFixed(4)),
       qty: quantity,
@@ -109,15 +131,29 @@ function normalizeDeliverooOrder(order, catalog, captured = {}) {
     };
   });
 
-  const amountCents = firstFiniteNumber(order.amount?.fractional, captured.totalCents);
+  const itemTotal = firstFiniteNumber(
+    readMoney(order.subtotal_after_substitutions),
+    readMoney(order.subtotal),
+    captured.totalCents === undefined ? null : Number(captured.totalCents) / 100
+  );
   const lineTotals = sourceItems.map((item, index) => {
-    const cents = firstFiniteNumber(item.total_price?.fractional, capturedItems[index]?.totalPriceCents);
-    return cents === null ? lines[index].price * lines[index].qty : cents / 100;
+    const total = firstFiniteNumber(
+      readMoney(item.total_price),
+      readMoney(item.total_unit_price),
+      capturedItems[index]?.totalPriceCents === undefined ? null : Number(capturedItems[index].totalPriceCents) / 100
+    );
+    return total === null ? lines[index].price * lines[index].qty : total;
   });
-  const total = amountCents === null ? lineTotals.reduce((sum, value) => sum + value, 0) : amountCents / 100;
+  const total = itemTotal === null ? lineTotals.reduce((sum, value) => sum + value, 0) : itemTotal;
   const timeline = order.timeline && typeof order.timeline === "object" ? order.timeline : {};
   const capturedPrepareFor = captured.prepareFor || null;
   const capturedPlacedAt = captured.placedAt || null;
+  const notes = [
+    captured.customerNote,
+    order.allergy_note,
+    order.delivery_note,
+    order.cutlery_requested ? "Posate richieste" : null
+  ].filter(value => typeof value === "string" && value.trim());
 
   return {
     id: `deliveroo-${externalId}`,
@@ -127,16 +163,16 @@ function normalizeDeliverooOrder(order, catalog, captured = {}) {
     serviceType: "delivery",
     status: order.status || captured.status || "new",
     total: Number(total.toFixed(2)),
-    currency: order.amount?.currency_code || captured.currency || "EUR",
+    currency: order.amount?.currency_code || order.currency_code || captured.currency || "EUR",
     channel: "Deliveroo",
     collectionCode: String(order.order_number || captured.orderCode || externalId),
-    pickupTime: timeline.prepare_for || capturedPrepareFor,
-    notes: captured.customerNote || order.customer?.note || order.customer?.notes || "",
+    pickupTime: order.asap ? "Subito" : (order.ready_by || timeline.prepare_for || capturedPrepareFor),
+    notes: notes.join("\n"),
     items: lines,
     selectedCourse: 1,
     activeCourse: 1,
     kitchenClosed: false,
-    receivedAt: captured.observedAt || timeline.placed_at || capturedPlacedAt || new Date().toISOString(),
+    receivedAt: captured.observedAt || order.placed_at || timeline.placed_at || capturedPlacedAt || new Date().toISOString(),
     deliverooPayload: order
   };
 }

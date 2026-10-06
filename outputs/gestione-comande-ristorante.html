@@ -5251,8 +5251,24 @@
       if (!order.source) return `Tavolo ${order.id}${order.formerTableId ? ` (ex TV${order.formerTableId})` : ""}`;
       if (order.source === "glovo") return `Ordine Glovo #${escapeHtml(order.collectionCode || order.externalOrderId || order.id)}`;
       const channel = order.channel || (order.serviceType === "pickup" ? "Pick-up" : "Delivery");
-      const time = order.pickupTime ? ` · ${escapeHtml(order.pickupTime)}` : "";
+      const time = order.pickupTime ? ` · ${escapeHtml(formatItalianPickupTime(order.pickupTime))}` : "";
       return `${channel} · ${escapeHtml(order.customerName || order.id)}${time}`;
+    }
+
+    function formatItalianPickupTime(value) {
+      const text = String(value || "").trim();
+      if (!text || /^(subito|asap)$/i.test(text)) return text ? "Subito" : "";
+      if (/^\d{1,2}:\d{2}$/.test(text)) return text;
+      const date = new Date(text);
+      if (Number.isNaN(date.getTime())) return text;
+      return new Intl.DateTimeFormat("it-IT", {
+        timeZone: "Europe/Rome",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(date);
     }
 
     function itemsTotal(order) {
@@ -5930,7 +5946,7 @@
 
     function deliveryOrderTooltip(order) {
       const total = order.total != null ? `${Number(order.total).toFixed(2)} ${order.currency || "EUR"}` : "";
-      const pickup = order.pickupTime ? `Orario previsto: ${order.pickupTime}` : "Orario previsto: non indicato";
+      const pickup = order.pickupTime ? `Orario previsto: ${formatItalianPickupTime(order.pickupTime)}` : "Orario previsto: non indicato";
       return `${order.customerName || "Ordine delivery"} · ${order.channel || order.source || "Delivery"}\nStato: ${order.status || ""}\n${pickup}\nTotale: ${total}`;
     }
 
@@ -6706,7 +6722,7 @@
 
     function createCourseButton(order, course, deliveryOrder) {
       const label = deliveryOrder
-        ? `${deliveryOrder.channel || "Delivery"} ${deliveryOrder.collectionCode || deliveryOrder.customerName || deliveryOrder.id}${deliveryOrder.pickupTime ? ` · ${deliveryOrder.pickupTime}` : ""}`
+        ? `${deliveryOrder.channel || "Delivery"} ${deliveryOrder.collectionCode || deliveryOrder.customerName || deliveryOrder.id}${deliveryOrder.pickupTime ? ` · ${formatItalianPickupTime(deliveryOrder.pickupTime)}` : ""}`
         : courseLabel(course);
       const controls = document.createElement("div");
       controls.className = "course-controls";
@@ -9536,9 +9552,12 @@
           : order.total != null ? `${Number(order.total).toFixed(2)} ${order.currency || ""}` : "";
         const articleCount = displayItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         const sourceLabel = order.channel || order.source || order.serviceType || "Delivery";
-        const pickupLabel = order.pickupTime ? `<div class="small">Orario previsto: <strong>${escapeHtml(order.pickupTime)}</strong></div>` : "";
+        const pickupLabel = order.pickupTime ? `<div class="small">Orario previsto: <strong>${escapeHtml(formatItalianPickupTime(order.pickupTime))}</strong></div>` : "";
+        const orderName = order.source === "glovo"
+          ? orderTicketLabel(order)
+          : escapeHtml(order.customerName || "Ordine delivery");
         return `<div class="delivery-order ${deliveryOrderClass(order)}" data-order-id="${escapeHtml(order.id)}" data-tooltip="${escapeHtml(deliveryOrderTooltip(order))}" tabindex="0" title="Seleziona ordine">
-          <div class="name">${escapeHtml(order.customerName || "Ordine delivery")}${isDeliveryCompleted(order) ? ` <button class="ghost delivery-delete-btn" type="button" title="Rimuovi ordine consegnato" aria-label="Rimuovi ordine consegnato">×</button>` : ""}</div>
+          <div class="name">${orderName}${isDeliveryCompleted(order) ? ` <button class="ghost delivery-delete-btn" type="button" title="Rimuovi ordine consegnato" aria-label="Rimuovi ordine consegnato">×</button>` : ""}</div>
           <div class="small">Provenienza: <strong>${escapeHtml(sourceLabel)}</strong></div>
           ${pickupLabel}
           <div class="meta">Totale ordine: <strong>${escapeHtml(total || "0,00 EUR")}</strong></div>

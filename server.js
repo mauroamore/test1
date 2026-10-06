@@ -5,7 +5,7 @@ const path = require("path");
 const childProcess = require("child_process");
 const crypto = require("crypto");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
-const { normalizeGlovoOrder } = require("./src/glovo-order-normalization");
+const { normalizeGlovoOrder, normalizeDeliverooOrder } = require("./src/glovo-order-normalization");
 const { mergeMonitorFields, mergeMonitorFieldsInCollections } = require("./src/monitor-state-merge");
 const { activateCourse, completeAndArchivePreviousCourse } = require("./src/monitor-course-operations");
 const epsonFiscal = require("./EpsonFiscalClient.js");
@@ -1165,6 +1165,35 @@ function mergeDeliveryOrders(newOrders) {
       const existing = sharedState.deliveryOrders[index];
       sharedState.deliveryOrders[index] = existing.source === "hubrise"
         ? applyHubRiseStatusUpdate(existing, order)
+        : existing.source === "deliveroo" && order.source === "deliveroo"
+          ? {
+              ...existing,
+              status: order.status || existing.status,
+              total: order.total ?? existing.total,
+              currency: order.currency || existing.currency,
+              collectionCode: order.collectionCode || existing.collectionCode,
+              pickupTime: order.pickupTime || existing.pickupTime,
+              notes: order.notes || existing.notes,
+              deliverooPayload: order.deliverooPayload || existing.deliverooPayload,
+              items: order.items.map((line, lineIndex) => {
+                const previousItems = Array.isArray(existing.items) ? existing.items : [];
+                const previousLine = previousItems.find(item => item.key === line.key)
+                  || previousItems[lineIndex];
+                if (!previousLine) return line;
+                return {
+                  ...line,
+                  sentQty: previousLine.sentQty || 0,
+                  course: previousLine.course ?? line.course,
+                  noTurns: previousLine.noTurns ?? line.noTurns,
+                  kitchenStatus: previousLine.kitchenStatus,
+                  minusVariations: previousLine.minusVariations || line.minusVariations,
+                  plusVariations: previousLine.plusVariations || line.plusVariations
+                };
+              }),
+              selectedCourse: existing.selectedCourse ?? order.selectedCourse,
+              activeCourse: existing.activeCourse ?? order.activeCourse,
+              kitchenClosed: existing.kitchenClosed ?? order.kitchenClosed
+            }
         : order;
     }
     else sharedState.deliveryOrders.push(order);
@@ -1786,7 +1815,7 @@ const server = http.createServer((request, response) => {
     response.writeHead(204, {
       "Access-Control-Allow-Origin": response._corsOrigin,
       "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Update-Key, X-Api-Key"
+      "Access-Control-Allow-Headers": "Content-Type, X-Update-Key, X-Api-Key, X-Glovo-Key"
     });
     return response.end();
   }
@@ -1991,16 +2020,30 @@ const server = http.createServer((request, response) => {
       if (!GLOVO_ORDERS_KEY) return sendJson(response, 503, { ok: false, error: "GLOVO_ORDERS_KEY non impostata" });
       if (request.headers["x-glovo-key"] !== GLOVO_ORDERS_KEY) return sendJson(response, 401, { ok: false, error: "Chiave Glovo non valida" });
       const event = JSON.parse(body);
-      const sourceOrders = Array.isArray(event.payload) ? event.payload : [];
+      const source = String(event.source || "glovo").toLowerCase();
       const catalog = await loadSharedMenuCatalog();
-      const orders = sourceOrders.filter(order => order && typeof order === "object").map(order => normalizeGlovoOrder(order, catalog));
+      let orders;
+      if (source === "deliveroo") {
+        const sourceOrders = Array.isArray(event.payload?.orders) ? event.payload.orders : [];
+        const capturedOrders = Array.isArray(event.normalized?.orders) ? event.normalized.orders : [];
+        orders = sourceOrders
+          .filter(order => order && typeof order === "object")
+          .map((order, index) => normalizeDeliverooOrder(order, catalog, capturedOrders[index] || {}));
+      } else if (source === "glovo") {
+        const sourceOrders = Array.isArray(event.payload) ? event.payload : [];
+        orders = sourceOrders
+          .filter(order => order && typeof order === "object")
+          .map(order => normalizeGlovoOrder(order, catalog));
+      } else {
+        return sendJson(response, 400, { ok: false, error: `Provenienza ordine non supportata: ${source}` });
+      }
       mergeDeliveryOrders(orders);
       if (orders.length) {
         sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
         persistStateFiles();
-        broadcast("delivery.updated", { source: "glovo", count: orders.length });
+        broadcast("delivery.updated", { source, count: orders.length });
       }
-      sendJson(response, 201, { ok: true, received: orders.length, ids: orders.map(order => order.id) });
+      sendJson(response, 201, { ok: true, source, received: orders.length, ids: orders.map(order => order.id) });
     }).catch(error => sendJson(response,
       error.code === "REQUEST_TOO_LARGE" ? 413 : error.message.startsWith("Prezzo non trovato") ? 422 : 502,
       { ok: false, error: error.message }

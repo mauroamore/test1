@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { normalizeGlovoOrder } = require("../src/glovo-order-normalization");
+const { normalizeGlovoOrder, normalizeDeliverooOrder } = require("../src/glovo-order-normalization");
 
 const samplePayload = {
   source: "glovo",
@@ -86,4 +86,84 @@ test("rejects an item when neither the payload nor menu can provide its price", 
     () => normalizeGlovoOrder({ orderId: "abc", items: [{ dishName: "Prodotto sconosciuto", quantity: 1 }] }, new Map()),
     /Prezzo non trovato nel menu Glovo: Prodotto sconosciuto/
   );
+});
+
+test("normalizes Deliveroo order numbers, euro-cent prices, modifiers, and prepare time", () => {
+  const payload = {
+    id: "c8a585c6-e0ad-3a1c-a81d-6012142bdee7",
+    order_number: "5957",
+    status: "accepted",
+    amount: { fractional: 3400, currency_code: "EUR" },
+    timeline: { prepare_for: "2026-10-02T19:50:39+02:00" },
+    items: [
+      {
+        name: "11 Pad Thai Phak Sod",
+        quantity: 1,
+        unit_price: { fractional: 1200 },
+        total_price: { fractional: 1200 },
+        modifiers: []
+      },
+      {
+        name: "7 Phak Kung Tod",
+        quantity: 1,
+        unit_price: { fractional: 800 },
+        total_price: { fractional: 800 },
+        modifiers: [{ name: "Piccante" }]
+      },
+      {
+        name: "16 Pad Si Yuu",
+        quantity: 1,
+        unit_price: { fractional: 1400 },
+        total_price: { fractional: 1400 },
+        modifiers: []
+      }
+    ]
+  };
+  const catalog = new Map([
+    ["11", { id: 11, name: "11 Pad Thai Phak Sod", price: 12, category: "Noodles" }],
+    ["7", { id: 7, name: "7 Phak Kung Tod", price: 8, category: "Antipasti" }],
+    ["16", { id: 16, name: "16 Pad Si Yuu", price: 14, category: "Noodles" }]
+  ]);
+
+  const order = normalizeDeliverooOrder(payload, catalog, {
+    sourceOrderId: payload.id,
+    orderCode: payload.order_number,
+    totalCents: payload.amount.fractional,
+    currency: payload.amount.currency_code,
+    prepareFor: payload.timeline.prepare_for,
+    items: payload.items.map(item => ({
+      sourceName: item.name,
+      itemCode: item.name.split(" ")[0],
+      itemName: item.name.split(" ").slice(1).join(" "),
+      quantity: item.quantity,
+      unitPriceCents: item.unit_price.fractional,
+      totalPriceCents: item.total_price.fractional,
+      variations: item.modifiers
+    }))
+  });
+
+  assert.equal(order.id, `deliveroo-${payload.id}`);
+  assert.equal(order.source, "deliveroo");
+  assert.equal(order.collectionCode, "5957");
+  assert.equal(order.total, 34);
+  assert.equal(order.pickupTime, payload.timeline.prepare_for);
+  assert.deepEqual(order.items.map(item => item.price), [12, 8, 14]);
+  assert.deepEqual(order.items.map(item => item.id), [11, 7, 16]);
+  assert.equal(order.items[0].name, "11 Pad Thai Phak Sod");
+  assert.equal(order.items[1].lineNote, "Piccante");
+});
+
+test("uses Deliveroo's captured normalized prices when raw prices are absent", () => {
+  const order = normalizeDeliverooOrder({
+    id: "deliveroo-normalized-only",
+    order_number: "6001",
+    amount: { fractional: 900, currency_code: "EUR" },
+    items: [{ name: "11 Pad Thai Phak Sod", quantity: 1 }]
+  }, new Map(), {
+    items: [{ sourceName: "11 Pad Thai Phak Sod", itemCode: "11", itemName: "Pad Thai Phak Sod", quantity: 1, unitPriceCents: 900, totalPriceCents: 900 }]
+  });
+
+  assert.equal(order.collectionCode, "6001");
+  assert.equal(order.total, 9);
+  assert.equal(order.items[0].price, 9);
 });

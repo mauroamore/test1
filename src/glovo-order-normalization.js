@@ -19,7 +19,7 @@ function normalizeMenuName(value) {
     .trim();
 }
 
-function findCatalogItem(item, catalog) {
+function findCatalogItem(item, catalog, source = "Glovo") {
   if (!(catalog instanceof Map)) return null;
   const catalogId = String(item.catalogItemId || item.menuItemId || item.id || "").trim();
   if (catalogId && catalog.has(catalogId)) return catalog.get(catalogId);
@@ -31,7 +31,7 @@ function findCatalogItem(item, catalog) {
       return catalogCode && Number.parseInt(catalogCode[1], 10) === numericItemCode;
     });
     if (codeMatches.length === 1) return codeMatches[0];
-    if (codeMatches.length > 1) throw new Error(`Codice piatto Glovo ambiguo nel menu: ${itemCode}`);
+    if (codeMatches.length > 1) throw new Error(`Codice piatto ${source} ambiguo nel menu: ${itemCode}`);
   }
 
   const names = [item.dishName, item.name, item.product_name, item.originalName]
@@ -51,9 +51,94 @@ function findCatalogItem(item, catalog) {
   }
   if (matches.length > 1) {
     const name = item.dishName || item.name || item.product_name || item.originalName;
-    throw new Error(`Articolo Glovo ambiguo nel menu: ${name}`);
+    throw new Error(`Articolo ${source} ambiguo nel menu: ${name}`);
   }
   return matches[0] || null;
+}
+
+function normalizeDeliverooOrder(order, catalog, captured = {}) {
+  const externalId = String(order.id || order.drn_id || captured.sourceOrderId || "");
+  if (!externalId) throw new Error("Ordine Deliveroo senza identificativo");
+
+  const capturedItems = Array.isArray(captured.items) ? captured.items : [];
+  const sourceItems = Array.isArray(order.items) ? order.items : [];
+  const lines = sourceItems.map((item, index) => {
+    const capturedItem = capturedItems[index] || {};
+    const originalName = String(item.name || capturedItem.sourceName || capturedItem.itemName || "Articolo Deliveroo");
+    const parsedName = originalName.match(/^\s*(\d{1,3})\s+(.+)$/);
+    const dishNumber = String(capturedItem.itemCode || (parsedName && parsedName[1]) || "").trim() || null;
+    const dishName = String(capturedItem.itemName || (parsedName && parsedName[2]) || originalName);
+    const catalogItem = findCatalogItem({ dishNumber, dishName, originalName }, catalog, "Deliveroo");
+    const quantity = firstFiniteNumber(item.quantity, capturedItem.quantity, 1) || 1;
+    const totalCents = firstFiniteNumber(item.total_price?.fractional, capturedItem.totalPriceCents);
+    const unitCents = firstFiniteNumber(item.unit_price?.fractional, item.total_unit_price?.fractional, capturedItem.unitPriceCents);
+    let price = unitCents === null ? null : unitCents / 100;
+    if (price === null && totalCents !== null && quantity) price = totalCents / 100 / quantity;
+    if (price === null && catalogItem) price = Number(catalogItem.price);
+    if (price === null || !Number.isFinite(price)) {
+      throw new Error(`Prezzo non trovato nel menu Deliveroo: ${originalName}`);
+    }
+
+    const modifiers = Array.isArray(capturedItem.variations) && capturedItem.variations.length
+      ? capturedItem.variations
+      : Array.isArray(item.modifiers) ? item.modifiers : [];
+    const variations = modifiers.map(modifier => {
+      const name = String(modifier && (modifier.name || modifier.option_name) || "").trim();
+      if (!name) return "";
+      const modifierQuantity = Number(modifier.quantity || 1);
+      return modifierQuantity > 1 ? `${modifierQuantity}x ${name}` : name;
+    }).filter(Boolean);
+    const note = [item.note, item.instructions, item.special_instructions, item.comment]
+      .filter(value => typeof value === "string" && value.trim());
+
+    return {
+      key: `deliveroo-${externalId}-${index}`,
+      id: catalogItem ? catalogItem.id : dishNumber || item.id || `deliveroo-item-${index}`,
+      name: originalName,
+      category: catalogItem && catalogItem.category || item.category_name || "Deliveroo",
+      price: Number(price.toFixed(4)),
+      originalPrice: Number(price.toFixed(4)),
+      qty: quantity,
+      sentQty: 0,
+      course: 1,
+      noTurns: true,
+      kitchenStatus: undefined,
+      minusVariations: [],
+      plusVariations: [],
+      lineNote: [...variations, ...note].join(", ")
+    };
+  });
+
+  const amountCents = firstFiniteNumber(order.amount?.fractional, captured.totalCents);
+  const lineTotals = sourceItems.map((item, index) => {
+    const cents = firstFiniteNumber(item.total_price?.fractional, capturedItems[index]?.totalPriceCents);
+    return cents === null ? lines[index].price * lines[index].qty : cents / 100;
+  });
+  const total = amountCents === null ? lineTotals.reduce((sum, value) => sum + value, 0) : amountCents / 100;
+  const timeline = order.timeline && typeof order.timeline === "object" ? order.timeline : {};
+  const capturedPrepareFor = captured.prepareFor || null;
+  const capturedPlacedAt = captured.placedAt || null;
+
+  return {
+    id: `deliveroo-${externalId}`,
+    externalOrderId: externalId,
+    source: "deliveroo",
+    customerName: "Ordine Deliveroo",
+    serviceType: "delivery",
+    status: order.status || captured.status || "new",
+    total: Number(total.toFixed(2)),
+    currency: order.amount?.currency_code || captured.currency || "EUR",
+    channel: "Deliveroo",
+    collectionCode: String(order.order_number || captured.orderCode || externalId),
+    pickupTime: timeline.prepare_for || capturedPrepareFor,
+    notes: captured.customerNote || order.customer?.note || order.customer?.notes || "",
+    items: lines,
+    selectedCourse: 1,
+    activeCourse: 1,
+    kitchenClosed: false,
+    receivedAt: captured.observedAt || timeline.placed_at || capturedPlacedAt || new Date().toISOString(),
+    deliverooPayload: order
+  };
 }
 
 function normalizeGlovoOrder(order, catalog) {
@@ -140,4 +225,4 @@ function normalizeGlovoOrder(order, catalog) {
   };
 }
 
-module.exports = { normalizeGlovoOrder };
+module.exports = { normalizeGlovoOrder, normalizeDeliverooOrder };

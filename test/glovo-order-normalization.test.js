@@ -196,7 +196,7 @@ test("normalizes the real Deliveroo categories payload using restaurant subtotal
 
   const normalized = normalizeDeliverooOrder(payload, catalog);
 
-  assert.equal(normalized.externalOrderId, "d56ef371-cc32-40c2-a60a-bd0f875f30b9");
+  assert.equal(normalized.externalOrderId, "51215730904");
   assert.equal(normalized.collectionCode, "0904");
   assert.equal(normalized.total, 21);
   assert.equal(normalized.currency, "EUR");

@@ -57,7 +57,7 @@ function findCatalogItem(item, catalog, source = "Glovo") {
 }
 
 function normalizeDeliverooOrder(order, catalog, captured = {}) {
-  const externalId = String(order.drn_id || order.id || captured.sourceOrderId || "");
+  const externalId = String(order.id || order.drn_id || captured.sourceOrderId || "");
   if (!externalId) throw new Error("Ordine Deliveroo senza identificativo");
 
   const capturedItems = Array.isArray(captured.items) ? captured.items : [];

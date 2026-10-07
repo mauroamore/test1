@@ -5070,7 +5070,7 @@
                 return;
               }
               if (monitorBellEnabled() && ["order.created", "kitchen.status_changed"].includes(message.event)) playKitchenBell();
-              if (["state.updated", "order.created", "order.updated", "order.deleted", "table.updated", "kitchen.status_changed"].includes(message.event)) {
+              if (["state.updated", "order.created", "order.updated", "order.deleted", "table.updated", "kitchen.status_changed", "delivery.updated"].includes(message.event)) {
                 syncFromServer().then(() => refreshReservations());
               }
               if (message.event === "reservation.updated") {

@@ -127,6 +127,7 @@ let updateInProgress = false;
 let fiscalReceiptInProgress = false;
 let sigonellaPollInFlight = false;
 let statePushInFlight = false;
+let statePushQueue = Promise.resolve();
 let hubRisePollInFlight = false;
 let externalCommandPollInFlight = false;
 let reservationsPollInFlight = false;
@@ -1489,18 +1490,23 @@ async function pushStateSnapshotOnce() {
     monitorRuntimeStatus.remoteSync = "connected";
     monitorRuntimeStatus.remoteSyncLastOkAt = new Date().toISOString();
     monitorRuntimeStatus.remoteSyncLastError = null;
+    return true;
   } catch (error) {
     monitorRuntimeStatus.remoteSync = "error";
     monitorRuntimeStatus.remoteSyncLastError = error.message;
     monitorRuntimeStatus.remoteSyncLastErrorAt = new Date().toISOString();
     appendLog(RESTAURANT_SYNC_LOG, `${new Date().toISOString()} push_state ${error.message}\n`);
+    return false;
   }
 }
 
 async function pushStateSnapshot() {
-  if (statePushInFlight) return;
-  statePushInFlight = true;
-  try { await pushStateSnapshotOnce(); } finally { statePushInFlight = false; }
+  const operation = statePushQueue.then(async () => {
+    statePushInFlight = true;
+    try { return await pushStateSnapshotOnce(); } finally { statePushInFlight = false; }
+  });
+  statePushQueue = operation.catch(() => false);
+  return operation;
 }
 
 // Trova un ordine Pick-up manuale (mai un tavolo, mai un ordine HubRise: quelli restano di sola
@@ -2045,7 +2051,11 @@ const server = http.createServer((request, response) => {
       if (orders.length) {
         sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
         persistStateFiles();
-        broadcast("delivery.updated", { source, count: orders.length });
+        const eventData = { source, count: orders.length };
+        broadcastLocal("delivery.updated", eventData);
+        pushStateSnapshot().then(published => {
+          if (published) publishRealtimeEvent("delivery.updated", eventData);
+        });
       }
       sendJson(response, 201, { ok: true, source, received: orders.length, ids: orders.map(order => order.id) });
     }).catch(error => sendJson(response,

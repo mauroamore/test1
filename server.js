@@ -5,7 +5,7 @@ const path = require("path");
 const childProcess = require("child_process");
 const crypto = require("crypto");
 const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseShape } = require("./src/external-order-normalization");
-const { normalizeGlovoOrder, normalizeDeliverooOrder } = require("./src/glovo-order-normalization");
+const { normalizeGlovoOrder, normalizeDeliverooOrder, normalizeJustEatOrder } = require("./src/glovo-order-normalization");
 const { mergeMonitorFields, mergeMonitorFieldsInCollections } = require("./src/monitor-state-merge");
 const { activateCourse, completeAndArchivePreviousCourse } = require("./src/monitor-course-operations");
 const epsonFiscal = require("./EpsonFiscalClient.js");
@@ -2044,6 +2044,11 @@ const server = http.createServer((request, response) => {
         orders = sourceOrders
           .filter(order => order && typeof order === "object")
           .map(order => normalizeGlovoOrder(order, catalog));
+      } else if (source === "justeat") {
+        const sourceOrder = event.payload && typeof event.payload === "object" ? event.payload : null;
+        const captured = Array.isArray(event.normalized?.orders) ? event.normalized.orders[0] || {} : {};
+        if (!sourceOrder) throw new Error("Ordine Just Eat non valido");
+        orders = [normalizeJustEatOrder(sourceOrder, catalog, { ...captured, observedAt: event.observedAt })];
       } else {
         return sendJson(response, 400, { ok: false, error: `Provenienza ordine non supportata: ${source}` });
       }

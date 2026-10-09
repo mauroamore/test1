@@ -261,4 +261,74 @@ function normalizeGlovoOrder(order, catalog) {
   };
 }
 
-module.exports = { normalizeGlovoOrder, normalizeDeliverooOrder };
+function normalizeJustEatOrder(order, catalog, captured = {}) {
+  const externalId = String(order.id || captured.id || "");
+  if (!externalId) throw new Error("Ordine Just Eat senza identificativo");
+  const sourceItems = Array.isArray(order.orderItems) ? order.orderItems : [];
+  const capturedItems = Array.isArray(captured.items) ? captured.items : [];
+  const lines = sourceItems.map((item, index) => {
+    const capturedItem = capturedItems[index] || {};
+    const originalName = String(item.name || capturedItem.sourceName || capturedItem.itemName || "Articolo Just Eat");
+    const parsedName = originalName.match(/^\s*(\d{1,3})\s*[-–.]\s*(.+)$/);
+    const dishNumber = String(capturedItem.itemCode || (parsedName && parsedName[1]) || "").trim() || null;
+    const catalogItem = findCatalogItem({ catalogItemId: item.itemId, dishNumber, dishName: capturedItem.itemName || (parsedName && parsedName[2]) || originalName, originalName }, catalog, "Just Eat");
+    const unitCents = firstFiniteNumber(item.unitPrice, capturedItem.unitPriceCents);
+    let unitPrice = unitCents === null ? null : unitCents / 100;
+    if (unitPrice === null && catalogItem) unitPrice = firstFiniteNumber(catalogItem.price);
+    if (unitPrice === null) throw new Error(`Prezzo non trovato nel menu Just Eat: ${originalName}`);
+    const quantity = firstFiniteNumber(item.quantity, capturedItem.quantity, 1) || 1;
+    const subItems = Array.isArray(item.subItems) ? item.subItems : capturedItem.variations || [];
+    const variations = subItems.map(subItem => {
+      const name = String(subItem && (subItem.name || subItem.itemName) || "").trim();
+      if (!name) return "";
+      const subQuantity = Number(subItem.quantity || 1);
+      return subQuantity > 1 ? `${subQuantity}x ${name}` : name;
+    }).filter(Boolean);
+    return {
+      key: `justeat-${externalId}-${index}`,
+      id: catalogItem ? catalogItem.id : dishNumber || item.itemId || `justeat-item-${index}`,
+      name: originalName,
+      category: catalogItem && catalogItem.category || "Just Eat",
+      price: Number(unitPrice.toFixed(4)),
+      originalPrice: Number(unitPrice.toFixed(4)),
+      qty: quantity,
+      sentQty: 0,
+      course: 1,
+      noTurns: true,
+      kitchenStatus: undefined,
+      minusVariations: [],
+      plusVariations: [],
+      lineNote: variations.join(", ")
+    };
+  });
+  const totalCents = firstFiniteNumber(order.orderPrice, captured.totalCents);
+  const total = totalCents === null ? lines.reduce((sum, line) => sum + line.price * line.qty, 0) : totalCents / 100;
+  const friendlyId = String(order.friendlyId || captured.orderCode || externalId);
+  const notes = [order.orderNote, order.orderNotes && order.orderNotes.noteForRestaurant, order.orderNotes && order.orderNotes.noteForDelivery]
+    .filter(value => typeof value === "string" && value.trim());
+  const uniqueNotes = [...new Set(notes.map(value => value.trim()))];
+  const serviceType = String(order.serviceType || captured.serviceType || "");
+  const isCollection = /collection|pickup/i.test(serviceType);
+  return {
+    id: `justeat-${externalId}`,
+    externalOrderId: externalId,
+    source: "justeat",
+    customerName: `Ordine #${friendlyId}`,
+    serviceType: isCollection ? "pickup" : "delivery",
+    status: "new",
+    externalStatus: order.orderStatus || captured.orderStatus || null,
+    total: Number(total.toFixed(2)),
+    currency: order.currencyCode || captured.currency || "EUR",
+    channel: "Just Eat",
+    collectionCode: friendlyId,
+    pickupTime: order.dueDate || captured.dueDate || (order.promptAsap ? "Subito" : null),
+    notes: uniqueNotes.join("\n"),
+    items: lines,
+    selectedCourse: 1,
+    activeCourse: 1,
+    kitchenClosed: false,
+    receivedAt: captured.observedAt || order.placedDate || new Date().toISOString(),
+    justeatPayload: order
+  };
+}
+module.exports = { normalizeGlovoOrder, normalizeDeliverooOrder, normalizeJustEatOrder };

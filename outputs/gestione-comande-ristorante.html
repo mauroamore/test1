@@ -5255,6 +5255,7 @@
       if (!order.source) return `Tavolo ${order.id}${order.formerTableId ? ` (ex TV${order.formerTableId})` : ""}`;
       if (order.source === "glovo") return `Ordine Glovo #${escapeHtml(order.collectionCode || order.externalOrderId || order.id)}`;
       if (order.source === "deliveroo") return `Ordine Deliveroo #${escapeHtml(order.collectionCode || order.externalOrderId || order.id)}`;
+      if (order.source === "justeat") return `Ordine JustEat #${escapeHtml(order.collectionCode || order.externalOrderId || order.id)}`;
       const channel = order.channel || (order.serviceType === "pickup" ? "Pick-up" : "Delivery");
       const time = order.pickupTime ? ` · ${escapeHtml(formatItalianPickupTime(order.pickupTime))}` : "";
       return `${channel} · ${escapeHtml(order.customerName || order.id)}${time}`;
@@ -9566,7 +9567,7 @@
         const articleCount = displayItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         const sourceLabel = order.channel || order.source || order.serviceType || "Delivery";
         const pickupLabel = order.pickupTime ? `<div class="small">Orario previsto: <strong>${escapeHtml(formatItalianPickupTime(order.pickupTime))}</strong></div>` : "";
-        const orderName = ["glovo", "deliveroo"].includes(order.source)
+        const orderName = ["glovo", "deliveroo", "justeat"].includes(order.source)
           ? orderTicketLabel(order)
           : escapeHtml(order.customerName || "Ordine delivery");
         return `<div class="delivery-order ${deliveryOrderClass(order)}" data-order-id="${escapeHtml(order.id)}" data-tooltip="${escapeHtml(deliveryOrderTooltip(order))}" tabindex="0" title="Seleziona ordine">

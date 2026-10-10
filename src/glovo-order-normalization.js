@@ -322,7 +322,7 @@ function normalizeJustEatOrder(order, catalog, captured = {}) {
     id: `justeat-${externalId}`,
     externalOrderId: externalId,
     source: "justeat",
-    customerName: `Ordine #${friendlyId}`,
+    customerName: `Ordine JustEat #${friendlyId}`,
     serviceType: isCollection ? "pickup" : "delivery",
     status: "new",
     externalStatus: order.orderStatus || captured.orderStatus || null,

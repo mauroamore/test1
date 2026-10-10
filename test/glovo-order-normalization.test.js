@@ -221,6 +221,7 @@ test("keeps Just Eat delivery fees outside kitchen items and stores them for che
 
   assert.equal(order.fees, 2.5);
   assert.equal(order.total, 12);
+  assert.equal(order.customerName, "Ordine JustEat #456");
   assert.equal(order.items.length, 1);
   assert.equal(order.items[0].price, 12);
 });

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { normalizeGlovoOrder, normalizeDeliverooOrder } = require("../src/glovo-order-normalization");
+const { normalizeGlovoOrder, normalizeDeliverooOrder, normalizeJustEatOrder } = require("../src/glovo-order-normalization");
 
 const samplePayload = {
   source: "glovo",
@@ -206,4 +206,21 @@ test("normalizes the real Deliveroo categories payload using restaurant subtotal
   assert.deepEqual(normalized.items.map(item => item.category), ["Antipasti", "Noodles"]);
   assert.match(normalized.notes, /NO POSATE/);
   assert.match(normalized.notes, /Hôtel Agathae/);
+});
+
+test("keeps Just Eat delivery fees outside kitchen items and stores them for checkout", () => {
+  const order = normalizeJustEatOrder({
+    id: "justeat-fee-test",
+    friendlyId: "456",
+    serviceType: "delivery",
+    orderPrice: 1200,
+    orderItems: [{ itemId: "pad-thai", name: "11 Pad Thai", quantity: 1, unitPrice: 1200 }]
+  }, new Map([["pad-thai", { id: "pad-thai", name: "11 Pad Thai", price: 12 }]]), {
+    feesCents: 250
+  });
+
+  assert.equal(order.fees, 2.5);
+  assert.equal(order.total, 12);
+  assert.equal(order.items.length, 1);
+  assert.equal(order.items[0].price, 12);
 });

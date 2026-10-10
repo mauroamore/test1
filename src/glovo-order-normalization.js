@@ -303,6 +303,15 @@ function normalizeJustEatOrder(order, catalog, captured = {}) {
   });
   const totalCents = firstFiniteNumber(order.orderPrice, captured.totalCents);
   const total = totalCents === null ? lines.reduce((sum, line) => sum + line.price * line.qty, 0) : totalCents / 100;
+  const breakdownFees = order.orderPriceBreakdown?.fees;
+  const feeComponents = [order.deliveryPrice, order.updatedServiceFee ?? order.serviceFee, order.smallOrderFee, order.bagFee]
+    .map(value => value == null ? null : firstFiniteNumber(value))
+    .filter(value => value !== null);
+  const calculatedFeesCents = feeComponents.length ? feeComponents.reduce((sum, value) => sum + value, 0) : null;
+  const feesCents = breakdownFees != null
+    ? firstFiniteNumber(breakdownFees)
+    : calculatedFeesCents !== null ? calculatedFeesCents : firstFiniteNumber(order.feesCents, captured.feesCents);
+  const fees = feesCents === null ? null : Number((feesCents / 100).toFixed(2));
   const friendlyId = String(order.friendlyId || captured.orderCode || externalId);
   const notes = [order.orderNote, order.orderNotes && order.orderNotes.noteForRestaurant, order.orderNotes && order.orderNotes.noteForDelivery]
     .filter(value => typeof value === "string" && value.trim());
@@ -318,6 +327,7 @@ function normalizeJustEatOrder(order, catalog, captured = {}) {
     status: "new",
     externalStatus: order.orderStatus || captured.orderStatus || null,
     total: Number(total.toFixed(2)),
+    fees,
     currency: order.currencyCode || captured.currency || "EUR",
     channel: "Just Eat",
     collectionCode: friendlyId,

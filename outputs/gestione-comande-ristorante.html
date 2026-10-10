@@ -5193,12 +5193,16 @@
       const paymentMarkup = paymentSummary(order)
         ? `<div class="selected-order-adjustment"><span>Pagamento</span><strong>${escapeHtml(paymentSummary(order))}</strong></div>`
         : "";
+      const deliveryFees = deliveryFeesTotal(order);
+      const feesMarkup = deliveryFees > 0
+        ? `<div class="selected-order-adjustment"><span>Spese di consegna</span><span>${money.format(deliveryFees)}</span></div>`
+        : "";
       const rawActiveCourse = Number(order.activeCourse);
       const activeCourse = Number.isFinite(rawActiveCourse) && rawActiveCourse >= 0 ? courseNumber(rawActiveCourse) : null;
       const activeCourseMarkup = order.source || !lines.some(line => lineUsesTurns(line))
         ? ""
         : `<div class="selected-order-active-course">In cucina: <strong>${activeCourse === null ? "Nessuna" : courseLabel(activeCourse)}</strong></div>`;
-      body.innerHTML = `<div class="selected-order-meta"><strong>${escapeHtml(orderTicketLabel(order))}</strong><br>${escapeHtml(meta)}</div>${activeCourseMarkup}<div class="selected-order-lines">${groupedMarkup || `<div class="selected-order-empty">Nessun articolo.</div>`}</div>${order.notes ? `<div class="selected-order-notes">${escapeHtml(order.notes)}</div>` : ""}${discountMarkup}${paymentMarkup}<div class="selected-order-total"><span>Totale</span><span>${money.format(orderTotal(order) - discountCents / 100)}</span></div>`;
+      body.innerHTML = `<div class="selected-order-meta"><strong>${escapeHtml(orderTicketLabel(order))}</strong><br>${escapeHtml(meta)}</div>${activeCourseMarkup}<div class="selected-order-lines">${groupedMarkup || `<div class="selected-order-empty">Nessun articolo.</div>`}</div>${order.notes ? `<div class="selected-order-notes">${escapeHtml(order.notes)}</div>` : ""}${feesMarkup}${discountMarkup}${paymentMarkup}<div class="selected-order-total"><span>Totale</span><span>${money.format(orderTotal(order) - discountCents / 100)}</span></div>`;
       body.querySelectorAll(".selected-order-course-action").forEach(button => button.addEventListener("click", () => {
         activateCourse(order, Number(button.dataset.course));
       }));
@@ -5280,6 +5284,12 @@
       return Number(order.covers || 0) * Number(state.settings.coverCharge || 0);
     }
 
+    function deliveryFeesTotal(order) {
+      if (order.source !== "justeat" || order.serviceType !== "delivery") return 0;
+      const fees = Number(order.fees || 0);
+      return Number.isFinite(fees) ? fees : 0;
+    }
+
     function splitCoversTotal(order) {
       return Object.values(order.splitCovers || {}).reduce((sum, value) => sum + Number(value || 0), 0);
     }
@@ -5300,7 +5310,9 @@
     }
 
     function orderTotal(order) {
-      return order.items.reduce((sum, line) => sum + lineQuantity(line) * lineUnitPrice(line), 0) + coverTotal(order);
+      return order.items.reduce((sum, line) => sum + lineQuantity(line) * lineUnitPrice(line), 0)
+        + coverTotal(order)
+        + deliveryFeesTotal(order);
     }
 
     function paymentAccountTotal(order, account) {

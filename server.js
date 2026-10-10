@@ -121,6 +121,7 @@ const LOCAL_AUTH_PASSWORD = process.env.LOCAL_AUTH_PASSWORD || LOCAL_API_KEY;
 const localSessions = new Map();
 const SERVICE_NAME = process.env.SERVICE_NAME || "gestione-comande.service";
 const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
+const RESERVATIONS_API_URL = process.env.RESERVATIONS_API_URL || `${REMOTE_BASE_URL}/ReservationsDb.ashx`;
 const clients = new Set();
 const tableLocks = new Map();
 let updateInProgress = false;
@@ -988,13 +989,18 @@ function reservationIdentity(reservation) {
 
 function reservationTableIds(reservation) {
   if (!reservation) return [];
-  if (Array.isArray(reservation.tableIds)) return reservation.tableIds.map(Number).filter(Number.isFinite);
-  try {
-    const parsed = reservation.notes == null || reservation.notes === "" ? [] : JSON.parse(reservation.notes);
-    return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isFinite) : [];
-  } catch (_) {
-    return [];
+  let source = reservation.tableIds;
+  if (!Array.isArray(source)) {
+    try {
+      source = reservation.notes == null || reservation.notes === "" ? [] : JSON.parse(reservation.notes);
+    } catch (_) {
+      source = [];
+    }
   }
+  if (Array.isArray(source)) {
+    return [...new Set(source.map(Number).filter(value => Number.isSafeInteger(value) && value > 0))];
+  }
+  return [];
 }
 
 function createOperationalTable(tableId) {
@@ -1052,7 +1058,7 @@ function reconcileReservationOnLocalState(reservation) {
 }
 
 async function pollReservationsOnce() {
-  const response = await fetch(`${REMOTE_BASE_URL}/Sigonella.aspx/GetReservations`, {
+  const response = await fetch(`${RESERVATIONS_API_URL}?method=GetReservations`, {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json" },
     body: JSON.stringify({ data: new Date().toISOString().slice(0, 10) })
@@ -1113,7 +1119,7 @@ function handleReservationsProxy(request, response) {
   if (!allowed.has(method)) return sendJson(response, 400, { error: "Metodo prenotazioni non valido" });
   readRequestBody(request).then(async body => {
     try {
-      const upstream = await fetch(`${REMOTE_BASE_URL}/Sigonella.aspx/${method}`, {
+      const upstream = await fetch(`${RESERVATIONS_API_URL}?method=${encodeURIComponent(method)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json" },
         body: body || "{}"

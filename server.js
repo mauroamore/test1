@@ -1172,40 +1172,22 @@ function mergeDeliveryOrders(newOrders) {
       const existing = sharedState.deliveryOrders[index];
       sharedState.deliveryOrders[index] = existing.source === "hubrise"
         ? applyHubRiseStatusUpdate(existing, order)
-        : existing.source === "deliveroo" && order.source === "deliveroo"
+        : ["glovo", "deliveroo", "justeat"].includes(existing.source) && existing.source === order.source
           ? {
               ...existing,
-              deliveryDismissed: ["delivered", "consegnato", "collected", "ritirato", "completed", "completato"]
-                .includes(String(order.status || "").toLowerCase())
-                ? Boolean(existing.deliveryDismissed)
-                : false,
-              status: order.status || existing.status,
-              total: order.total ?? existing.total,
-              currency: order.currency || existing.currency,
-              collectionCode: order.collectionCode || existing.collectionCode,
-              pickupTime: order.pickupTime || existing.pickupTime,
-              notes: order.notes || existing.notes,
+              ...(existing.source !== "justeat" && order.status ? { status: order.status } : {}),
+              ...(existing.source === "deliveroo" ? {
+                deliveryDismissed: ["delivered", "consegnato", "collected", "ritirato", "completed", "completato"]
+                  .includes(String(order.externalStatus || order.status || "").toLowerCase())
+                  ? Boolean(existing.deliveryDismissed)
+                  : false
+              } : {}),
+              externalStatus: order.externalStatus || existing.externalStatus,
+              glovoPayload: order.glovoPayload || existing.glovoPayload,
               deliverooPayload: order.deliverooPayload || existing.deliverooPayload,
-              items: order.items.map((line, lineIndex) => {
-                const previousItems = Array.isArray(existing.items) ? existing.items : [];
-                const previousLine = previousItems.find(item => item.key === line.key)
-                  || previousItems[lineIndex];
-                if (!previousLine) return line;
-                return {
-                  ...line,
-                  sentQty: previousLine.sentQty || 0,
-                  course: previousLine.course ?? line.course,
-                  noTurns: previousLine.noTurns ?? line.noTurns,
-                  kitchenStatus: previousLine.kitchenStatus,
-                  minusVariations: previousLine.minusVariations || line.minusVariations,
-                  plusVariations: previousLine.plusVariations || line.plusVariations
-                };
-              }),
-              selectedCourse: existing.selectedCourse ?? order.selectedCourse,
-              activeCourse: existing.activeCourse ?? order.activeCourse,
-              kitchenClosed: existing.kitchenClosed ?? order.kitchenClosed
+              justeatPayload: order.justeatPayload || existing.justeatPayload
             }
-        : order;
+          : order;
     }
     else sharedState.deliveryOrders.push(order);
   }
@@ -2037,6 +2019,41 @@ const server = http.createServer((request, response) => {
       if (request.headers["x-glovo-key"] !== GLOVO_ORDERS_KEY) return sendJson(response, 401, { ok: false, error: "Chiave Glovo non valida" });
       const event = JSON.parse(body);
       const source = String(event.source || "glovo").toLowerCase();
+      if (["glovo", "deliveroo", "justeat"].includes(source) && event.eventType === "status-update") {
+        const rawOrder = source === "glovo"
+          ? (Array.isArray(event.payload) ? event.payload[0] : null)
+          : source === "deliveroo"
+            ? (Array.isArray(event.payload?.orders) ? event.payload.orders[0] : null)
+            : event.payload;
+        const externalId = String(source === "glovo"
+          ? rawOrder?.externalId || rawOrder?.external_order_id || rawOrder?.orderId || rawOrder?.order_id || rawOrder?.id || ""
+          : rawOrder?.id || "");
+        const externalStatus = String(source === "glovo"
+          ? rawOrder?.state || rawOrder?.status || ""
+          : source === "deliveroo" ? rawOrder?.status || "" : rawOrder?.orderStatus || "").trim();
+        const existingOrder = sharedState?.deliveryOrders?.find(order =>
+          order.source === source && String(order.externalOrderId || "") === externalId
+        );
+        if (!existingOrder) {
+          return sendJson(response, 409, { ok: false, error: "Ordine non ancora ricevuto; aggiornamento da ritentare." });
+        }
+        const statusChanged = Boolean(externalStatus && externalStatus !== existingOrder.externalStatus);
+        if (statusChanged) {
+          existingOrder.externalStatus = externalStatus;
+          if (source !== "justeat") existingOrder.status = externalStatus;
+          if (source === "glovo") existingOrder.glovoPayload = rawOrder;
+          if (source === "deliveroo") existingOrder.deliverooPayload = rawOrder;
+          if (source === "justeat") existingOrder.justeatPayload = rawOrder;
+          sharedState.stateRevision = Number(sharedState.stateRevision || 0) + 1;
+          persistStateFiles();
+          const eventData = { source, count: 1, statusChanged: true };
+          broadcastLocal("delivery.updated", eventData);
+          pushStateSnapshot().then(published => {
+            if (published) publishRealtimeEvent("delivery.updated", eventData);
+          });
+        }
+        return sendJson(response, 200, { ok: true, source, updated: statusChanged, ids: [existingOrder.id] });
+      }
       const catalog = await loadSharedMenuCatalog();
       let orders;
       if (source === "deliveroo") {
@@ -2044,12 +2061,18 @@ const server = http.createServer((request, response) => {
         const capturedOrders = Array.isArray(event.normalized?.orders) ? event.normalized.orders : [];
         orders = sourceOrders
           .filter(order => order && typeof order === "object")
-          .map((order, index) => normalizeDeliverooOrder(order, catalog, capturedOrders[index] || {}));
+          .map((order, index) => ({
+            ...normalizeDeliverooOrder(order, catalog, capturedOrders[index] || {}),
+            externalStatus: order.status || capturedOrders[index]?.status || null
+          }));
       } else if (source === "glovo") {
         const sourceOrders = Array.isArray(event.payload) ? event.payload : [];
         orders = sourceOrders
           .filter(order => order && typeof order === "object")
-          .map(order => normalizeGlovoOrder(order, catalog));
+          .map(order => ({
+            ...normalizeGlovoOrder(order, catalog),
+            externalStatus: order.state || order.status || null
+          }));
       } else if (source === "justeat") {
         const sourceOrder = event.payload && typeof event.payload === "object" ? event.payload : null;
         const captured = Array.isArray(event.normalized?.orders) ? event.normalized.orders[0] || {} : {};

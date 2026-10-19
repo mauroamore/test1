@@ -2146,9 +2146,9 @@ const server = http.createServer((request, response) => {
           const isTableOrder = !incomingOrder.source;
           if (!isManualPickup && !isTableOrder) return sendJson(response, 403, { ok: false, error: "Tipo di comanda non autorizzato" });
           if (isTableOrder) {
-            const table = (sharedState.tables || []).find(item => String(item.id) === orderId);
             const lock = tableLocks.get(orderId);
-            if (!table || !lock || lock.token !== String(payload.lockToken || "") || lock.lockId !== String(payload.lockId || "") || lock.expiresAt <= Date.now()) {
+            // A free table has no order record yet: its first commit creates it below.
+            if (!lock || lock.token !== String(payload.lockToken || "") || lock.lockId !== String(payload.lockId || "") || lock.expiresAt <= Date.now()) {
               return sendJson(response, 409, { ok: false, stale: true, lockExpired: true, state: stateForClient(sharedState), stateRevision: currentRevision });
             }
           }

@@ -4586,7 +4586,13 @@
         localOrderDraftBaseRevision = backupBaseRevision;
         persistLocalOrderDraft();
         render();
-        alert("La comanda è cambiata su un'altra istanza. L'invio è stato bloccato e la bozza resta su questo dispositivo.");
+        const failure = response ? await response.json().catch(() => ({})) : {};
+        const reason = !response ? "Il server non e' raggiungibile."
+          : response.status === 401 ? "L'accesso al server e' scaduto: accedi nuovamente."
+          : failure.lockExpired ? "Il blocco della comanda non e' piu' valido: chiudi e riapri la comanda."
+          : failure.orderConflict ? "La comanda e' stata modificata da un'altra istanza."
+          : failure.error || `Invio non riuscito (HTTP ${response.status}).`;
+        alert(`${reason} L'invio non e' stato effettuato e la bozza resta su questo dispositivo.`);
         return false;
       }
       return true;
@@ -9738,9 +9744,17 @@
       // Il clone deve precedere markLinesSentToKitchen(): la routine di stampa
       // calcola le quantita' nuove sottraendo sentQty.
       const orderToPrint = structuredClone(order);
+      const activationOrderBeforeSend = structuredClone(state.courseActivationOrder || []);
       markLinesSentToKitchen(order);
       order.status = "Preparazione";
-      if (!(await publishLocalOrderDraft(order))) return false;
+      if (!(await publishLocalOrderDraft(order))) {
+        Object.assign(order, orderToPrint);
+        state.courseActivationOrder = activationOrderBeforeSend;
+        if (String(localOrderDraftId) === String(order.id)) localOrderDraft = order;
+        persistLocalOrderDraft();
+        renderOrder();
+        return false;
+      }
       // La stampa sui monitor non deve ritardare la chiusura della comanda:
       // una stampante offline puo' impiegare diversi secondi prima del timeout.
       printOrderToConfiguredMonitors(orderToPrint).catch(error => {

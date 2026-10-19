@@ -8,6 +8,7 @@ const { normalizeHubRiseOrder, applyHubRiseStatusUpdate, migrateStateToHubRiseSh
 const { normalizeGlovoOrder, normalizeDeliverooOrder, normalizeJustEatOrder } = require("./src/glovo-order-normalization");
 const { mergeMonitorFields, mergeMonitorFieldsInCollections } = require("./src/monitor-state-merge");
 const { activateCourse, completeAndArchivePreviousCourse } = require("./src/monitor-course-operations");
+const { TableLockStore } = require("./src/table-locks");
 const epsonFiscal = require("./EpsonFiscalClient.js");
 let printGraphicPreconto;
 let buildGraphicPreconto;
@@ -123,7 +124,8 @@ const SERVICE_NAME = process.env.SERVICE_NAME || "gestione-comande.service";
 const RESERVATIONS_REMOTE_URL = process.env.RESERVATIONS_REMOTE_URL || `${REMOTE_BASE_URL}/ReservationsNew.html`;
 const RESERVATIONS_API_URL = process.env.RESERVATIONS_API_URL || `${REMOTE_BASE_URL}/ReservationsDb.ashx`;
 const clients = new Set();
-const tableLocks = new Map();
+const TABLE_LOCK_TTL_MS = 15000;
+const tableLocks = new TableLockStore({ ttlMs: TABLE_LOCK_TTL_MS });
 let updateInProgress = false;
 let fiscalReceiptInProgress = false;
 let sigonellaPollInFlight = false;
@@ -141,7 +143,6 @@ const monitorRuntimeStatus = {
   remoteSyncLastError: null,
   remoteSyncLastErrorAt: null
 };
-const TABLE_LOCK_TTL_MS = 15000;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || "").split(",").map(origin => origin.trim()).filter(Boolean));
 const ALLOW_INSECURE_LOCAL_API = process.env.ALLOW_INSECURE_LOCAL_API === "1";
@@ -261,16 +262,7 @@ const routeTable = new Map([
     packageVersion: require("./package.json").version
   })],
   ["GET /api/table-locks", (_request, response) => {
-    const now = Date.now();
-    const locks = {};
-    for (const [tableId, current] of tableLocks.entries()) {
-      if (current.expiresAt <= now) {
-        current.status = "scaduto";
-        continue;
-      }
-      locks[String(tableId)] = { status: "attivo", expiresAt: current.expiresAt };
-    }
-    return sendJson(response, 200, { locks });
+    return sendJson(response, 200, { locks: tableLocks.list() });
   }],
   ["GET /api/table-lock", (request, response) => {
     const tableId = new URL(request.url, "http://localhost").searchParams.get("tableId");
@@ -281,7 +273,7 @@ const routeTable = new Map([
       current.status = "scaduto";
       return sendJson(response, 200, { locked: false, status: "scaduto", expiresAt: current.expiresAt });
     }
-    return sendJson(response, 200, { locked: true, status: "attivo", expiresAt: current.expiresAt });
+    return sendJson(response, 200, { locked: true, ...tableLocks.summary(current) });
   }],
   ["GET /api/fiscal-receipts", handleFiscalReceiptHistory],
   ["GET /api/fiscal-receipts/sync-status", (_request, response) => syncPendingFiscalReceipts().then(() => {
@@ -1923,30 +1915,17 @@ const server = http.createServer((request, response) => {
         const tableId = String(input.tableId || "");
         const token = String(input.token || "");
         if (!tableId || !token) return sendJson(response, 400, { ok: false, error: "tableId e token sono obbligatori" });
-        const current = tableLocks.get(tableId);
-        const now = Date.now();
         if (request.method === "DELETE") {
-          if (current && current.token === token) tableLocks.delete(tableId);
+          tableLocks.release({ tableId, token, lockId: input.lockId });
           return sendJson(response, 200, { ok: true });
         }
-        if (current && current.expiresAt > now) {
-          if (current.token !== token) {
-            return sendJson(response, 409, { ok: false, locked: true, status: "attivo", expiresAt: current.expiresAt });
-          }
-          current.status = "attivo";
-          current.expiresAt = now + TABLE_LOCK_TTL_MS;
-          return sendJson(response, 200, { ok: true, lockId: current.lockId, status: current.status, expiresAt: current.expiresAt });
-        }
-        if (current && current.expiresAt <= now) current.status = "scaduto";
-        if (current && current.status === "scaduto" && current.token === token) {
-          current.status = "attivo";
-          current.expiresAt = now + TABLE_LOCK_TTL_MS;
-          return sendJson(response, 200, { ok: true, lockId: current.lockId, status: current.status, expiresAt: current.expiresAt });
-        }
-        if (current) current.status = "decaduto";
-        const lockId = "lease-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
-        tableLocks.set(tableId, { token, lockId, status: "attivo", expiresAt: now + TABLE_LOCK_TTL_MS });
-        sendJson(response, 200, { ok: true, lockId, status: "attivo", expiresAt: now + TABLE_LOCK_TTL_MS });
+        const result = tableLocks.acquire({
+          tableId, token,
+          lockId: input.lockId ? String(input.lockId) : null,
+          replaceLockId: input.replaceLockId ? String(input.replaceLockId) : null,
+          explicitAcquire: input.explicitAcquire === true
+        });
+        sendJson(response, result.ok ? 200 : 409, result);
       } catch (error) {
         sendJson(response, 400, { ok: false, error: "Lock non valido" });
       }

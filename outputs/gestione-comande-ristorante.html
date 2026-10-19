@@ -2955,6 +2955,10 @@
     <div class="modal-head"><h2>Modifiche non inviate</h2><button class="icon-btn" id="unsentCloseBtn" type="button" title="Torna alla comanda">×</button></div>
     <div class="modal-content"><p>Ci sono modifiche non ancora salvate. Vuoi inviarle?</p><div class="row"><button class="ghost" id="discardChangesBtn" type="button">Annulla modifiche</button><button class="primary" id="sendPendingBtn" type="button">Invia modifiche</button></div></div>
   </dialog>
+  <dialog class="label-modal" id="tableLockTakeoverModal">
+    <div class="modal-head"><h2>Comanda bloccata</h2><button class="icon-btn" id="tableLockTakeoverCloseBtn" type="button" title="Annulla" aria-label="Annulla">&#215;</button></div>
+    <div class="modal-content"><p id="tableLockTakeoverText"></p><p>Le modifiche non inviate dall'altro dispositivo resteranno nella sua bozza e non verranno trasferite.</p><div class="row"><button class="ghost" id="tableLockTakeoverCancelBtn" type="button">Annulla</button><button class="primary" id="tableLockTakeoverConfirmBtn" type="button">Sblocca e apri</button></div></div>
+  </dialog>
   <dialog class="label-modal" id="sigonellaUpdateModal">
     <div class="modal-head"><h2>Ordine Sigonella modificato</h2><button class="icon-btn" id="sigonellaUpdateCloseBtn" type="button" title="Torna alla comanda">×</button></div>
     <div class="modal-content"><p>Il prezzo o gli articoli dell'ordine sono cambiati. Vuoi inviare l'aggiornamento al cliente?</p><div class="row"><button class="ghost" id="sigonellaUpdateSkipBtn" type="button">Chiudi senza inviare</button><button class="primary" id="sigonellaUpdateSendBtn" type="button">Invia aggiornamento</button></div></div>
@@ -3044,6 +3048,7 @@
         <button class="ghost" id="orderBurgerBtn" type="button" title="Menu" aria-label="Menu" hidden>&#9776;</button>
         <div class="order-head-info">
           <h2 id="currentTitle">Tavolo 1</h2>
+          <div id="tableLockNotice" class="login-error" role="alert" hidden></div>
           <div class="table-toggle-row" id="tableToggles" aria-label="Tavoli associati"></div>
         </div>
         <div class="small" id="orderCount">0 articoli</div>
@@ -4266,8 +4271,37 @@
       renderTables();
     }
 
-    async function acquireTableLock(tableId) {
+    function confirmTableLockTakeover(tableId) {
+      const modal = document.getElementById("tableLockTakeoverModal");
+      if (modal.open) return Promise.resolve(false);
+      const order = findOrderById(tableId);
+      document.getElementById("tableLockTakeoverText").textContent = `${order ? tableDisplayName(order) : "Questa comanda"} risulta in modifica su un altro dispositivo. Vuoi sbloccarla e aprirla qui?`;
+      return new Promise(resolve => {
+        modal.returnValue = "cancel";
+        modal.addEventListener("close", () => resolve(modal.returnValue === "confirm"), { once: true });
+        document.getElementById("tableLockTakeoverCloseBtn").onclick = () => modal.close("cancel");
+        document.getElementById("tableLockTakeoverCancelBtn").onclick = () => modal.close("cancel");
+        document.getElementById("tableLockTakeoverConfirmBtn").onclick = () => modal.close("confirm");
+        modal.showModal();
+      });
+    }
+
+    function markTableLockLost() {
+      tableLockLost = true;
+      tableLockGeneration += 1;
+      tableLockLeaseId = null;
+      clearInterval(tableLockTimer);
+      tableLockTimer = null;
+      persistLocalOrderDraft();
+      const notice = document.getElementById("tableLockNotice");
+      notice.textContent = "Comanda sbloccata da un altro dispositivo. La tua bozza resta qui: chiudi e riapri la comanda prima di inviare.";
+      notice.hidden = false;
+      document.getElementById("sendBtn").disabled = true;
+    }
+
+    async function acquireTableLock(tableId, { renew = false, replaceLockId = null } = {}) {
       if (REMOTE_MODE) return true;
+      if (renew && tableLockLost) return false;
       // La chiusura del modal rilascia il lock in modo asincrono. Una nuova
       // apertura deve attendere quel DELETE, altrimenti POST e DELETE possono
       // arrivare al server in ordine inverso.
@@ -4279,11 +4313,15 @@
       }
       const requestGeneration = tableLockGeneration;
       const requestedTableId = String(tableId);
+      const ownsLock = lockedTableId !== null && String(lockedTableId) === requestedTableId;
       try {
         const response = await fetch("/api/table-lock", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tableId, token: INSTANCE_LOCK_TOKEN })
+          body: JSON.stringify({ tableId, token: INSTANCE_LOCK_TOKEN,
+            lockId: ownsLock ? tableLockLeaseId : null,
+            replaceLockId,
+            explicitAcquire: !renew && !ownsLock })
         });
         if (response.ok) {
           const lease = await response.json();
@@ -4293,7 +4331,7 @@
             fetch("/api/table-lock", {
               method: "DELETE",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tableId, token: INSTANCE_LOCK_TOKEN }),
+              body: JSON.stringify({ tableId, token: INSTANCE_LOCK_TOKEN, lockId: lease.lockId }),
               keepalive: true
             }).catch(() => {});
             return false;
@@ -4301,24 +4339,43 @@
           lockedTableId = tableId;
           tableLockLeaseId = lease.lockId || null;
           tableLockLost = false;
+          document.getElementById("tableLockNotice").hidden = true;
+          visibleLockedTables.delete(requestedTableId);
           clearInterval(tableLockTimer);
-          tableLockTimer = setInterval(() => acquireTableLock(tableId), 5000);
+          tableLockTimer = setInterval(() => acquireTableLock(tableId, { renew: true }), 5000);
+          if (replaceLockId) await syncFromServer();
           return true;
         }
-        if (response.status === 409) alert("Il tavolo è già aperto da un'altra istanza.");
-        else alert(`Impossibile bloccare il tavolo (HTTP ${response.status}). Riavvia il server e riprova.`);
-        if (lockedTableId === tableId) tableLockLost = true;
+        if (requestGeneration !== tableLockGeneration) return false;
+        if (response.status === 409) {
+          if (ownsLock || renew) {
+            markTableLockLost();
+          } else if (!replaceLockId) {
+            const conflict = await response.json();
+            if (!conflict.lockId) {
+              alert("Lo sblocco richiede anche l'aggiornamento del server Node.");
+              return false;
+            }
+            if (await confirmTableLockTakeover(tableId)) {
+              if (requestGeneration !== tableLockGeneration) return false;
+              return acquireTableLock(tableId, { replaceLockId: conflict.lockId });
+            }
+          } else {
+            alert("Il blocco della comanda e' cambiato durante la conferma. Riapri il tavolo e riprova.");
+          }
+        } else if (!renew) alert(`Impossibile bloccare la comanda (HTTP ${response.status}).`);
       } catch {
-        alert("Impossibile raggiungere il server del lock. Riavvia il server e riprova.");
+        if (!renew) alert("Impossibile raggiungere il server del lock. Riprova.");
       }
       return false;
     }
 
     async function ensureTableLockForSend() {
       if (REMOTE_MODE || !localOrderDraftId) return true;
-      const acquired = await acquireTableLock(localOrderDraftId);
+      if (tableLockLost) return false;
+      const acquired = await acquireTableLock(localOrderDraftId, { renew: true });
       if (!acquired) {
-        alert("Il lock del tavolo è scaduto o il tavolo è stato aperto da un'altra istanza. La bozza resta salvata su questo dispositivo.");
+        if (!tableLockLost) alert("Il lock del tavolo è scaduto o il tavolo è stato aperto da un'altra istanza. La bozza resta salvata su questo dispositivo.");
         return false;
       }
       return true;
@@ -4327,15 +4384,18 @@
     function releaseTableLock() {
       if (REMOTE_MODE || lockedTableId === null) return Promise.resolve();
       const tableId = lockedTableId;
+      const lockId = tableLockLeaseId;
       tableLockGeneration += 1;
       lockedTableId = null;
       tableLockLeaseId = null;
+      tableLockLost = false;
+      document.getElementById("tableLockNotice").hidden = true;
       clearInterval(tableLockTimer);
       tableLockTimer = null;
       const releaseRequest = fetch("/api/table-lock", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableId, token: INSTANCE_LOCK_TOKEN }),
+        body: JSON.stringify({ tableId, token: INSTANCE_LOCK_TOKEN, lockId }),
         keepalive: true
       }).catch(() => {});
       tableLockReleaseInFlight = releaseRequest;
@@ -7189,7 +7249,9 @@
             return;
           }
           const mainTableId = owner && (owner.occupied || owner.items.length) ? owner.id : table.id;
-          if (!PALMARE_MODE) {
+          if (visibleLockedTables.has(String(mainTableId))) {
+            openOrderModal(mainTableId).catch(error => alert(`Errore apertura tavolo: ${error.message || error}`));
+          } else if (!PALMARE_MODE) {
             selectDesktopOrder(mainTableId);
             if (isFree) openOrderModal(mainTableId).catch(error => alert(`Errore apertura tavolo: ${error.message || error}`));
           } else openOrderModal(mainTableId).catch(error => alert(`Errore apertura tavolo: ${error.message || error}`));
@@ -8110,7 +8172,7 @@
 
       // "Invia" ha senso solo se c'e' qualcosa di nuovo da mandare in cucina rispetto
       // all'ultimo invio (altrimenti sarebbe un reinvio a vuoto) - vale ovunque, locale e remoto.
-      document.getElementById("sendBtn").disabled = !hasUnsentChanges(order);
+      document.getElementById("sendBtn").disabled = !hasUnsentChanges(order) || (!REMOTE_MODE && tableLockLost);
 
       // Modalita' esterna: tavoli-uniti/split/"Pronta"/"Consegnato" restano sempre solo LAN; su
       // un Pick-up manuale restano attivi anche piatti/quantita'/note/Invia (comunque composti

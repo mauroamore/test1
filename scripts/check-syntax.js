@@ -41,6 +41,7 @@ checkCommonJs("NexiEcr17Check.js");
 checkCommonJs("print-test-report.js");
 checkCommonJs("src/pcpos-preconto.js");
 checkCommonJs("src/external-order-normalization.js");
+checkCommonJs("src/table-locks.js");
 checkCommonJs("src/graphic-preconto.js");
 checkHtmlScripts(path.join("outputs", "gestione-comande-ristorante.html"));
 

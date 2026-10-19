@@ -215,7 +215,7 @@ function monitorAuthorized(request) {
   return Boolean(monitor && monitor.active !== false && monitor.accessKey && constantTimeKeyEquals(accessKey, monitor.accessKey));
 }
 
-function mutationAuthorized(request, response) {
+function mutationAuthorized(request, response, { allowMonitor = true } = {}) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return true;
   // La sessione ottenuta con la password resta valida anche quando non e'
   // configurata una LOCAL_API_KEY. Prima questo caso usciva subito con false:
@@ -223,7 +223,7 @@ function mutationAuthorized(request, response) {
   if (localSessionAuthorized(request)) return true;
   // La chiave monitor abilita esclusivamente le operazioni atomiche del monitor;
   // non deve poter autorizzare pagamenti, configurazione o altre mutazioni.
-  if (request.url === "/api/operations" && monitorAuthorized(request)) return true;
+  if (allowMonitor && request.url === "/api/operations" && monitorAuthorized(request)) return true;
   if (request.url === "/api/glovo/orders" && GLOVO_ORDERS_KEY && constantTimeKeyEquals(request.headers["x-glovo-key"], GLOVO_ORDERS_KEY)) return true;
   if (LOCAL_API_KEY && constantTimeKeyEquals(request.headers["x-local-api-key"], LOCAL_API_KEY)) return true;
   return !LOCAL_API_KEY && ALLOW_INSECURE_LOCAL_API;
@@ -2139,12 +2139,20 @@ const server = http.createServer((request, response) => {
         const expectedRevision = Number(payload.expectedRevision || 0);
         const currentRevision = Number(sharedState.stateRevision || 0);
         if (operation === "commit_order") {
+          if (!mutationAuthorized(request, response, { allowMonitor: false })) return sendJson(response, 403, { ok: false, error: "Accesso gestione comande richiesto" });
           const incomingOrder = payload.order && typeof payload.order === "object" ? structuredClone(payload.order) : null;
           if (!incomingOrder || incomingOrder.id == null) return sendJson(response, 400, { ok: false, error: "Comanda non valida" });
           const orderId = String(incomingOrder.id);
           const isManualPickup = incomingOrder.source === "manual";
           const isTableOrder = !incomingOrder.source;
-          if (!isManualPickup && !isTableOrder) return sendJson(response, 403, { ok: false, error: "Tipo di comanda non autorizzato" });
+          const isImportedOrder = ["deliveroo", "glovo", "justeat", "hubrise", "sigonella"].includes(incomingOrder.source);
+          if (!isManualPickup && !isTableOrder && !isImportedOrder) return sendJson(response, 403, { ok: false, error: "Tipo di comanda non autorizzato" });
+          const target = isTableOrder ? sharedState.tables : sharedState.deliveryOrders;
+          const currentOrder = (target || []).find(order => String(order.id) === orderId);
+          if (isImportedOrder && !currentOrder) return sendJson(response, 404, { ok: false, error: "Ordine esterno non piu' disponibile: aggiorna la pagina" });
+          if (currentOrder && (currentOrder.source !== incomingOrder.source || (isImportedOrder && String(currentOrder.externalOrderId || "") !== String(incomingOrder.externalOrderId || "")))) {
+            return sendJson(response, 403, { ok: false, error: "La provenienza dell'ordine non puo' essere modificata" });
+          }
           if (isTableOrder) {
             const lock = tableLocks.get(orderId);
             // A free table has no order record yet: its first commit creates it below.
@@ -2152,15 +2160,17 @@ const server = http.createServer((request, response) => {
               return sendJson(response, 409, { ok: false, stale: true, lockExpired: true, state: stateForClient(sharedState), stateRevision: currentRevision });
             }
           }
-          const collections = [sharedState.tables || [], sharedState.deliveryOrders || []];
-          const currentOrder = collections.flat().find(order => String(order.id) === orderId);
           if (currentOrder && payload.baseOrderRevision) {
             const revision = order => JSON.stringify({ sentCovers: Number(order?.sentCovers || 0), lines: (Array.isArray(order?.items) ? order.items : []).map(line => ({ key: line.key, sentQty: Number(line.sentQty || 0), kitchenStatus: line.kitchenStatus || "" })).sort((a, b) => String(a.key).localeCompare(String(b.key))) });
             if (revision(currentOrder) !== String(payload.baseOrderRevision)) return sendJson(response, 409, { ok: false, stale: true, orderConflict: true, state: stateForClient(sharedState), stateRevision: currentRevision });
           }
-          const target = isManualPickup ? sharedState.deliveryOrders : sharedState.tables;
           const index = target.findIndex(order => String(order.id) === orderId);
           if (currentOrder) {
+            if (isImportedOrder) {
+              for (const key of ["externalStatus", `${incomingOrder.source}Payload`]) {
+                if (Object.prototype.hasOwnProperty.call(currentOrder, key)) incomingOrder[key] = structuredClone(currentOrder[key]);
+              }
+            }
             reopenDismissedMonitorCoursesForNewLines(currentOrder, incomingOrder, sharedState.settings);
             mergeMonitorFields(currentOrder, incomingOrder);
           }
